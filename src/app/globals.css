@@ -1,0 +1,340 @@
+@import url('https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Hanken+Grotesk:wght@600;700;800&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --color-surface: #faf8ff;
+  --color-surface-dim: #d2d9f4;
+  --color-surface-bright: #faf8ff;
+  --color-surface-container-lowest: #ffffff;
+  --color-surface-container-low: #f2f3ff;
+  --color-surface-container: #eaedff;
+  --color-surface-container-high: #e2e7ff;
+  --color-surface-container-highest: #dae2fd;
+  --color-on-surface: #131b2e;
+  --color-on-surface-variant: #3d4a42;
+  --color-inverse-surface: #283044;
+  --color-inverse-on-surface: #eef0ff;
+  --color-outline: #6d7a72;
+  --color-outline-variant: #bccac0;
+  --color-surface-tint: #006c4a;
+  --color-primary: #006948;
+  --color-on-primary: #ffffff;
+  --color-primary-container: #00855d;
+  --color-on-primary-container: #f5fff7;
+  --color-inverse-primary: #68dba9;
+  --color-secondary: #006a63;
+  --color-on-secondary: #ffffff;
+  --color-secondary-container: #99efe5;
+  --color-on-secondary-container: #006f67;
+  --color-tertiary: #006947;
+  --color-on-tertiary: #ffffff;
+  --color-tertiary-container: #00855b;
+  --color-on-tertiary-container: #f5fff6;
+  --color-error: #ba1a1a;
+  --color-on-error: #ffffff;
+  --color-error-container: #ffdad6;
+  --color-on-error-container: #93000a;
+  --color-primary-fixed: #85f8c4;
+  --color-primary-fixed-dim: #68dba9;
+  --color-on-primary-fixed: #002114;
+  --color-on-primary-fixed-variant: #005137;
+  --color-secondary-fixed: #9cf2e8;
+  --color-secondary-fixed-dim: #80d5cb;
+  --color-on-secondary-fixed: #00201d;
+  --color-on-secondary-fixed-variant: #00504a;
+  --color-tertiary-fixed: #6ffbbe;
+  --color-tertiary-fixed-dim: #4edea3;
+  --color-on-tertiary-fixed: #002113;
+  --color-on-tertiary-fixed-variant: #005236;
+  --color-background: #faf8ff;
+  --color-on-background: #131b2e;
+  --color-surface-variant: #dae2fd;
+
+  --font-heading: "Hanken Grotesk", sans-serif;
+  --font-sans: "Geist", sans-serif;
+}
+
+:root {
+  --ink: #131b2e;
+  --text: #3d4a42;
+  --muted: #6d7a72;
+  --line: #e2e7ff;
+  --canvas: #faf8ff;
+  --white: #ffffff;
+  --primary: #006948;
+  --primary-dark: #005137;
+  --primary-soft: #eaedff;
+  --danger: #ba1a1a;
+  --input-background: #ffffff;
+  --input-border: #cedfea;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+.skeleton-shimmer > * {
+  animation: skeleton-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes skeleton-pulse {
+  0%, 100% { opacity: 0.62; }
+  50% { opacity: 1; }
+}
+
+@keyframes auth-page-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.auth-page-enter {
+  animation: auth-page-enter 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.auth-page-enter-delayed {
+  animation-delay: 70ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-page-enter,
+  .auth-page-enter-delayed {
+    animation: none;
+  }
+}
+
+@layer base {
+  html, body {
+    scrollbar-width: none !important;
+    -ms-overflow-style: none !important;
+  }
+  ::-webkit-scrollbar {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+    background: transparent !important;
+  }
+  ::-webkit-scrollbar-thumb,
+  ::-webkit-scrollbar-track {
+    display: none !important;
+  }
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  color: var(--ink);
+  background-color: var(--canvas);
+  font-family: var(--font-sans);
+  line-height: 1.6;
+}
+
+[data-theme="dark"] {
+  --color-surface: #111827;
+  --color-surface-dim: #0f172a;
+  --color-surface-bright: #1f2937;
+  --color-surface-container-lowest: #1f2937;
+  --color-surface-container-low: #182235;
+  --color-surface-container: #243047;
+  --color-surface-container-high: #334155;
+  --color-surface-container-highest: #475569;
+  --color-on-surface: #f1f5f9;
+  --color-on-surface-variant: #cbd5e1;
+  --color-outline: #94a3b8;
+  --color-outline-variant: #475569;
+  --color-background: #111827;
+  --color-on-background: #f1f5f9;
+  --canvas: #111827;
+  --ink: #f1f5f9;
+  --text: #cbd5e1;
+  --muted: #94a3b8;
+  --line: #334155;
+  --white: #1f2937;
+  --primary-soft: #243047;
+  --danger: #f87171;
+  --input-background: #1f2937;
+  --input-border: #475569;
+}
+
+[data-theme="dark"] .bg-emerald-50 {
+  background-color: #12352d !important;
+}
+
+[data-theme="dark"] .bg-blue-50 {
+  background-color: #172d4a !important;
+}
+
+[data-theme="dark"] .bg-amber-50 {
+  background-color: #493518 !important;
+}
+
+[data-theme="dark"] .bg-violet-50 {
+  background-color: #30224f !important;
+}
+
+[data-theme="dark"] .bg-emerald-50,
+[data-theme="dark"] .bg-blue-50,
+[data-theme="dark"] .bg-amber-50,
+[data-theme="dark"] .bg-violet-50 {
+  color: var(--color-on-surface);
+}
+
+[data-theme="dark"] .text-emerald-600,
+[data-theme="dark"] .text-emerald-700,
+[data-theme="dark"] .text-blue-700,
+[data-theme="dark"] .text-amber-700,
+[data-theme="dark"] .text-violet-700 {
+  color: #a7f3d0 !important;
+}
+
+[data-theme="dark"] .border-emerald-200\/60,
+[data-theme="dark"] .border-blue-200\/60,
+[data-theme="dark"] .border-amber-200\/60,
+[data-theme="dark"] .border-violet-200\/60 {
+  border-color: #475569 !important;
+}
+
+[data-theme="dark"] .border-amber-200 {
+  border-color: #a16207 !important;
+}
+
+[data-theme="dark"] .text-amber-900 {
+  color: #fde68a !important;
+}
+
+[data-theme="dark"] .bg-amber-50 {
+  color: #fde68a !important;
+}
+
+[data-theme="dark"] .bg-secondary-container\/40,
+[data-theme="dark"] .bg-secondary-container\/50 {
+  background-color: #164e63 !important;
+}
+
+[data-theme="dark"] .text-on-secondary-container {
+  color: #a5f3fc !important;
+}
+
+[data-theme="dark"] .bg-error-container {
+  background-color: #4c1d1d !important;
+}
+
+[data-theme="dark"] .text-on-error-container {
+  color: #fecaca !important;
+}
+
+/* Heading Typography Utilities */
+h1, h2, h3, .font-heading {
+  font-family: var(--font-heading);
+}
+
+/* App Shell & Dashboard Styles */
+.auth-page {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+}
+
+.auth-card {
+  width: min(100%, 390px);
+  background: var(--input-background);
+  padding: 29px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 12px 35px rgba(19, 27, 46, 0.06);
+}
+
+.auth-form, .form {
+  display: grid;
+  gap: 13px;
+  margin-top: 20px;
+}
+
+.auth-form label, .form label, .settings-panel label {
+  display: grid;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #3d4a42;
+}
+
+.auth-form input, .form input, .form select, .settings-panel input {
+  width: 100%;
+  border: 1px solid var(--input-border);
+  border-radius: 4px;
+  padding: 9px 10px;
+  background: var(--input-background);
+  color: var(--ink);
+  outline: 0;
+}
+
+.auth-form input:focus, .form input:focus, .form select:focus {
+  border-color: #006948;
+  box-shadow: 0 0 0 3px #eaedff;
+}
+
+.app-shell {
+  width: min(calc(100% - 36px), 1230px);
+  min-height: calc(100vh - 36px);
+  margin: 18px auto;
+  border: 1px solid #e2e7ff;
+  border-radius: 7px;
+  overflow: hidden;
+  display: flex;
+  background: #fff;
+  box-shadow: 0 12px 30px rgba(19, 27, 46, 0.035);
+}
+
+.sidebar {
+  width: 194px;
+  flex: none;
+  background: #f2f3ff;
+  border-right: 1px solid var(--line);
+  padding: 15px 12px;
+  display: flex;
+  flex-direction: column;
+}
+
+.content {
+  min-width: 0;
+  flex: 1;
+  background: #fff;
+}
+
+.page {
+  padding: 22px 25px 28px;
+}
+
+/* Rules direct to root level outside layers to force browser scrollbar hiding */
+html, body, div, main, section {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+::-webkit-scrollbar,
+::-webkit-scrollbar-thumb,
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  background: transparent !important;
+}
+
+/* Keyframe de animación flotante para back-to-top */
+@keyframes float-bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+}
+
+.animate-float-bounce {
+  animation: float-bounce 2s ease-in-out infinite;
+}

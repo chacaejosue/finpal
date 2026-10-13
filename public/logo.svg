@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="72" y1="40" x2="440" y2="472" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#18A47D"/>
+      <stop offset="1" stop-color="#075E4B"/>
+    </linearGradient>
+    <linearGradient id="mark" x1="145" y1="125" x2="363" y2="391" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#C7F9E6"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="10" stdDeviation="14" flood-color="#043B30" flood-opacity=".28"/>
+    </filter>
+  </defs>
+
+  <rect x="24" y="24" width="464" height="464" rx="126" fill="url(#bg)" filter="url(#shadow)"/>
+  <path d="M78 196C106 101 194 54 287 70C372 84 432 139 456 208C405 164 348 144 286 145C202 146 133 163 78 196Z" fill="#fff" fill-opacity=".08"/>
+
+  <!-- F: claridad y control -->
+  <path d="M139 130C139 118.954 147.954 110 159 110H352C363.046 110 372 118.954 372 130V158C372 169.046 363.046 178 352 178H216V222H326C337.046 222 346 230.954 346 242V269C346 280.046 337.046 289 326 289H216V382C216 393.046 207.046 402 196 402H159C147.954 402 139 393.046 139 382V130Z" fill="url(#mark)"/>
+
+  <!-- Moneda ascendente: dinero que se entiende -->
+  <circle cx="350" cy="355" r="61" fill="#5FE0B0"/>
+  <circle cx="350" cy="355" r="47" stroke="#075E4B" stroke-opacity=".36" stroke-width="6"/>
+  <path d="M350 323V387M365 335C360 329 353 327 347 327C338 327 331 333 331 341C331 350 338 353 350 356C362 359 369 363 369 372C369 381 361 387 351 387C343 387 335 384 330 378" stroke="#075E4B" stroke-width="9" stroke-linecap="round"/>
+</svg>
