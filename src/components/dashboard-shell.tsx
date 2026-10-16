@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ReactNode, useState, useTransition } from "react";
+import { ReactNode, useState, useTransition, useEffect, useMemo } from "react";
 import type { CSSProperties } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
@@ -23,13 +23,17 @@ import {
   AlertCircle,
   Calendar,
   FileBarChart2,
+  Menu,
 } from "lucide-react";
 import { useEspacio } from "@/lib/espacio-context";
-import { useDashboard, money, loanBalance, rel, type Contacto, type Cuenta, type Prestamo } from "@/lib/dashboard-context";
+import { useDashboard, money, loanBalance, monthlyInterest, rel, type Contacto, type Cuenta, type Prestamo } from "@/lib/dashboard-context";
 import { FinPalLogo } from "@/components/finpal-logo";
 import { ImportModal } from "@/features/importacion/import-modal";
 import { signOut } from "@/app/(auth)/actions";
 import { formatDateEs } from "@/lib/format-date";
+import { InactivityMonitor } from "@/components/inactivity-monitor";
+import { DeudorPrestamoPicker } from "@/components/deudor-prestamo-picker";
+import { NotificationToast } from "@/components/notification-toast";
 
 const navItems = [
   { label: "Inicio", path: "/inicio", key: "inicio", icon: LayoutDashboard },
@@ -65,22 +69,24 @@ export function DashboardShell({
     submitting,
     formError,
     successNotice,
+    setSuccessNotice,
     handleSubmitModal,
     preferencias,
   } = useDashboard();
 
   const [showWorkspaceDropdown, setShowWorkspaceDropdown] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [optimisticPath, setOptimisticPath] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+
+  // Cerrar menú móvil automáticamente al navegar
+  useEffect(() => {
+    setMobileNavOpen(false);
+  }, [pathname, optimisticPath]);
 
   const isRouteLoading = optimisticPath !== null && pathname !== optimisticPath;
   const activePath = isRouteLoading ? optimisticPath : pathname;
   const avatarLetters = userEmail ? userEmail.slice(0, 2).toUpperCase() : "FP";
-
-  // Si estamos en la selección de espacios, no mostramos el shell del dashboard
-  if (pathname === "/espacios") {
-    return <>{children}</>;
-  }
 
   const accent = {
     verde: { primary: "#006948", container: "#00855d", dark: "#005137" },
@@ -96,21 +102,195 @@ export function DashboardShell({
     "--primary-dark": accent.dark,
   } as CSSProperties;
 
+  // Sincronizar tema oscuro con documentElement para evitar cortes en el fondo y overscroll
+  useEffect(() => {
+    const isDark = Boolean(preferencias.modoOscuro);
+    document.documentElement.setAttribute("data-theme", isDark ? "dark" : "light");
+    document.documentElement.style.colorScheme = isDark ? "dark" : "light";
+    if (isDark) {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
+    try {
+      localStorage.setItem("finpal-dark-mode", isDark ? "true" : "false");
+    } catch {}
+
+    const metaTheme = document.querySelector('meta[name="theme-color"]');
+    if (metaTheme) {
+      metaTheme.setAttribute("content", isDark ? "#111827" : "#faf8ff");
+    }
+  }, [preferencias.modoOscuro]);
+
+  useEffect(() => {
+    if (!accent) return;
+    document.documentElement.style.setProperty("--color-primary", accent.primary);
+    document.documentElement.style.setProperty("--color-primary-container", accent.container);
+    document.documentElement.style.setProperty("--primary", accent.primary);
+    document.documentElement.style.setProperty("--primary-dark", accent.dark);
+  }, [accent]);
+
+  // Si estamos en la selección de espacios, no mostramos el shell del dashboard
+  if (pathname === "/espacios") {
+    return (
+      <div
+        data-theme={preferencias.modoOscuro ? "dark" : "light"}
+        style={themeStyle}
+        className="min-h-screen w-full bg-surface text-on-surface antialiased flex flex-col selection:bg-primary-fixed selection:text-on-primary-fixed"
+      >
+        {children}
+        <InactivityMonitor />
+      </div>
+    );
+  }
+
   return (
     <div
       data-theme={preferencias.modoOscuro ? "dark" : "light"}
       style={themeStyle}
       className="min-h-screen bg-surface text-on-surface antialiased flex selection:bg-primary-fixed selection:text-on-primary-fixed"
     >
-      {/* Top Loading Progress Bar */}
+      {/* Barra de progreso de carga superior */}
       {(isPending || optimisticPath !== null) && (
         <div className="fixed top-0 left-0 right-0 h-[2.5px] z-50 overflow-hidden bg-primary/20">
           <div className="h-full bg-primary animate-pulse w-full shadow-[0_0_8px_var(--color-primary)]" />
         </div>
       )}
 
-      {/* Sidebar Fija y Persistente */}
-      <aside className="fixed left-0 top-0 h-full w-60 bg-surface-container-lowest border-r border-surface-container-high/60 z-40 flex flex-col justify-between shadow-[0_1px_8px_rgba(0,0,0,0.04)]">
+      {/* Telón de fondo para menú móvil */}
+      {mobileNavOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 backdrop-blur-xs z-50 md:hidden animate-fade-in"
+          onClick={() => setMobileNavOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
+      {/* Mobile Sidebar Drawer */}
+      <aside
+        className={`fixed left-0 top-0 h-full w-72 max-w-[85vw] bg-surface-container-lowest border-r border-surface-container-high/60 z-50 flex flex-col justify-between shadow-2xl transition-transform duration-200 ease-in-out md:hidden ${
+          mobileNavOpen ? "translate-x-0" : "-translate-x-full pointer-events-none"
+        }`}
+        aria-label="Menú de navegación móvil"
+      >
+        <div className="flex flex-col">
+          {/* Brand & Close Button */}
+          <div className="h-16 px-4 flex items-center justify-between border-b border-surface-container-low">
+            <Link
+              href="/inicio"
+              prefetch={true}
+              onClick={() => {
+                setOptimisticPath("/inicio");
+                setMobileNavOpen(false);
+              }}
+              className="flex items-center gap-2.5 hover:opacity-90 transition-opacity"
+            >
+              <FinPalLogo size={38} className="w-10 h-10" colorAcento={preferencias.colorAcento} priority />
+              <div className="flex items-baseline tracking-tight font-heading text-xl">
+                <span className="font-extrabold text-on-surface">Fin</span>
+                <span className="font-extrabold text-primary">Pal</span>
+              </div>
+            </Link>
+            <button
+              type="button"
+              onClick={() => setMobileNavOpen(false)}
+              className="p-1.5 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors cursor-pointer"
+              aria-label="Cerrar menú"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          {/* Selector de Espacio de Trabajo */}
+          <div className="px-4 py-3 relative">
+            <button
+              className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-surface-container-low text-on-surface hover:bg-surface-container transition-colors border border-surface-container-high/40 text-xs font-semibold cursor-pointer"
+              type="button"
+              onClick={() => setShowWorkspaceDropdown((v) => !v)}
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                <FolderOpen className="w-4 h-4 text-primary shrink-0" />
+                <span className="truncate">{espacioNombre || "Cargando..."}</span>
+              </div>
+              <ChevronDown className="w-4 h-4 text-on-surface-variant shrink-0" />
+            </button>
+
+            {showWorkspaceDropdown && (
+              <div className="absolute left-4 right-4 top-[3.25rem] bg-surface-container-lowest border border-surface-container-high/80 rounded-xl shadow-xl z-50 p-1 space-y-0.5">
+                <Link
+                  href="/espacios"
+                  prefetch={true}
+                  onClick={() => {
+                    setShowWorkspaceDropdown(false);
+                    setMobileNavOpen(false);
+                  }}
+                  className="w-full text-left px-3 py-2 text-xs font-semibold text-primary hover:bg-secondary-container/30 rounded-lg flex items-center gap-1.5"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Ver todos los espacios</span>
+                </Link>
+              </div>
+            )}
+          </div>
+
+          {/* Navegación móvil */}
+          <nav className="flex flex-col gap-0.5 px-3 mt-1 overflow-y-auto max-h-[calc(100vh-14rem)]">
+            {navItems.map((item) => {
+              const IconComp = item.icon;
+              const isActive = activePath === item.path || pathname === item.path;
+
+              return (
+                <Link
+                  key={item.key}
+                  href={item.path}
+                  prefetch={true}
+                  onClick={() => {
+                    setMobileNavOpen(false);
+                    startTransition(() => {
+                      setOptimisticPath(item.path);
+                    });
+                  }}
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all text-xs font-semibold cursor-pointer active:scale-[0.98] ${
+                    isActive
+                      ? "bg-primary text-on-primary shadow-xs"
+                      : "text-on-surface-variant hover:bg-surface-container-high/60 hover:text-on-surface"
+                  }`}
+                >
+                  <IconComp className="w-4 h-4 shrink-0" />
+                  <span>{item.label}</span>
+                  {item.key === "prestamos" && totals.lateCount > 0 && (
+                    <span
+                      className={`ml-auto text-[11px] px-1.5 py-0.2 rounded-full font-bold ${
+                        isActive
+                          ? "bg-surface-container-lowest text-primary"
+                          : "bg-error-container text-on-error-container"
+                      }`}
+                    >
+                      {totals.lateCount}
+                    </span>
+                  )}
+                </Link>
+              );
+            })}
+          </nav>
+        </div>
+
+        {/* Cerrar Sesión Móvil */}
+        <div className="p-3 border-t border-surface-container-low">
+          <form action={signOut}>
+            <button
+              type="submit"
+              className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl bg-surface-container-low hover:bg-error-container/40 hover:text-error text-on-surface transition-colors border border-surface-container-high/40 text-xs font-medium cursor-pointer"
+            >
+              <LogOut className="w-4 h-4" />
+              <span>Cerrar sesión</span>
+            </button>
+          </form>
+        </div>
+      </aside>
+
+      {/* Sidebar Desktop Fija y Persistente */}
+      <aside className="hidden md:flex fixed left-0 top-0 h-full w-60 bg-surface-container-lowest border-r border-surface-container-high/60 z-40 flex-col justify-between shadow-[0_1px_8px_rgba(0,0,0,0.04)]">
         <div className="flex flex-col">
           {/* Brand */}
           <div className="h-16 px-4 flex items-center justify-between border-b border-surface-container-low">
@@ -120,8 +300,8 @@ export function DashboardShell({
               onClick={() => setOptimisticPath("/inicio")}
               className="flex items-center gap-2.5 hover:opacity-90 transition-opacity"
             >
-              <FinPalLogo size={32} className="w-8 h-8 rounded-lg shadow-xs" priority />
-              <div className="flex items-baseline tracking-tight font-heading text-lg">
+              <FinPalLogo size={38} className="w-10 h-10" colorAcento={preferencias.colorAcento} priority />
+              <div className="flex items-baseline tracking-tight font-heading text-xl">
                 <span className="font-extrabold text-on-surface">Fin</span>
                 <span className="font-extrabold text-primary">Pal</span>
               </div>
@@ -135,9 +315,9 @@ export function DashboardShell({
               type="button"
               onClick={() => setShowWorkspaceDropdown((v) => !v)}
             >
-              <div className="flex items-center gap-2">
-                <FolderOpen className="w-4 h-4 text-primary" />
-                <span className="truncate max-w-[100px]">{espacioNombre || "Cargando..."}</span>
+              <div className="flex items-center gap-2 min-w-0">
+                <FolderOpen className="w-4 h-4 text-primary shrink-0" />
+                <span className="truncate max-w-[120px]">{espacioNombre || "Cargando..."}</span>
               </div>
               <ChevronDown className="w-4 h-4 text-on-surface-variant shrink-0" />
             </button>
@@ -213,63 +393,116 @@ export function DashboardShell({
       </aside>
 
       {/* Contenido Principal con Header Persistente */}
-      <div className="pl-60 flex-1 flex flex-col min-w-0">
-        <header className="fixed top-0 left-60 right-0 h-16 bg-surface-container-lowest/90 backdrop-blur-md shadow-[0_1px_4px_rgba(0,0,0,0.03)] border-b border-surface-container-high/60 z-30 flex items-center justify-between px-8">
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 text-xs font-semibold text-on-surface-variant bg-surface-container-low px-3 py-1.5 rounded-lg border border-surface-container-high/40">
+      <div className="pl-0 md:pl-60 flex-1 flex flex-col min-w-0">
+        <header className="fixed top-0 left-0 md:left-60 right-0 h-16 bg-surface-container-lowest/90 backdrop-blur-md shadow-[0_1px_4px_rgba(0,0,0,0.03)] border-b border-surface-container-high/60 z-30 flex items-center justify-between px-4 sm:px-8">
+          <div className="flex items-center gap-2.5 sm:gap-3">
+            {/* Botón menú móvil */}
+            <button
+              type="button"
+              onClick={() => setMobileNavOpen(true)}
+              className="md:hidden p-2 -ml-1 text-on-surface hover:bg-surface-container rounded-xl transition-colors cursor-pointer"
+              aria-label="Abrir menú"
+            >
+              <Menu className="w-5 h-5 text-on-surface" />
+            </button>
+
+            {/* Logo en versión móvil */}
+            <div className="flex items-center gap-2.5 md:hidden">
+              <FinPalLogo size={34} className="w-[34px] h-[34px]" colorAcento={preferencias.colorAcento} priority />
+              <span className="font-heading font-extrabold text-lg tracking-tight text-on-surface">Fin<span className="text-primary">Pal</span></span>
+            </div>
+
+            {/* Fecha en versión desktop / tablet */}
+            <div className="hidden lg:flex items-center gap-2 text-xs font-semibold text-on-surface-variant bg-surface-container-low px-3 py-1.5 rounded-lg border border-surface-container-high/40">
               <Calendar className="w-4 h-4 text-primary" />
-              <span>
+              <span className="capitalize">
                 {new Date().toLocaleDateString("es-BO", {
-                  weekday: "long",
+                  weekday: "short",
                   year: "numeric",
-                  month: "long",
+                  month: "short",
                   day: "numeric",
                 })}
               </span>
             </div>
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 sm:gap-4">
             <button
               type="button"
               onClick={() => setShowImportModal(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-surface-container-low hover:bg-surface-container border border-surface-container-high/40 text-on-surface transition-colors cursor-pointer"
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-semibold rounded-lg bg-surface-container-low hover:bg-surface-container border border-surface-container-high/40 text-on-surface transition-colors cursor-pointer"
+              title="Importar Excel o CSV"
             >
-              <FileSpreadsheet className="w-4 h-4 text-primary" />
-              <span>Importar Excel / CSV</span>
+              <FileSpreadsheet className="w-4 h-4 text-primary shrink-0" />
+              <span className="hidden sm:inline">Importar Excel / CSV</span>
+              <span className="sm:hidden text-[11px]">Importar</span>
             </button>
-            <div className="flex items-center gap-2.5 pl-2 border-l border-surface-container-low">
-              <div className="w-8 h-8 rounded-full bg-on-surface text-surface-container-lowest flex items-center justify-center font-bold text-xs ring-2 ring-primary/20">
+            <div className="flex items-center gap-2 sm:gap-2.5 pl-2 border-l border-surface-container-low">
+              <div className="w-8 h-8 rounded-full bg-on-surface text-surface-container-lowest flex items-center justify-center font-bold text-xs ring-2 ring-primary/20 shrink-0">
                 {avatarLetters}
               </div>
-              <div className="hidden md:flex flex-col text-left">
-                <span className="text-xs font-bold text-on-surface leading-tight">{userEmail}</span>
-                <span className="text-[11px] text-on-surface-variant leading-tight">{espacioNombre}</span>
+              <div className="hidden md:flex flex-col text-left max-w-[140px] lg:max-w-[180px]">
+                <span className="text-xs font-bold text-on-surface leading-tight truncate">{userEmail}</span>
+                <span className="text-[11px] text-on-surface-variant leading-tight truncate">{espacioNombre}</span>
               </div>
             </div>
           </div>
         </header>
 
         {/* Children Rendered Instantly */}
-        <main className="w-full pt-20 px-8 pb-12 min-h-[calc(100vh-4rem)]">
+        <main className="w-full pt-20 px-3.5 sm:px-8 pb-24 md:pb-12 min-h-[calc(100dvh-4rem)]">
           {isRouteLoading ? <DashboardRouteSkeleton path={optimisticPath} /> : children}
         </main>
       </div>
 
+      {/* Barra de Navegación Móvil Inferior (Thumb-friendly) */}
+      <nav
+        aria-label="Navegación rápida inferior"
+        className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-surface-container-lowest/95 backdrop-blur-lg border-t border-surface-container-high/60 z-40 flex items-center justify-around px-1 shadow-[0_-2px_12px_rgba(0,0,0,0.06)]"
+      >
+        {[
+          { label: "Inicio", path: "/inicio", icon: LayoutDashboard },
+          { label: "Préstamos", path: "/prestamos", icon: HandCoins },
+          { label: "Cobros", path: "/pagos", icon: ReceiptText },
+          { label: "Contactos", path: "/contactos", icon: UsersRound },
+        ].map((item) => {
+          const isActive = activePath === item.path;
+          const Icon = item.icon;
+          return (
+            <Link
+              key={item.path}
+              href={item.path}
+              prefetch={true}
+              onClick={() => setOptimisticPath(item.path)}
+              className={`flex flex-col items-center justify-center flex-1 py-1 gap-0.5 transition-colors cursor-pointer ${
+                isActive ? "text-primary font-bold" : "text-on-surface-variant hover:text-on-surface"
+              }`}
+            >
+              <div className={`p-1 rounded-xl transition-all ${isActive ? "bg-primary/10 text-primary scale-105" : ""}`}>
+                <Icon className="w-5 h-5" />
+              </div>
+              <span className="text-[10px] leading-tight truncate">{item.label}</span>
+            </Link>
+          );
+        })}
+        <button
+          type="button"
+          onClick={() => setMobileNavOpen(true)}
+          className="flex flex-col items-center justify-center flex-1 py-1 gap-0.5 text-on-surface-variant hover:text-on-surface transition-colors cursor-pointer"
+        >
+          <div className="p-1 rounded-xl">
+            <Menu className="w-5 h-5" />
+          </div>
+          <span className="text-[10px] leading-tight">Más</span>
+        </button>
+      </nav>
+
       {/* Modals Compartidos */}
-      <AnimatePresence>
-        {successNotice && (
-          <motion.div
-            initial={{ opacity: 0, y: -10, scale: 0.96 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -8, scale: 0.98 }}
-            className="fixed top-20 right-6 z-[60] rounded-xl border border-emerald-500/25 bg-emerald-500/10 px-4 py-3 text-xs font-semibold text-emerald-700 shadow-lg backdrop-blur-sm"
-            role="status"
-          >
-            {successNotice}
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* Notificación Circular Animada Estilo Móvil con Timbre Armónico */}
+      <NotificationToast
+        message={successNotice}
+        onClose={() => setSuccessNotice(null)}
+      />
 
       <AnimatePresence>
         {modal && (
@@ -306,18 +539,18 @@ export function DashboardShell({
                 </p>
               )}
 
-              <div className="flex justify-end gap-3 pt-2">
+              <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 sm:gap-3 pt-2">
                 <button
                   type="button"
                   onClick={closeModal}
-                  className="px-4 py-2 rounded-xl text-xs font-semibold text-on-surface hover:bg-surface-container transition-colors cursor-pointer"
+                  className="w-full sm:w-auto px-4 py-2.5 rounded-xl text-xs font-semibold text-on-surface hover:bg-surface-container transition-colors cursor-pointer text-center"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="px-5 py-2 rounded-xl text-xs font-semibold bg-primary text-on-primary hover:bg-primary-container transition-colors shadow-xs flex items-center gap-2 disabled:opacity-60 cursor-pointer"
+                  className="w-full sm:w-auto px-5 py-2.5 rounded-xl text-xs font-semibold bg-primary text-on-primary hover:bg-primary-container transition-colors shadow-xs flex items-center justify-center gap-2 disabled:opacity-60 cursor-pointer"
                 >
                   {submitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                   {submitting ? modal === "account" ? "Creando cuenta..." : "Guardando..." : "Guardar"}
@@ -338,6 +571,9 @@ export function DashboardShell({
         }}
         cuentasDisponibles={cuentas.map((c) => ({ id: c.id, nombre: c.nombre }))}
       />
+
+      {/* Monitor de inactividad de sesión (alerta a 15m, cierre automático a 20m) */}
+      <InactivityMonitor />
     </div>
   );
 }
@@ -351,11 +587,11 @@ function DashboardRouteSkeleton({ path }: { path: string | null }) {
       aria-label={`Cargando ${label}`}
       className="w-full max-w-7xl mx-auto space-y-6 skeleton-shimmer"
     >
-      <div className="flex items-center justify-between pb-4 border-b border-surface-container-high/60">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-surface-container-high/60">
         <div className="space-y-2">
           <div className="h-4 w-28 bg-surface-container rounded-md" />
           <div className="h-8 w-56 bg-surface-container-high rounded-xl" />
-          <div className="h-3 w-80 bg-surface-container rounded-md" />
+          <div className="h-3 w-full max-w-xs bg-surface-container rounded-md" />
         </div>
         {!["/configuracion", "/reportes"].includes(path ?? "") && (
           <div className="h-10 w-36 bg-primary/20 rounded-xl" />
@@ -441,7 +677,7 @@ function RouteSkeletonContent({ path }: { path: string | null }) {
   );
 }
 
-// ─── Modal Wrapper ────────────────────────────────────────────────────────────
+// ─── Contenedor Modal (Envoltorio) ──────────────────────────────────────────
 
 function ModalWrapper({
   title,
@@ -457,31 +693,32 @@ function ModalWrapper({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-on-surface/40 backdrop-blur-xs p-4"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-xs p-0 sm:p-4"
       onClick={close}
     >
       <motion.div
-        initial={{ scale: 0.95, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        exit={{ scale: 0.95, opacity: 0 }}
-        className="bg-surface-container-lowest rounded-2xl border border-surface-container-high/80 shadow-2xl w-full max-w-md max-h-[calc(100vh-2rem)] overflow-y-auto overscroll-contain p-6 relative"
+        initial={{ y: 20, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        exit={{ y: 20, opacity: 0 }}
+        className="bg-surface-container-lowest rounded-t-3xl sm:rounded-2xl border border-surface-container-high/80 shadow-2xl w-full max-w-lg max-h-[92dvh] sm:max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain p-5 sm:p-6 relative"
         onClick={(e) => e.stopPropagation()}
       >
         <button
           type="button"
           onClick={close}
-          className="absolute top-4 right-4 text-on-surface-variant hover:text-on-surface p-1 rounded-lg transition-colors cursor-pointer"
+          className="absolute top-4 right-4 text-on-surface-variant hover:text-on-surface p-1.5 rounded-lg hover:bg-surface-container transition-colors cursor-pointer"
+          aria-label="Cerrar modal"
         >
           <X className="w-5 h-5" />
         </button>
-        <h2 className="font-heading text-xl font-bold text-on-surface mb-4">{title}</h2>
+        <h2 className="font-heading text-xl font-bold text-on-surface mb-4 pr-8">{title}</h2>
         {children}
       </motion.div>
     </motion.div>
   );
 }
 
-// ─── Form Inputs ──────────────────────────────────────────────────────────────
+// ─── Campos del Formulario ───────────────────────────────────────────────────
 
 function FormField({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -589,7 +826,8 @@ function PrestamoForm({
   tasaPredeterminada: number;
   onCreateAccount: () => void;
 }) {
-  const [cobraInteres, setCobraInteres] = useState(true);
+  const [cobraInteres, setCobraInteres] = useState(tasaPredeterminada > 0);
+  const [tasaInteres, setTasaInteres] = useState<number | string>(tasaPredeterminada);
   const [contactoSeleccionado, setContactoSeleccionado] = useState("");
   const [fechaInicio, setFechaInicio] = useState(new Date().toISOString().slice(0, 10));
   const [diaPago, setDiaPago] = useState(new Date().getDate());
@@ -622,29 +860,61 @@ function PrestamoForm({
           />
         </FormField>
       )}
+      <FormField label="Concepto / Alias del préstamo (opcional)">
+        <input
+          type="text"
+          name="nombre"
+          className={inputCls}
+          placeholder="Ej. Préstamo personal, Moto, Capital de trabajo..."
+        />
+      </FormField>
       <FormField label="Monto principal (Bs) *">
         <input type="number" name="monto_principal" required min={1} step="0.01" className={inputCls} />
       </FormField>
-      <div className="flex items-center gap-3">
+      <div className="flex items-center justify-between">
         <label className="flex items-center gap-2 text-xs font-semibold text-on-surface cursor-pointer">
           <input
             type="checkbox"
             name="cobra_interes"
             value="true"
             checked={cobraInteres}
-            onChange={(e) => setCobraInteres(e.target.checked)}
+            onChange={(e) => {
+              const checked = e.target.checked;
+              setCobraInteres(checked);
+              if (!checked) {
+                setTasaInteres(0);
+              } else if (Number(tasaInteres) === 0) {
+                setTasaInteres(tasaPredeterminada > 0 ? tasaPredeterminada : 3);
+              }
+            }}
             className="w-4 h-4 rounded accent-primary"
           />
           Cobra interés mensual
         </label>
+        {cobraInteres && Number(tasaInteres) === 0 && (
+          <span className="text-[11px] font-semibold text-primary bg-primary/10 px-2 py-0.5 rounded-md">
+            Sin interés (0%)
+          </span>
+        )}
       </div>
       {cobraInteres && (
-        <FormField label="Tasa mensual (%) *">
-          <input type="number" name="tasa_interes_mensual" required min={0.01} max={100} step="0.01" className={inputCls} defaultValue={tasaPredeterminada} placeholder="Ej. 3" />
+        <FormField label="Tasa mensual (%)">
+          <input
+            type="number"
+            name="tasa_interes_mensual"
+            required
+            min={0}
+            max={100}
+            step="0.01"
+            className={inputCls}
+            value={tasaInteres}
+            onChange={(e) => setTasaInteres(e.target.value)}
+            placeholder="0 para sin interés o ej. 3"
+          />
         </FormField>
       )}
       {!cobraInteres && <input type="hidden" name="tasa_interes_mensual" value="0" />}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <FormField label="Fecha inicio *">
           <DateField
             name="fecha_inicio"
@@ -690,51 +960,87 @@ function PrestamoForm({
           </button>
         )}
       </div>
+      <FormField label="Método de entrega (opcional)">
+        <input
+          type="text"
+          name="metodo_entrega"
+          className={inputCls}
+          placeholder="Efectivo, transferencia, QR..."
+        />
+      </FormField>
       <FormField label="Notas">
         <textarea name="notas" rows={2} className={`${inputCls} h-auto py-2.5`} />
       </FormField>
       <p className="text-[11px] text-on-surface-variant bg-surface-container-low rounded-xl px-3 py-2">
-        Próximo vencimiento sugerido: día {diaPago} del siguiente mes. Podrás registrar sin interés desactivando la casilla.
+        Próximo vencimiento sugerido: día {diaPago} del siguiente mes. Puedes ingresar 0% o desactivar la casilla para registrar préstamos sin interés.
       </p>
     </>
   );
 }
 
 function PagoForm({ prestamos, cuentas }: { prestamos: Prestamo[]; cuentas: Cuenta[] }) {
-  const [total, setTotal] = useState(0);
-  const [principal, setPrincipal] = useState(0);
-  const [prestamoId, setPrestamoId] = useState(prestamos[0]?.id ?? "");
+  // Solo préstamos que tienen deuda pendiente activa (> 0.01) y no están saldados ni cancelados
+  const prestamosPendientes = useMemo(() => {
+    return prestamos.filter(
+      (p) => p.estado !== "pagado" && p.estado !== "cancelado" && loanBalance(p) > 0.01
+    );
+  }, [prestamos]);
+
+  const [prestamoId, setPrestamoId] = useState<string>(prestamosPendientes[0]?.id ?? "");
+  const [total, setTotal] = useState<number | "">("");
+  const [principal, setPrincipal] = useState<number | "">("");
   const [fechaEsperada, setFechaEsperada] = useState(
-    prestamos[0]?.fecha_proximo_pago ?? new Date().toISOString().slice(0, 10),
+    prestamosPendientes[0]?.fecha_proximo_pago ?? new Date().toISOString().slice(0, 10),
   );
-  const interes = Math.max(0, total - principal);
-  const prestamoSeleccionado = prestamos.find((prestamo) => prestamo.id === prestamoId);
-  const capitalPendiente = prestamoSeleccionado
-    ? loanBalance(prestamoSeleccionado)
-    : 0;
+
+  const prestamoSeleccionado = useMemo(() => {
+    return prestamos.find((prestamo) => prestamo.id === prestamoId) ?? null;
+  }, [prestamos, prestamoId]);
+
+  const capitalPendiente = prestamoSeleccionado ? loanBalance(prestamoSeleccionado) : 0;
+  const numTotal = typeof total === "number" ? total : 0;
+  const numPrincipal = typeof principal === "number" ? principal : 0;
+  const interes = Math.max(0, numTotal - numPrincipal);
+  const interesEstimado = prestamoSeleccionado ? monthlyInterest(prestamoSeleccionado) : 0;
+
+  const handleSelectPrestamo = (p: Prestamo) => {
+    setPrestamoId(p.id);
+    if (p.fecha_proximo_pago) {
+      setFechaEsperada(p.fecha_proximo_pago);
+    }
+  };
+
+  const handleFillOnlyInterest = () => {
+    if (!prestamoSeleccionado) return;
+    const estInt = monthlyInterest(prestamoSeleccionado);
+    setTotal(estInt);
+    setPrincipal(0);
+  };
+
+  const handleFillOnlyCapital = () => {
+    if (!prestamoSeleccionado) return;
+    const balance = loanBalance(prestamoSeleccionado);
+    setTotal(balance);
+    setPrincipal(balance);
+  };
+
+  const handleFillFullBalance = () => {
+    if (!prestamoSeleccionado) return;
+    const balance = loanBalance(prestamoSeleccionado);
+    const estInt = monthlyInterest(prestamoSeleccionado);
+    setTotal(balance + estInt);
+    setPrincipal(balance);
+  };
+
   return (
     <>
-      <FormField label="Préstamo *">
-        <select
-          name="prestamo_id"
-          required
-          className={selectCls}
-          value={prestamoId}
-          onChange={(event) => {
-            const id = event.target.value;
-            setPrestamoId(id);
-            const siguiente = prestamos.find((prestamo) => prestamo.id === id)?.fecha_proximo_pago;
-            if (siguiente) setFechaEsperada(siguiente);
-          }}
-        >
-          <option value="">— Selecciona préstamo —</option>
-          {prestamos.filter((p) => p.estado !== "pagado").map((p) => (
-            <option key={p.id} value={p.id}>
-              {rel(p.contactos)?.nombre ?? "?"} — {p.nombre} ({money(loanBalance(p))} pendiente)
-            </option>
-          ))}
-        </select>
-      </FormField>
+      {/* Selector inteligente y buscador de deudores con desambiguación completa */}
+      <DeudorPrestamoPicker
+        prestamos={prestamos}
+        selectedId={prestamoId}
+        onSelect={handleSelectPrestamo}
+      />
+
       <FormField label="Fecha a la que corresponde el pago *">
         <DateField
           name="fecha_esperada"
@@ -743,40 +1049,92 @@ function PagoForm({ prestamos, cuentas }: { prestamos: Prestamo[]; cuentas: Cuen
           onChange={setFechaEsperada}
         />
       </FormField>
+
       <FormField label="Fecha de cobro *">
         <DateField name="recibido_en" required defaultValue={new Date().toISOString().slice(0, 10)} />
       </FormField>
-      <FormField label="Monto total cobrado (Bs) *">
-        <input type="number" name="monto_total" required min={0.01} step="0.01" className={inputCls} onChange={(e) => setTotal(Number(e.target.value))} />
-      </FormField>
-      <FormField label={`Capital abonado (Bs) · Interés de este abono: ${money(interes)}`}>
+
+      <div className="space-y-1.5">
+        <FormField label="Monto total cobrado (Bs) *">
+          <input
+            type="number"
+            name="monto_total"
+            required
+            min={0.01}
+            step="0.01"
+            className={inputCls}
+            value={total}
+            onChange={(e) => setTotal(e.target.value === "" ? "" : Number(e.target.value))}
+            placeholder="0.00"
+          />
+        </FormField>
+
+        {/* Botones de autocompletado rápido de montos */}
+        {prestamoSeleccionado && (
+          <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+            <span className="text-[10px] text-on-surface-variant font-medium">Llenado rápido:</span>
+            {interesEstimado > 0 && (
+              <button
+                type="button"
+                onClick={handleFillOnlyInterest}
+                className="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20 hover:bg-amber-500/20 transition-colors cursor-pointer"
+              >
+                Solo interés ({money(interesEstimado)})
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={handleFillOnlyCapital}
+              className="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20 transition-colors cursor-pointer"
+            >
+              Liquidar capital ({money(capitalPendiente)})
+            </button>
+            {interesEstimado > 0 && (
+              <button
+                type="button"
+                onClick={handleFillFullBalance}
+                className="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-surface-container text-on-surface border border-surface-container-high hover:bg-surface-container-high transition-colors cursor-pointer"
+              >
+                Capital + interés ({money(capitalPendiente + interesEstimado)})
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+
+      <FormField label={`Capital abonado (Bs) · Interés calculado: ${money(interes)}`}>
         <input
           type="number"
           name="monto_principal"
           required
           min={0}
-          max={Math.min(total, capitalPendiente)}
+          max={numTotal > 0 ? Math.min(numTotal, capitalPendiente) : capitalPendiente}
           step="0.01"
           className={inputCls}
-          onChange={(e) => setPrincipal(Number(e.target.value))}
-          placeholder={`Máx ${money(Math.min(total, capitalPendiente))}`}
+          value={principal}
+          onChange={(e) => setPrincipal(e.target.value === "" ? "" : Number(e.target.value))}
+          placeholder={`Máx ${money(numTotal > 0 ? Math.min(numTotal, capitalPendiente) : capitalPendiente)}`}
         />
       </FormField>
       <input type="hidden" name="monto_interes" value={interes} />
-      <p className="text-[11px] text-on-surface-variant bg-surface-container-low rounded-xl px-3 py-2">
-        Puedes registrar varios abonos para el mismo préstamo. Cada abono conserva
-        su interés y se acumula en el historial. Capital pendiente: {money(capitalPendiente)}.
+
+      <p className="text-[11px] text-on-surface-variant bg-surface-container-low rounded-xl px-3 py-2 leading-relaxed">
+        Cada abono descuenta el capital pendiente y acumula los intereses correspondientes en el historial. Saldo deudor pendiente: <strong className="font-mono text-on-surface">{money(capitalPendiente)}</strong>.
       </p>
-      <FormField label="Cuenta de destino *">
+
+      <FormField label="Cuenta de destino del dinero *">
         <select name="cuenta_dinero_id" required className={selectCls}>
           <option value="">— Selecciona cuenta —</option>
           {cuentas.map((c) => (
-            <option key={c.id} value={c.id}>{c.nombre}</option>
+            <option key={c.id} value={c.id}>
+              {c.nombre} (Saldo: {money(Number(c.saldo || 0))})
+            </option>
           ))}
         </select>
       </FormField>
+
       <FormField label="Método de pago">
-        <input type="text" name="metodo_pago" className={inputCls} placeholder="Efectivo, transferencia, QR..." />
+        <input type="text" name="metodo_pago" className={inputCls} placeholder="Efectivo, transferencia bancaria, QR..." />
       </FormField>
     </>
   );

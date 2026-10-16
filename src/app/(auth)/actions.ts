@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 
 export async function signIn(formData: FormData) {
@@ -10,6 +11,15 @@ export async function signIn(formData: FormData) {
   const { error } = await supabase.auth.signInWithPassword({ email, password });
 
   if (error) redirect(`/iniciar-sesion?error=${encodeURIComponent("No se pudo iniciar sesión. Revisa tus datos.")}`);
+
+  const cookieStore = await cookies();
+  cookieStore.set("finpal_last_active", Date.now().toString(), {
+    path: "/",
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+  });
+
   redirect("/inicio");
 }
 
@@ -48,5 +58,8 @@ export async function signInWithGoogle() {
 export async function signOut() {
   const supabase = await createClient();
   await supabase.auth.signOut();
+  const cookieStore = await cookies();
+  cookieStore.delete("finpal_last_active");
+  cookieStore.delete("finora_last_active");
   redirect("/iniciar-sesion");
 }

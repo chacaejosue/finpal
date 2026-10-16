@@ -4,6 +4,9 @@ import Link from "next/link";
 import { motion, AnimatePresence } from "motion/react";
 import { useEffect, useState, type MouseEvent } from "react";
 import { FinPalLogo } from "@/components/finpal-logo";
+import { ContactAvatar } from "@/components/contact-avatar";
+import { MODO_MANTENIMIENTO } from "@/config/mantenimiento";
+import { PantallaMantenimiento } from "@/components/pantalla-mantenimiento";
 import {
   ArrowUp,
   Banknote,
@@ -110,6 +113,10 @@ function handleLandingNavigation(event: MouseEvent<HTMLElement>) {
 }
 
 export default function Home() {
+  if (MODO_MANTENIMIENTO) {
+    return <PantallaMantenimiento />;
+  }
+
   const [copied, setCopied] = useState(false);
   const [showBackToTop, setShowBackToTop] = useState(false);
 
@@ -135,12 +142,12 @@ export default function Home() {
       className="bg-surface font-sans text-on-surface antialiased min-h-screen selection:bg-primary-fixed selection:text-on-primary-fixed relative"
       onClick={handleLandingNavigation}
     >
-      {/* Fixed Navigation Header Bar */}
+      {/* Barra de navegación superior fija */}
       <header className="fixed top-0 w-full z-50 bg-surface-container-lowest/85 backdrop-blur-xl border-b border-surface-container-high/60 shadow-[0_1px_8px_rgba(0,0,0,0.04)]">
         <div className="h-16 max-w-7xl mx-auto px-6 lg:px-12 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2.5 text-on-surface hover:opacity-90 transition-opacity">
-            <FinPalLogo size={32} className="w-8 h-8 rounded-lg shadow-xs" priority />
-            <div className="flex items-baseline tracking-tight font-heading text-xl">
+            <FinPalLogo size={40} className="w-10 h-10" priority />
+            <div className="flex items-baseline tracking-tight font-heading text-2xl">
               <span className="font-extrabold text-on-surface">Fin</span>
               <span className="font-extrabold text-primary">Pal</span>
             </div>
@@ -211,10 +218,10 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Hero Main Content */}
+          {/* Contenido principal del Hero */}
           <section className="max-w-7xl mx-auto px-6 lg:px-12 pt-6 pb-16 relative z-10">
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
-              {/* Left Column: Copy & Actions */}
+              {/* Columna izquierda: Descripción y Acciones */}
               <motion.div
                 className="lg:col-span-7 flex flex-col items-start space-y-6"
                 initial={{ opacity: 0, y: 16 }}
@@ -226,7 +233,7 @@ export default function Home() {
                   <span>Hecho para una necesidad real • En desarrollo continuo</span>
                 </div>
 
-                {/* Normalized H1 */}
+                {/* Título principal H1 */}
                 <h1 className="font-heading text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight leading-[1.12] text-on-surface text-balance">
                   Deja de repartir tu información entre varias herramientas:{" "}
                   <motion.span
@@ -251,14 +258,14 @@ export default function Home() {
                   </motion.span>
                 </h1>
 
-                {/* Normalized Paragraph */}
+                {/* Párrafo descriptivo */}
                 <p className="text-base sm:text-lg text-on-surface-variant max-w-2xl leading-relaxed">
                   FinPal nace para centralizar tu información financiera y evitar que tengas que consultar varios
                   lugares. Aquí puedes consultar tus cuentas, registrar movimientos y dar seguimiento a cobros y
                   préstamos desde el mismo sistema.
                 </p>
 
-                {/* Main CTAs */}
+                {/* Botones de acción principales (CTAs) */}
                 <div className="flex flex-wrap items-center gap-3 pt-2 w-full sm:w-auto">
                   <a
                     className="inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-primary hover:bg-primary-container text-on-primary font-semibold text-base shadow-md hover:shadow-lg transition-all active:scale-[0.99]"
@@ -318,7 +325,7 @@ export default function Home() {
                 </div>
               </motion.div>
 
-              {/* Right Column: Graphic Mockup & Visual Highlight */}
+              {/* Columna derecha: Maqueta visual e interfaz destacada */}
               <motion.div
                 className="lg:col-span-5 relative flex flex-col items-center lg:-translate-y-6"
                 initial={{ opacity: 0, scale: 0.96 }}
@@ -340,7 +347,7 @@ export default function Home() {
 
                   <div className="overflow-hidden rounded-xl bg-surface-container-low border border-surface-container-high/30 shadow-inner p-3">
                     <div className="flex items-center gap-2 mb-3">
-                      <FinPalLogo size={28} className="w-7 h-7 rounded-lg" priority />
+                      <FinPalLogo size={28} className="w-7 h-7" priority />
                       <div className="h-2.5 w-28 rounded-full bg-surface-container-high" />
                       <div className="ml-auto h-2.5 w-12 rounded-full bg-primary/25" />
                     </div>
@@ -419,9 +426,9 @@ export default function Home() {
               </div>
             </div>
 
-            {/* Bento Grid */}
+            {/* Cuadrícula Bento */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-              {/* Interactive Ledger Table (Span 8) */}
+              {/* Tabla interactiva de préstamos y movimientos (Ocupa 8 columnas) */}
               <div className="lg:col-span-8 bg-surface-container-lowest border border-surface-container-high/70 rounded-2xl p-6 shadow-xs flex flex-col justify-between">
                 <div>
                   <div className="flex items-center justify-between pb-4 border-b border-surface-container-low mb-4">
@@ -454,11 +461,11 @@ export default function Home() {
                             className="hover:bg-surface-container-low/40 transition-colors"
                           >
                             <td className="py-3.5 px-3.5 flex items-center gap-3">
-                              <div
-                                className={`w-9 h-9 rounded-full ${borrower.color} flex items-center justify-center font-bold text-xs shrink-0`}
-                              >
-                                {borrower.initials}
-                              </div>
+                              <ContactAvatar
+                                name={borrower.name}
+                                size={36}
+                                className="rounded-full shadow-2xs shrink-0"
+                              />
                               <div>
                                 <p className="font-semibold text-sm leading-snug">{borrower.name}</p>
                                 <p className="text-xs text-on-surface-variant">{borrower.detail}</p>
@@ -494,7 +501,7 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* Right Side: Mini Sparkline & Cash Flow Summary (Span 4) */}
+              {/* Lado derecho: Mini gráfico y resumen de flujo de fondos (Ocupa 4 columnas) */}
               <div className="lg:col-span-4 flex flex-col gap-6">
                 <div className="bg-surface-container-lowest border border-surface-container-high/70 rounded-2xl p-6 shadow-xs">
                   <span className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider font-mono">
@@ -628,7 +635,7 @@ export default function Home() {
           </div>
         </section>
 
-        {/* Community Call to Action Banner */}
+        {/* Banner de llamada a la acción del proyecto */}
         <section className="w-full py-20 bg-surface-container relative overflow-hidden">
           <div className="max-w-7xl mx-auto px-6 lg:px-12 text-center relative z-10">
             <div className="max-w-2xl mx-auto flex flex-col items-center">
@@ -665,7 +672,7 @@ export default function Home() {
           </div>
         </section>
 
-        {/* Community Footer Links Grid */}
+        {/* Cuadrícula de enlaces del pie de página */}
         <section className="w-full py-14 bg-surface-container-lowest border-t border-surface-container-high/40">
           <div className="max-w-7xl mx-auto px-6 lg:px-12">
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-8 lg:gap-16">
@@ -754,7 +761,7 @@ export default function Home() {
         </section>
       </main>
 
-      {/* Footer Bar */}
+      {/* Barra de pie de página inferior */}
       <footer className="w-full bg-surface-container-lowest border-t border-surface-container-high/40 py-8">
         <div className="max-w-7xl mx-auto px-6 lg:px-12 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2 text-on-surface-variant text-xs font-medium">
@@ -780,7 +787,7 @@ export default function Home() {
         </div>
       </footer>
 
-      {/* Animated Floating Back to Top Button */}
+      {/* Botón flotante animado para volver arriba */}
       <AnimatePresence>
         {showBackToTop && (
           <motion.button

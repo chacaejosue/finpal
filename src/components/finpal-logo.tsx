@@ -6,17 +6,24 @@ interface LogoProps {
   className?: string;
   size?: number;
   priority?: boolean;
+  colorAcento?: string;
 }
 
 export function FinPalLogo({
-  className = "w-8 h-8",
-  size = 32,
+  className = "w-10 h-10",
+  size = 38,
   priority = false,
+  colorAcento,
 }: LogoProps) {
+  const logoSrc =
+    colorAcento && ["azul", "violeta", "naranja", "rosa"].includes(colorAcento)
+      ? `/logo-${colorAcento}.svg`
+      : "/logo.svg";
+
   return (
-    <div className={`relative inline-flex items-center justify-center shrink-0 overflow-hidden ${className}`}>
+    <div className={`relative inline-flex items-center justify-center shrink-0 ${className}`}>
       <Image
-        src="/logo.svg"
+        src={logoSrc}
         alt="FinPal Logo"
         width={size * 2}
         height={size * 2}
@@ -27,18 +34,26 @@ export function FinPalLogo({
   );
 }
 
+export const FinoraLogo = FinPalLogo;
+
 export function FinPalBrand({
-  logoSize = 32,
-  textSize = "text-lg",
+  logoSize = 38,
+  textSize = "text-xl",
   className = "",
+  colorAcento,
 }: {
   logoSize?: number;
   textSize?: string;
   className?: string;
+  colorAcento?: string;
 }) {
   return (
-    <div className={`flex items-center gap-2.5 ${className}`}>
-      <FinPalLogo size={logoSize} className={`w-${Math.round(logoSize / 4)} h-${Math.round(logoSize / 4)}`} />
+    <div className={`flex items-center gap-3 ${className}`}>
+      <FinPalLogo
+        size={logoSize}
+        colorAcento={colorAcento}
+        className="w-10 h-10"
+      />
       <div className={`flex items-baseline tracking-tight font-heading ${textSize}`}>
         <span className="font-extrabold text-on-surface">Fin</span>
         <span className="font-extrabold text-primary">Pal</span>
@@ -46,3 +61,5 @@ export function FinPalBrand({
     </div>
   );
 }
+
+export const FinoraBrand = FinPalBrand;
