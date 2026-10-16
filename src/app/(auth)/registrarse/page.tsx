@@ -1,13 +1,32 @@
 import Link from "next/link";
-import { ArrowRight, Check, Lock, Mail, ShieldCheck } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Lock, Mail, ShieldCheck } from "lucide-react";
 import { signUp } from "../actions";
+import { FinPalLogo } from "@/components/finpal-logo";
 
 export default async function SignUpPage({ searchParams }: PageProps<"/registrarse">) {
   const { error } = await searchParams;
 
   return (
-    <div className="min-h-screen bg-background text-on-surface antialiased selection:bg-primary-fixed selection:text-on-primary-fixed">
-      <main className="flex min-h-screen w-full items-center justify-center px-4 py-6 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-background text-on-surface antialiased flex flex-col justify-between selection:bg-primary-fixed selection:text-on-primary-fixed relative">
+      {/* Cabecera superior con botón de regreso al inicio */}
+      <header className="w-full max-w-4xl mx-auto px-4 pt-5 pb-1 flex items-center justify-between relative z-20">
+        <Link
+          href="/"
+          className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-surface-container-low border border-surface-container-high/80 text-on-surface-variant hover:text-on-surface hover:bg-surface-container hover:border-primary/40 text-xs font-semibold transition-all duration-150 group shadow-2xs cursor-pointer"
+        >
+          <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
+          <span>Volver al inicio</span>
+        </Link>
+
+        <Link href="/" className="flex items-center gap-2 group focus:outline-none">
+          <FinPalLogo size={28} className="w-7 h-7 group-hover:scale-105 transition-transform" />
+          <span className="font-heading font-extrabold text-sm tracking-tight text-on-surface">
+            Fin<span className="text-primary">Pal</span>
+          </span>
+        </Link>
+      </header>
+
+      <main className="flex-1 flex w-full items-center justify-center px-4 py-4 sm:px-6 lg:px-8">
         <div className="auth-page-enter grid w-full max-w-4xl overflow-hidden rounded-3xl border border-surface-container-high/70 bg-surface-container-lowest shadow-xl lg:grid-cols-[0.9fr_1.1fr]">
           <section className="relative hidden flex-col justify-between overflow-hidden bg-primary p-10 text-on-primary lg:flex">
             <div className="relative z-10">

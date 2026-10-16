@@ -752,35 +752,36 @@ export function ImportModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
-      <div className="bg-surface border border-outline-variant/30 rounded-2xl max-w-3xl w-full p-6 shadow-2xl space-y-5 max-h-[92vh] flex flex-col">
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-outline-variant/20 pb-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary shadow-xs">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+      <div className="bg-surface border border-outline-variant/30 rounded-2xl max-w-3xl w-full p-4 sm:p-6 shadow-2xl space-y-4 sm:space-y-5 max-h-[94vh] flex flex-col">
+        {/* Encabezado */}
+        <div className="flex items-center justify-between border-b border-outline-variant/20 pb-3 sm:pb-4">
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary shadow-xs shrink-0">
               <FileSpreadsheet className="w-5 h-5" />
             </div>
-            <div>
-              <h3 className="text-base font-bold text-on-surface">
+            <div className="min-w-0">
+              <h3 className="text-sm sm:text-base font-bold text-on-surface truncate">
                 Importador Inteligente de FinPal
               </h3>
-              <p className="text-xs text-on-surface-variant">
+              <p className="text-[11px] sm:text-xs text-on-surface-variant truncate">
                 Arrastra tu archivo Excel (.xlsx, .xls) o CSV tal como lo tienes
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 text-on-surface-variant hover:text-on-surface rounded-lg hover:bg-surface-container transition-colors"
+            className="p-1.5 text-on-surface-variant hover:text-on-surface rounded-lg hover:bg-surface-container transition-colors shrink-0"
+            aria-label="Cerrar modal"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Selector de módulo y pasos */}
-        <div className="flex flex-wrap items-center justify-between gap-3 bg-surface-container-low/50 p-2.5 rounded-xl border border-outline-variant/20">
+        <div className="flex flex-wrap items-center justify-between gap-2.5 bg-surface-container-low/50 p-2 sm:p-2.5 rounded-xl border border-outline-variant/20">
           <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold text-on-surface-variant">Módulo:</span>
+            <span className="text-xs font-semibold text-on-surface-variant hidden sm:inline">Módulo:</span>
             <div className="inline-flex rounded-lg bg-surface-container p-0.5">
               {(
                 [
@@ -800,7 +801,7 @@ export function ImportModal({
                     setFileName("");
                     setResultado(null);
                   }}
-                  className={`px-3 py-1 text-xs font-semibold rounded-md transition-all ${
+                  className={`px-2.5 sm:px-3 py-1 text-xs font-semibold rounded-md transition-all ${
                     entidad === tab.id
                       ? "bg-primary text-on-primary shadow-xs"
                       : "text-on-surface-variant hover:text-on-surface"
@@ -812,12 +813,15 @@ export function ImportModal({
             </div>
           </div>
 
-          <div className="flex items-center gap-2 text-xs font-medium text-on-surface-variant">
+          <div className="hidden sm:flex items-center gap-2 text-xs font-medium text-on-surface-variant">
             <span className={step === "upload" ? "text-primary font-bold" : ""}>1. Subir archivo</span>
             <span>→</span>
             <span className={step === "mapping" ? "text-primary font-bold" : ""}>2. Emparejar columnas</span>
             <span>→</span>
             <span className={step === "preview" ? "text-primary font-bold" : ""}>3. Vista previa</span>
+          </div>
+          <div className="sm:hidden text-[11px] font-bold text-primary px-2 py-0.5 rounded-md bg-primary/10">
+            {step === "upload" ? "Paso 1: Archivo" : step === "mapping" ? "Paso 2: Mapeo" : "Paso 3: Revisión"}
           </div>
         </div>
 
@@ -1104,7 +1108,7 @@ export function ImportModal({
           </div>
         )}
 
-        {/* Footer Navigation */}
+        {/* Navegación al pie */}
         <div className="flex items-center justify-between pt-3 border-t border-outline-variant/20">
           <div>
             {step === "mapping" && !resultado && (

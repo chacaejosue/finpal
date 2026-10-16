@@ -1,8 +1,6 @@
 <p align="center">
-  <img src="public/finpal-cover.svg" alt="FinPal — centralización de cuentas, cobros y movimientos" width="100%" style="max-width: 1600px; height: auto;">
+  <img src="public/finpal-cover.svg" alt="FinPal — control claro de préstamos y finanzas personales" width="100%" style="max-width: 1600px; height: auto;">
 </p>
-
-<h1 align="center">FinPal</h1>
 
 <p align="center">
   Todo tu control financiero personal en un solo lugar.
@@ -95,14 +93,6 @@ NEXT_PUBLIC_SITE_URL=https://tu-proyecto.vercel.app
 
 La moneda predeterminada es BOB (Bs) y la zona inicial es `America/La_Paz`;
 ambas se guardan por espacio de trabajo.
-
-## Documentación
-
-- [Arquitectura](docs/architecture.md)
-- [Modelo de datos](docs/data-model.md)
-- [Cálculos financieros](docs/calculations.md)
-- [Lenguaje de la interfaz](docs/ui-language.md)
-- [Hoja de ruta](docs/roadmap.md)
 
 ## Principio de diseño
 

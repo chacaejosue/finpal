@@ -1,52 +1,72 @@
 import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
 import { signIn } from "../actions";
 import { AuthShowcase } from "@/components/auth-showcase";
 import { LoginForm } from "@/components/login-form";
+import { FinPalLogo } from "@/components/finpal-logo";
 
 export default async function SignInPage({ searchParams }: PageProps<"/iniciar-sesion">) {
   const { error, mensaje } = await searchParams;
   return (
-    <div className="min-h-screen bg-background text-on-surface antialiased flex flex-col justify-between selection:bg-primary-fixed selection:text-on-primary-fixed relative">
-      {/* Main Content Area */}
-      <main className="w-full flex-1 flex flex-col items-center justify-center px-4 py-3 relative z-10">
+    <div className="min-h-screen lg:h-screen lg:max-h-screen bg-background text-on-surface antialiased flex flex-col justify-between selection:bg-primary-fixed selection:text-on-primary-fixed relative overflow-y-auto lg:overflow-hidden">
+      {/* Cabecera superior con botón de regreso al inicio */}
+      <header className="w-full max-w-5xl mx-auto px-4 pt-3 pb-1 flex items-center justify-between relative z-20 shrink-0">
+        <Link
+          href="/"
+          className="inline-flex items-center gap-2 px-3 py-1 rounded-xl bg-surface-container-low border border-surface-container-high/80 text-on-surface-variant hover:text-on-surface hover:bg-surface-container hover:border-primary/40 text-xs font-semibold transition-all duration-150 group shadow-2xs cursor-pointer"
+        >
+          <ArrowLeft className="w-3.5 h-3.5 group-hover:-translate-x-0.5 transition-transform" />
+          <span>Volver al inicio</span>
+        </Link>
+
+        <Link href="/" className="flex items-center gap-2 group focus:outline-none">
+          <FinPalLogo size={26} className="w-6.5 h-6.5 group-hover:scale-105 transition-transform" />
+          <span className="font-heading font-extrabold text-sm tracking-tight text-on-surface">
+            Fin<span className="text-primary">Pal</span>
+          </span>
+        </Link>
+      </header>
+
+      {/* Área de contenido principal */}
+      <main className="w-full flex-1 flex flex-col items-center justify-center px-4 py-2 relative z-10 min-h-0">
         <div className="auth-page-enter relative w-full max-w-5xl mx-auto flex flex-col lg:flex-row items-center justify-between gap-6 my-auto">
-          {/* Atmospheric subtle ambient glows */}
+          {/* Destellos ambientales de fondo */}
           <div className="absolute -top-16 -left-16 w-80 h-80 bg-primary-fixed/20 rounded-full blur-3xl pointer-events-none -z-10" />
           <div className="absolute -bottom-16 right-10 w-96 h-96 bg-secondary-fixed/20 rounded-full blur-3xl pointer-events-none -z-10" />
 
-          {/* Left Brand Showcase */}
+          {/* Vitrina interactiva de marca */}
           <AuthShowcase />
 
-          {/* Right Authentication Card */}
-          <div className="w-full max-w-md mx-auto lg:mx-0">
-            <div className="auth-page-enter auth-page-enter-delayed bg-surface-container-lowest border border-surface-container-high/70 rounded-2xl shadow-xl p-5 sm:p-7 relative">
-              {/* Header */}
-              <div className="mb-5">
-                <h2 className="font-heading text-2xl sm:text-3xl text-on-surface font-extrabold tracking-tight">
+          {/* Tarjeta de autenticación */}
+          <div className="w-full max-w-md mx-auto lg:mx-0 shrink-0">
+            <div className="auth-page-enter auth-page-enter-delayed bg-surface-container-lowest border border-surface-container-high/70 rounded-2xl shadow-xl p-5 sm:p-6 relative">
+              {/* Encabezado */}
+              <div className="mb-3.5">
+                <h2 className="font-heading text-xl sm:text-2xl text-on-surface font-extrabold tracking-tight">
                   Iniciar sesión
                 </h2>
-                <p className="text-sm text-on-surface-variant mt-1.5 leading-relaxed">
+                <p className="text-xs text-on-surface-variant mt-1 leading-relaxed">
                   Ingresa a tu cuenta para gestionar tus espacios de trabajo.
                 </p>
               </div>
 
-              {/* Form Component */}
+              {/* Formulario de acceso */}
               <LoginForm action={signIn} />
 
-              {/* Error and Success Banners */}
+              {/* Avisos de error y éxito */}
               {error && (
-                <div className="mt-4 p-3 rounded-xl bg-error-container/60 border border-error/20 text-on-error-container text-xs font-semibold">
+                <div className="mt-3 p-2.5 rounded-xl bg-error-container/60 border border-error/20 text-on-error-container text-xs font-semibold">
                   {error}
                 </div>
               )}
               {mensaje && (
-                <div className="mt-4 p-3 rounded-xl bg-secondary-container/60 border border-primary/20 text-on-secondary-container text-xs font-semibold">
+                <div className="mt-3 p-2.5 rounded-xl bg-secondary-container/60 border border-primary/20 text-on-secondary-container text-xs font-semibold">
                   {mensaje}
                 </div>
               )}
 
-              {/* Footer Call to Action */}
-              <div className="mt-6 text-center text-xs text-on-surface-variant font-medium">
+              {/* Enlace para registrarse */}
+              <div className="mt-4 text-center text-xs text-on-surface-variant font-medium">
                 <span>¿No tienes una cuenta aún?</span>
                 <Link className="ml-1 inline-flex font-bold text-primary transition-[color,transform] duration-200 hover:-translate-y-px hover:text-primary-container" href="/registrarse">
                   Regístrate gratis
@@ -57,10 +77,10 @@ export default async function SignInPage({ searchParams }: PageProps<"/iniciar-s
         </div>
       </main>
 
-      {/* Footer */}
-      <footer className="w-full py-3 text-center border-t border-surface-container-high/30">
-        <div className="flex items-center justify-center gap-3 text-xs text-on-surface-variant font-medium">
-          <span className="font-mono uppercase text-outline text-[11px] tracking-wider">Open Source Ledger</span>
+      {/* Pie de página */}
+      <footer className="w-full py-2 text-center border-t border-surface-container-high/30 shrink-0">
+        <div className="flex items-center justify-center gap-3 text-[11px] text-on-surface-variant font-medium">
+          <span className="font-mono uppercase text-outline text-[10px] tracking-wider">Open Source Ledger</span>
           <span>•</span>
           <span>FinPal Protocol</span>
         </div>

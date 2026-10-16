@@ -50,6 +50,7 @@ import {
 } from "lucide-react";
 import { Contact, FinPalData, initialData, Loan, loanBalance, money, monthlyInterest, Movement, contactFor } from "@/lib/demo-data";
 import { formatDateEs } from "@/lib/format-date";
+import { FinPalLogo } from "@/components/finpal-logo";
 
 export type PageName =
   | "inicio"
@@ -89,7 +90,7 @@ export function FinPalPage({ page }: { page: PageName }) {
         try {
           setData(JSON.parse(saved));
         } catch {
-          // Fallback to initial data if JSON parsing fails
+          // Si falla la lectura del JSON guardado, se usan los datos iniciales
         }
       }
       setReady(true);
@@ -130,13 +131,16 @@ export function FinPalPage({ page }: { page: PageName }) {
     const accountId = String(form.get("accountId"));
     if (!principal || !contactId) return;
     const account = data.accounts.find((a) => a.id === accountId);
+    const rawRate = Number(form.get("rate")) || 0;
+    const wantsInterest = form.get("chargesInterest") === "on" || form.get("chargesInterest") === "true";
+    const chargesInterest = wantsInterest && rawRate > 0;
     const loan: Loan = {
       id: id(),
       contactId,
       principal,
       paidPrincipal: 0,
-      rate: Number(form.get("rate")) || 0,
-      chargesInterest: form.get("chargesInterest") === "on",
+      rate: chargesInterest ? rawRate : 0,
+      chargesInterest,
       startDate: String(form.get("startDate")),
       paymentDay: Number(form.get("paymentDay")) || 1,
       status: "Al día",
@@ -246,20 +250,21 @@ export function FinPalPage({ page }: { page: PageName }) {
 
   return (
     <div className="min-h-screen bg-[#f8fafc] text-on-surface antialiased flex selection:bg-primary-fixed selection:text-on-primary-fixed">
-      {/* 1. Sidebar Nav (240px wide) */}
+      {/* 1. Barra de navegación lateral (240px de ancho) */}
       <aside className="fixed left-0 top-0 h-full w-60 bg-surface-container-lowest border-r border-surface-container-high/60 z-40 flex flex-col justify-between shadow-[0_1px_8px_rgba(0,0,0,0.04)]">
         <div className="flex flex-col">
-          {/* Top Brand & Version */}
+          {/* Marca superior y logotipo */}
           <div className="h-16 px-4 flex items-center justify-between border-b border-surface-container-low">
             <Link href="/inicio" className="flex items-center gap-2 hover:opacity-90 transition-opacity">
-              <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-on-primary shadow-xs font-bold text-sm">
-                FP
+              <FinPalLogo size={32} className="w-8 h-8" />
+              <div className="flex items-baseline tracking-tight font-heading text-lg">
+                <span className="font-extrabold text-on-surface">Fin</span>
+                <span className="font-extrabold text-primary">Pal</span>
               </div>
-              <span className="font-heading text-lg font-extrabold text-on-surface tracking-tight">FinPal</span>
             </Link>
           </div>
 
-          {/* Workspace Switcher */}
+          {/* Selector de espacio de trabajo */}
           <div className="px-4 py-3 relative">
             <button
               className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-surface-container-low text-on-surface hover:bg-surface-container transition-colors border border-surface-container-high/40 text-xs font-semibold"
@@ -356,9 +361,9 @@ export function FinPalPage({ page }: { page: PageName }) {
         </div>
       </aside>
 
-      {/* 2. Main Content Viewport */}
+      {/* 2. Área principal de contenido */}
       <div className="pl-60 flex-1 flex flex-col min-w-0">
-        {/* Top Header Bar */}
+        {/* Barra de cabecera superior */}
         <header className="fixed top-0 left-60 right-0 h-16 bg-surface-container-lowest/90 backdrop-blur-md shadow-[0_1px_4px_rgba(0,0,0,0.03)] border-b border-surface-container-high/60 z-30 flex items-center justify-between px-8">
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2 text-xs font-semibold text-on-surface-variant bg-surface-container-low px-3 py-1.5 rounded-lg border border-surface-container-high/40">
@@ -509,7 +514,7 @@ function DashboardView({
 
   return (
     <div className="space-y-6">
-      {/* Header Greeting & Action Bar */}
+      {/* Cabecera de bienvenida y barra de acciones */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 pb-4 border-b border-surface-container-high/60">
         <div>
           <div className="flex items-center gap-2 text-xs font-semibold text-on-surface-variant mb-1">
@@ -543,7 +548,7 @@ function DashboardView({
         </div>
       </div>
 
-      {/* 4 KPI Cards */}
+      {/* 4 Tarjetas de KPIs principales */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {[
           { label: "Total en cuentas", value: totals.available, icon: WalletCards, colorClass: "bg-emerald-50 text-primary" },
@@ -581,9 +586,9 @@ function DashboardView({
         })}
       </div>
 
-      {/* Main Grid: Flow Chart & Upcoming */}
+      {/* Cuadrícula principal: Gráfico de flujo y próximos cobros */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Flow Chart (Span 8) */}
+        {/* Gráfico de flujo semanal (Ocupa 8 columnas) */}
         <div className="lg:col-span-8 bg-surface-container-lowest border border-surface-container-high/70 rounded-2xl p-6 shadow-2xs">
           <div className="flex items-center justify-between pb-4 border-b border-surface-container-low mb-4">
             <h2 className="font-heading text-base font-bold text-on-surface">Flujo de Dinero (Semanal)</h2>
@@ -1166,6 +1171,7 @@ function LoanForm({ data, submit }: { data: FinPalData; submit: (f: FormData) =>
         <input
           name="rate"
           type="number"
+          min="0"
           step="0.1"
           defaultValue="3"
           className="w-full h-10 px-3.5 rounded-xl bg-surface-container-lowest border border-surface-container-high/80 text-sm"

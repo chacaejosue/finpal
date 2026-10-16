@@ -20,7 +20,7 @@ export function EspacioProvider({ children }: { children: ReactNode }) {
   const [espacioId, setEspacioId] = useState<string | null>(null);
   const [espacioNombre, setEspacioNombre] = useState("");
 
-  // Rehydrate from localStorage on mount
+  // Rehidratar desde localStorage al montar el componente
   useEffect(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
@@ -30,7 +30,7 @@ export function EspacioProvider({ children }: { children: ReactNode }) {
         setEspacioNombre(nombre);
       }
     } catch {
-      // Ignore parse errors
+      // Ignorar errores al parsear
     }
   }, []);
 

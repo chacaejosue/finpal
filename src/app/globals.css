@@ -127,17 +127,22 @@
 
 html {
   scroll-behavior: smooth;
+  background-color: var(--color-surface, var(--canvas));
+  color: var(--color-on-surface, var(--ink));
 }
 
 body {
   margin: 0;
-  color: var(--ink);
-  background-color: var(--canvas);
+  color: var(--color-on-surface, var(--ink));
+  background-color: var(--color-surface, var(--canvas));
   font-family: var(--font-sans);
   line-height: 1.6;
+  min-height: 100dvh;
 }
 
-[data-theme="dark"] {
+[data-theme="dark"],
+html.dark {
+  color-scheme: dark;
   --color-surface: #111827;
   --color-surface-dim: #0f172a;
   --color-surface-bright: #1f2937;

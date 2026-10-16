@@ -3,7 +3,7 @@ import { z } from "zod";
 // ── Contactos ──────────────────────────────────────────────────────────────
 
 export const contactoSchema = z.object({
-  nombre: z.string().trim().max(150).optional().default(""),
+  nombre: z.string().trim().min(1, "El nombre del contacto es obligatorio").max(150),
   telefono: z.string().trim().max(30).optional().default(""),
   email: z.string().trim().email("Email inválido").max(150).optional().or(z.literal("")).default(""),
   notas: z.string().trim().max(1000).optional().default(""),
@@ -22,22 +22,38 @@ export type CuentaDineroInput = z.infer<typeof cuentaDineroSchema>;
 
 // ── Préstamos ──────────────────────────────────────────────────────────────
 
+/**
+ * Esquema de validación para la creación de préstamos.
+ * 
+ * Regla de negocio / Invariante de BD:
+ * - Si la tasa de interés es 0 o el usuario desmarca la opción de interés, el préstamo se
+ *   transforma a `cobra_interes = false` y `tasa_interes_mensual = 0`. Esto garantiza el
+ *   cumplimiento del constraint PostgreSQL `chk_prestamo_interes`:
+ *   `((cobra_interes AND tasa > 0) OR (NOT cobra_interes AND tasa = 0))`.
+ * - Permite asignar el préstamo a un contacto existente (`contacto_id`) o crear uno nuevo
+ *   sobre la marcha (`contacto_nombre`).
+ */
 export const prestamoSchema = z.object({
   contacto_id: z.string().uuid("Selecciona un contacto válido").optional().or(z.literal("")),
   contacto_nombre: z.string().trim().max(150).optional().default(""),
-  nombre: z.string().trim().min(1, "El nombre es obligatorio").max(150),
+  nombre: z.string().trim().max(150).optional().default(""),
   monto_principal: z.coerce.number().positive("El monto debe ser mayor a 0"),
   cobra_interes: z.boolean().default(true),
-  tasa_interes_mensual: z.coerce.number().min(0).max(100).default(0),
+  tasa_interes_mensual: z.coerce.number().min(0, "La tasa no puede ser negativa").max(100, "La tasa máxima es 100%").default(0),
   fecha_inicio: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Fecha inválida"),
   dia_pago: z.coerce.number().int().min(1).max(31),
-  metodo_entrega: z.string().trim().max(100).optional().default(""),
-  notas: z.string().trim().max(1000).optional().default(""),
+  metodo_entrega: z.string().trim().max(100).optional().nullable().default(""),
+  notas: z.string().trim().max(1000).optional().nullable().default(""),
   cuenta_dinero_id: z.string().uuid("Selecciona una cuenta válida"),
+}).transform((d) => {
+  // Coerción coherente con la restricción de base de datos
+  const tieneInteres = Boolean(d.cobra_interes) && d.tasa_interes_mensual > 0;
+  return {
+    ...d,
+    cobra_interes: tieneInteres,
+    tasa_interes_mensual: tieneInteres ? d.tasa_interes_mensual : 0,
+  };
 }).refine(
-  (d) => !d.cobra_interes || d.tasa_interes_mensual > 0,
-  { message: "Si cobra interés, la tasa debe ser mayor a 0", path: ["tasa_interes_mensual"] }
-).refine(
   (d) => Boolean(d.contacto_id || d.contacto_nombre),
   { message: "Selecciona un deudor o escribe su nombre", path: ["contacto_id"] }
 );
@@ -45,6 +61,14 @@ export type PrestamoInput = z.infer<typeof prestamoSchema>;
 
 // ── Cobros de préstamos ────────────────────────────────────────────────────
 
+/**
+ * Esquema de validación para cobros y amortizaciones de préstamos.
+ * 
+ * Regla de negocio / Balance contable:
+ * - El monto total cobrado debe equivaler exactamente a la suma del abono a capital
+ *   (`monto_principal`) más el cobro de intereses (`monto_interes`).
+ * - Se usa una tolerancia de 0.01 (1 centavo) para evitar rechazos por redondeo de coma flotante.
+ */
 export const pagoPrestamoSchema = z.object({
   prestamo_id: z.string().uuid(),
   fecha_esperada: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Fecha esperada inválida"),

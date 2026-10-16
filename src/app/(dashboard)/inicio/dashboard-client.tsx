@@ -14,6 +14,11 @@ import {
   WalletCards,
   AlertCircle,
   Calendar,
+  ArrowDownLeft,
+  ArrowUpRight,
+  CheckCircle2,
+  Scale,
+  ArrowLeftRight,
 } from "lucide-react";
 import {
   useDashboard,
@@ -32,6 +37,7 @@ import { ContactAvatar } from "@/components/contact-avatar";
 import { useEspacio } from "@/lib/espacio-context";
 import { actualizarEstadoPrestamo } from "@/app/(dashboard)/prestamos/actions";
 import { formatDateEs } from "@/lib/format-date";
+import { ReportesBiDashboard } from "@/features/reportes/reportes-bi-dashboard";
 
 export type PageName =
   | "inicio"
@@ -43,7 +49,7 @@ export type PageName =
   | "reportes"
   | "configuracion";
 
-// ─── Main View Switcher Component ─────────────────────────────────────────────
+// ─── Componente Conmutador de Vistas Principales ─────────────────────────────
 
 export default function DashboardClient({
   page = "inicio",
@@ -142,7 +148,17 @@ export default function DashboardClient({
           openModal={() => openModal("movement")}
         />
       )}
-      {page === "reportes" && <ReportesView totals={totals} prestamos={prestamos} />}
+      {page === "reportes" && (
+        <ReportesBiDashboard
+          totals={totals}
+          prestamos={prestamos}
+          pagos={pagos}
+          cuentas={cuentas}
+          movimientos={movimientos}
+          contactos={contactos}
+          preferencias={preferencias}
+        />
+      )}
       {page === "configuracion" && (
         <ConfiguracionView preferencias={preferencias} guardarPreferencias={guardarPreferencias} />
       )}
@@ -150,7 +166,68 @@ export default function DashboardClient({
   );
 }
 
-// ─── Page View Components ─────────────────────────────────────────────────────
+// ─── Configuración de Globos/Badges para Tipos de Movimiento ─────────────────
+
+interface TipoMovimientoBadge {
+  label: string;
+  badgeClass: string;
+  Icon: React.ComponentType<{ className?: string }>;
+}
+
+function getTipoMovimientoBadge(tipo: string, ajusteSentido?: string | null): TipoMovimientoBadge {
+  switch (tipo) {
+    case "ingreso":
+      return {
+        label: "Ingreso",
+        badgeClass: "bg-emerald-50 text-emerald-700 border-emerald-200/80 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/50",
+        Icon: ArrowDownLeft,
+      };
+    case "gasto":
+      return {
+        label: "Gasto",
+        badgeClass: "bg-rose-50 text-rose-700 border-rose-200/80 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800/50",
+        Icon: ArrowUpRight,
+      };
+    case "entrega_prestamo":
+      return {
+        label: "Préstamo entregado",
+        badgeClass: "bg-violet-50 text-violet-700 border-violet-200/80 dark:bg-violet-950/40 dark:text-violet-300 dark:border-violet-800/50",
+        Icon: HandCoins,
+      };
+    case "pago_prestamo":
+      return {
+        label: "Cobro de préstamo",
+        badgeClass: "bg-teal-50 text-teal-700 border-teal-200/80 dark:bg-teal-950/40 dark:text-teal-300 dark:border-teal-800/50",
+        Icon: CheckCircle2,
+      };
+    case "transferencia_entrada":
+      return {
+        label: "Transferencia ↓",
+        badgeClass: "bg-sky-50 text-sky-700 border-sky-200/80 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-800/50",
+        Icon: ArrowDownLeft,
+      };
+    case "transferencia_salida":
+      return {
+        label: "Transferencia ↑",
+        badgeClass: "bg-blue-50 text-blue-700 border-blue-200/80 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800/50",
+        Icon: ArrowUpRight,
+      };
+    case "ajuste":
+      return {
+        label: ajusteSentido ? `Ajuste (${ajusteSentido})` : "Ajuste",
+        badgeClass: "bg-amber-50 text-amber-700 border-amber-200/80 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800/50",
+        Icon: Scale,
+      };
+    default:
+      return {
+        label: tipo.charAt(0).toUpperCase() + tipo.slice(1).replace("_", " "),
+        badgeClass: "bg-surface-container text-on-surface-variant border-surface-container-high/70",
+        Icon: ArrowLeftRight,
+      };
+  }
+}
+
+// ─── Componentes de Vistas por Página ─────────────────────────────────────────
 
 function DashboardView({
   cuentas, prestamos, movimientos, totals, openModal,
@@ -161,22 +238,22 @@ function DashboardView({
   totals: ReturnType<typeof Object.assign>;
   openModal: (m: "loan" | "payment") => void;
 }) {
-  const upcoming = prestamos.filter((p) => p.estado !== "pagado").slice(0, 3);
+  const upcoming = prestamos.filter((p) => p.estado !== "pagado").slice(0, 5);
   return (
     <div className="space-y-6">
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 pb-4 border-b border-surface-container-high/60">
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 pb-4 border-b border-surface-container-high/60">
         <div>
           <div className="flex items-center gap-2 text-xs font-semibold text-on-surface-variant mb-1">
             <span className="inline-flex items-center gap-1.5 text-primary bg-secondary-container/40 px-2.5 py-0.5 rounded-full border border-primary/10">
               <span className="w-1.5 h-1.5 rounded-full bg-primary" /> Panel de control financiero
             </span>
           </div>
-          <h1 className="font-heading text-3xl font-extrabold text-on-surface tracking-tight">Panel de control</h1>
-          <p className="text-sm text-on-surface-variant mt-1">Resumen consolidado de tus finanzas y cartera de préstamos.</p>
+          <h1 className="font-heading text-2xl sm:text-3xl font-extrabold text-on-surface tracking-tight">Panel de control</h1>
+          <p className="text-xs sm:text-sm text-on-surface-variant mt-1">Resumen consolidado de tus finanzas y cartera de préstamos.</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           <button
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-surface-container-high/80 bg-surface-container-lowest hover:bg-surface-container text-on-surface font-semibold text-xs transition-all shadow-2xs"
+            className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 px-3.5 sm:px-4 py-2.5 rounded-xl border border-surface-container-high/80 bg-surface-container-lowest hover:bg-surface-container text-on-surface font-semibold text-xs transition-all shadow-2xs cursor-pointer"
             type="button"
             onClick={() => openModal("payment")}
           >
@@ -184,7 +261,7 @@ function DashboardView({
             <span>Registrar cobro</span>
           </button>
           <button
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary hover:bg-primary-container text-on-primary font-semibold text-xs transition-all shadow-xs"
+            className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 px-3.5 sm:px-4 py-2.5 rounded-xl bg-primary hover:bg-primary-container text-on-primary font-semibold text-xs transition-all shadow-xs cursor-pointer"
             type="button"
             onClick={() => openModal("loan")}
           >
@@ -194,93 +271,169 @@ function DashboardView({
         </div>
       </div>
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* KPI Cards (2x2 en móviles, 4 cols en desktop) */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
         {[
           { label: "Total en cuentas", value: totals.available, icon: WalletCards, colorClass: "bg-emerald-50 text-primary", sub: "Saldo disponible" },
           { label: "Por cobrar", value: totals.pending, icon: HandCoins, colorClass: "bg-amber-50 text-amber-700", sub: `${totals.activeLoansCount} pré${totals.activeLoansCount === 1 ? 'stamo activo' : 'stamos activos'}` },
           { label: "Ya cobrado", value: totals.collected, icon: BadgeCheck, colorClass: "bg-emerald-50 text-emerald-700", sub: `${totals.paidLoansCount} saldado${totals.paidLoansCount !== 1 ? 's' : ''}` },
-          { label: "Interés cobrado", value: totals.interestPaid, icon: Percent, colorClass: "bg-blue-50 text-blue-700", sub: "Acumulado de cobros reales" },
+          { label: "Interés cobrado", value: totals.interestPaid, icon: Percent, colorClass: "bg-blue-50 text-blue-700", sub: "Acumulado real" },
         ].map((kpi, i) => {
           const Ic = kpi.icon;
           return (
             <motion.div
-              className="bg-surface-container-lowest rounded-2xl p-5 border border-surface-container-high/70 shadow-2xs flex flex-col justify-between hover:shadow-md transition-shadow"
+              className="bg-surface-container-lowest rounded-2xl p-3.5 sm:p-5 border border-surface-container-high/70 shadow-2xs flex flex-col justify-between hover:shadow-md transition-shadow"
               key={kpi.label}
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.05 }}
             >
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold uppercase tracking-wider text-on-surface-variant font-mono">{kpi.label}</span>
-                <div className={`w-8 h-8 rounded-xl ${kpi.colorClass} flex items-center justify-center`}><Ic className="w-4 h-4" /></div>
+              <div className="flex items-center justify-between gap-1">
+                <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-on-surface-variant font-mono truncate">{kpi.label}</span>
+                <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-xl ${kpi.colorClass} flex items-center justify-center shrink-0`}><Ic className="w-3.5 h-3.5 sm:w-4 sm:h-4" /></div>
               </div>
-              <div className="mt-3">
-                <div className="font-heading text-2xl font-extrabold text-on-surface tracking-tight">{money(kpi.value)}</div>
-                <div className="mt-2 pt-2 border-t border-surface-container-low text-[11px] text-on-surface-variant font-medium">{kpi.sub}</div>
+              <div className="mt-2 sm:mt-3">
+                <div className="font-heading text-lg sm:text-2xl font-extrabold text-on-surface tracking-tight truncate">{money(kpi.value)}</div>
+                <div className="mt-1.5 sm:mt-2 pt-1.5 sm:pt-2 border-t border-surface-container-low text-[10px] sm:text-[11px] text-on-surface-variant font-medium truncate">{kpi.sub}</div>
               </div>
             </motion.div>
           );
         })}
       </div>
 
-      {/* Upcoming Payments */}
-      <div className="bg-surface-container-lowest border border-surface-container-high/70 rounded-2xl p-6 shadow-2xs">
+      {/* Deudores y Préstamos Recientes (Estilo Landing / Bento Table) */}
+      <div className="bg-surface-container-lowest border border-surface-container-high/70 rounded-2xl p-4 sm:p-6 shadow-2xs">
         <div className="flex items-center justify-between pb-4 border-b border-surface-container-low mb-4">
-          <h2 className="font-heading text-base font-bold text-on-surface">Préstamos activos</h2>
-          <Link href="/prestamos" className="text-xs font-bold text-primary hover:underline">Ver todos</Link>
+          <div className="flex items-center gap-2.5">
+            <WalletCards className="w-5 h-5 text-primary" />
+            <h2 className="font-heading text-base sm:text-lg font-bold text-on-surface">
+              Deudores y Préstamos Recientes
+            </h2>
+          </div>
+          <Link
+            href="/prestamos"
+            className="px-3 py-1 rounded-full bg-surface-container text-on-surface-variant font-mono text-xs font-semibold border border-surface-container-high/40 hover:bg-surface-container-high transition-colors"
+          >
+            Ver todos ({prestamos.length})
+          </Link>
         </div>
-        {upcoming.length === 0 ? (
-          <p className="text-xs text-on-surface-variant text-center py-4">No hay préstamos activos</p>
+
+        {prestamos.length === 0 ? (
+          <p className="text-xs text-on-surface-variant text-center py-6">No hay préstamos registrados aún.</p>
         ) : (
-          <div className="space-y-3">
-            {upcoming.map((p) => {
-              const contactoNombre = rel(p.contactos)?.nombre ?? "?";
-              return (
-                <div key={p.id} className="flex items-center justify-between p-3 rounded-xl bg-surface-container-low/70 border border-surface-container-high/30">
-                  <div className="flex items-center gap-3">
-                    <ContactAvatar name={contactoNombre} size={32} className="rounded-full shadow-xs" />
-                    <div>
-                      <p className="text-xs font-bold text-on-surface">{contactoNombre}</p>
-                      <p className="text-[11px] text-on-surface-variant">{p.nombre} · Día {p.dia_pago}</p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <span className="font-mono text-xs font-bold text-primary block">{money(loanBalance(p))}</span>
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold ${
-                      p.estado === "atrasado" ? "bg-error-container text-on-error-container" :
-                      p.estado === "pagado" ? "bg-surface-container text-on-surface-variant" :
-                      "bg-secondary-container/50 text-on-secondary-container"
-                    }`}>
-                      {p.estado === "pagado" ? "Saldado" : p.estado === "atrasado" ? "Atrasado" : "Al día"}
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm min-w-[580px]">
+              <thead>
+                <tr className="bg-surface-container-low/70 text-on-surface-variant text-xs font-semibold uppercase tracking-wider">
+                  <th className="py-3 px-3.5 rounded-l-lg">Contacto</th>
+                  <th className="py-3 px-3.5">Capital</th>
+                  <th className="py-3 px-3.5">Interés</th>
+                  <th className="py-3 px-3.5">Próximo Pago</th>
+                  <th className="py-3 px-3.5 rounded-r-lg text-right">Estado</th>
+                </tr>
+              </thead>
+              <tbody className="text-on-surface divide-y divide-surface-container-low">
+                {(upcoming.length > 0 ? upcoming : prestamos.slice(0, 5)).map((p) => {
+                  const contactoNombre = rel(p.contactos)?.nombre ?? "—";
+                  const balance = loanBalance(p);
+                  const isLate = p.estado === "atrasado";
+                  const isPaid = p.estado === "pagado";
+                  return (
+                    <tr
+                      key={p.id}
+                      className="hover:bg-surface-container-low/40 transition-colors"
+                    >
+                      <td className="py-3.5 px-3.5 flex items-center gap-3">
+                        <ContactAvatar
+                          name={contactoNombre}
+                          size={36}
+                          className="rounded-full shadow-2xs shrink-0"
+                        />
+                        <div className="min-w-0">
+                          <p className="font-semibold text-sm leading-snug truncate">{contactoNombre}</p>
+                          <p className="text-xs text-on-surface-variant truncate">{p.nombre}</p>
+                        </div>
+                      </td>
+                      <td className="py-3.5 px-3.5 font-mono font-semibold text-sm">
+                        {money(balance > 0 ? balance : Number(p.monto_principal))}
+                      </td>
+                      <td className="py-3.5 px-3.5 font-mono text-xs text-primary font-medium">
+                        {p.cobra_interes ? (
+                          <span>+{p.tasa_interes_mensual}% mes ({money(monthlyInterest(p))})</span>
+                        ) : (
+                          <span className="text-on-surface-variant font-sans">Sin interés</span>
+                        )}
+                      </td>
+                      <td
+                        className={`py-3.5 px-3.5 text-xs ${
+                          isLate ? "text-error font-semibold" : "text-on-surface-variant"
+                        }`}
+                      >
+                        {p.vence_hoy
+                          ? "Hoy (Día de cobro)"
+                          : p.fecha_proximo_pago
+                          ? formatDateEs(p.fecha_proximo_pago)
+                          : `Día ${p.dia_pago}`}
+                      </td>
+                      <td className="py-3.5 px-3.5 text-right">
+                        {isLate ? (
+                          <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-error-container text-on-error-container border border-error/20">
+                            Con atraso
+                          </span>
+                        ) : isPaid ? (
+                          <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-surface-container text-on-surface-variant border border-surface-container-high/40">
+                            Saldado
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-secondary-container/50 text-on-secondary-container border border-primary/20">
+                            Al día
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         )}
       </div>
 
       {/* Recent Movements */}
       {movimientos.length > 0 && (
-        <div className="bg-surface-container-lowest border border-surface-container-high/70 rounded-2xl p-6 shadow-2xs">
+        <div className="bg-surface-container-lowest border border-surface-container-high/70 rounded-2xl p-4 sm:p-6 shadow-2xs">
           <div className="flex items-center justify-between pb-4 border-b border-surface-container-low mb-4">
             <h2 className="font-heading text-base font-bold text-on-surface">Movimientos recientes</h2>
             <Link href="/movimientos" className="text-xs font-bold text-primary hover:underline">Ver todos</Link>
           </div>
           <div className="space-y-2">
-            {movimientos.slice(0, 5).map((m) => (
-              <div key={m.id} className="flex items-center justify-between py-2 border-b border-surface-container-low/50 last:border-0">
-                <div>
-                  <p className="text-xs font-semibold text-on-surface">{fixSpanishEncoding(m.descripcion || m.tipo)}</p>
-                  <p className="text-[11px] text-on-surface-variant">{formatDateEs(m.ocurrido_en)} · {rel(m.cuentas_dinero)?.nombre}</p>
+            {movimientos.slice(0, 5).map((m) => {
+              const isPositive = ["ingreso", "pago_prestamo", "transferencia_entrada"].includes(m.tipo)
+                || (m.tipo === "ajuste" && m.ajuste_sentido === "sumar");
+              const badge = getTipoMovimientoBadge(m.tipo, m.ajuste_sentido);
+              const BadgeIcon = badge.Icon;
+              return (
+                <div key={m.id} className="flex items-center justify-between gap-3 py-2.5 border-b border-surface-container-low/50 last:border-0">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <span className={`inline-flex items-center justify-center w-7 h-7 rounded-xl border shrink-0 ${badge.badgeClass}`}>
+                      <BadgeIcon className="w-3.5 h-3.5" />
+                    </span>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <p className="text-xs font-semibold text-on-surface truncate">{fixSpanishEncoding(m.descripcion || badge.label)}</p>
+                        <span className={`inline-flex items-center gap-1 px-1.5 py-0.2 rounded-full text-[9px] font-bold border ${badge.badgeClass}`}>
+                          {badge.label}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-on-surface-variant truncate">{formatDateEs(m.ocurrido_en)} · {rel(m.cuentas_dinero)?.nombre}</p>
+                    </div>
+                  </div>
+                  <span className={`font-mono text-xs font-bold shrink-0 ${isPositive ? "text-primary" : "text-error"}`}>
+                    {isPositive ? "+" : "-"}{money(Number(m.monto))}
+                  </span>
                 </div>
-                <span className={`font-mono text-xs font-bold ${["ingreso", "pago_prestamo", "transferencia_entrada"].includes(m.tipo) ? "text-primary" : "text-error"}`}>
-                  {["ingreso", "pago_prestamo", "transferencia_entrada"].includes(m.tipo) ? "+" : "-"}{money(Number(m.monto))}
-                </span>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
@@ -291,24 +444,83 @@ function DashboardView({
 function ContactosView({ contactos, prestamos, openModal }: { contactos: Contacto[]; prestamos: Prestamo[]; openModal: () => void }) {
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between pb-4 border-b border-surface-container-high/60">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-surface-container-high/60">
         <div>
           <h1 className="font-heading text-2xl font-extrabold text-on-surface">Contactos & Deudores</h1>
           <p className="text-xs text-on-surface-variant mt-0.5">Directorio de personas y seguimiento del estado de deuda.</p>
         </div>
-        <button className="px-4 py-2.5 rounded-xl bg-primary text-on-primary text-xs font-semibold shadow-xs hover:bg-primary-container flex items-center gap-2" onClick={openModal}>
+        <button className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-primary text-on-primary text-xs font-semibold shadow-xs hover:bg-primary-container flex items-center justify-center gap-2 cursor-pointer" onClick={openModal}>
           <Plus className="w-4 h-4" /><span>Nuevo contacto</span>
         </button>
       </div>
-      <div className="bg-surface-container-lowest border border-surface-container-high/70 rounded-2xl overflow-hidden shadow-2xs">
-        <table className="w-full text-left text-sm">
+      {/* Vista Móvil (Tarjetas de contactos) */}
+      <div className="sm:hidden space-y-2.5">
+        {contactos.length === 0 ? (
+          <div className="bg-surface-container-lowest border border-surface-container-high/70 rounded-2xl p-6 text-center text-xs text-on-surface-variant">
+            Sin contactos aún. Crea el primero.
+          </div>
+        ) : (
+          contactos.map((c) => {
+            const allLoans = prestamos.filter((l) => rel(l.contactos)?.id === c.id);
+            const activeLoans = allLoans.filter((l) => l.estado === "activo" || l.estado === "atrasado");
+            const paidLoans = allLoans.filter((l) => l.estado === "pagado");
+            const balance = activeLoans.reduce((sum, l) => sum + loanBalance(l), 0);
+            const isLate = activeLoans.some((l) => l.estado === "atrasado");
+            return (
+              <div key={c.id} className="bg-surface-container-lowest border border-surface-container-high/70 rounded-2xl p-4 shadow-2xs space-y-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <ContactAvatar name={c.nombre} size={38} className="rounded-full shadow-xs shrink-0" />
+                    <div className="min-w-0">
+                      <h4 className="font-bold text-sm text-on-surface truncate">{c.nombre}</h4>
+                      {c.telefono && (
+                        <a href={`tel:${c.telefono}`} className="text-xs text-primary font-medium block truncate hover:underline">
+                          {c.telefono}
+                        </a>
+                      )}
+                      {c.email && <span className="text-[11px] text-on-surface-variant block truncate">{c.email}</span>}
+                    </div>
+                  </div>
+                  <div>
+                    {activeLoans.length > 0 ? isLate ? (
+                      <span className="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-error-container text-on-error-container border border-error/20">Con atraso</span>
+                    ) : (
+                      <span className="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-secondary-container/50 text-on-secondary-container border border-primary/20">Al día</span>
+                    ) : (
+                      <span className="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-surface-container text-on-surface-variant border border-surface-container-high/40">Sin deuda</span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between pt-2 border-t border-surface-container-low text-xs">
+                  <div>
+                    <span className="text-[10px] text-on-surface-variant block">Préstamos</span>
+                    <span className="font-semibold text-on-surface">
+                      {allLoans.length} {allLoans.length === 1 ? "préstamo" : "préstamos"}
+                      {paidLoans.length > 0 && <span className="text-[10px] text-on-surface-variant font-normal"> ({paidLoans.length} saldados)</span>}
+                    </span>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-[10px] text-on-surface-variant block">Total por cobrar</span>
+                    <span className="font-mono font-bold text-sm text-primary">{money(balance)}</span>
+                  </div>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {/* Vista Desktop / Tablet (Tabla) */}
+      <div className="hidden sm:block bg-surface-container-lowest border border-surface-container-high/70 rounded-2xl overflow-x-auto shadow-2xs">
+        <table className="w-full text-left text-sm min-w-[620px]">
           <thead>
-            <tr className="bg-surface-container-low text-xs font-semibold uppercase tracking-wider text-on-surface-variant">
-              <th className="py-3 px-4">Persona</th>
+            <tr className="bg-surface-container-low/70 text-on-surface-variant text-xs font-semibold uppercase tracking-wider">
+              <th className="py-3 px-4 rounded-l-lg">Persona</th>
               <th className="py-3 px-4">Teléfono</th>
               <th className="py-3 px-4">Préstamos</th>
               <th className="py-3 px-4">Por cobrar</th>
-              <th className="py-3 px-4 text-right">Estado</th>
+              <th className="py-3 px-4 rounded-r-lg text-right">Estado</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-surface-container-low text-on-surface">
@@ -377,22 +589,22 @@ function PrestamosView({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between pb-4 border-b border-surface-container-high/60">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-surface-container-high/60">
         <div>
           <h1 className="font-heading text-2xl font-extrabold text-on-surface">Préstamos</h1>
           <p className="text-xs text-on-surface-variant mt-0.5">Registro de préstamos con cálculo mensual de intereses.</p>
         </div>
-        <button className="px-4 py-2.5 rounded-xl bg-primary text-on-primary text-xs font-semibold shadow-xs hover:bg-primary-container flex items-center gap-2" onClick={openModal}>
+        <button className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-primary text-on-primary text-xs font-semibold shadow-xs hover:bg-primary-container flex items-center justify-center gap-2 cursor-pointer" onClick={openModal}>
           <Plus className="w-4 h-4" /><span>Nuevo préstamo</span>
         </button>
       </div>
 
       {/* Tabs activos / saldados */}
-      <div className="flex items-center gap-1 bg-surface-container-low p-1 rounded-xl w-fit">
+      <div className="grid grid-cols-2 sm:flex sm:items-center gap-1 bg-surface-container-low p-1 rounded-xl w-full sm:w-fit">
         <button
           type="button"
           onClick={() => setTab("activos")}
-          className={`px-4 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+          className={`px-4 py-2 sm:py-1.5 text-xs font-semibold rounded-lg transition-all text-center ${
             tab === "activos" ? "bg-primary text-on-primary shadow-xs" : "text-on-surface-variant hover:text-on-surface"
           }`}
         >
@@ -406,7 +618,7 @@ function PrestamosView({
         <button
           type="button"
           onClick={() => setTab("pagados")}
-          className={`px-4 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+          className={`px-4 py-2 sm:py-1.5 text-xs font-semibold rounded-lg transition-all text-center ${
             tab === "pagados" ? "bg-primary text-on-primary shadow-xs" : "text-on-surface-variant hover:text-on-surface"
           }`}
         >
@@ -428,18 +640,107 @@ function PrestamosView({
         </div>
       )}
 
-      <div className="bg-surface-container-lowest border border-surface-container-high/70 rounded-2xl overflow-hidden shadow-2xs">
-        <table className="w-full text-left text-sm">
+      {/* Vista Móvil (Tarjetas táctiles sin scroll horizontal forzado) */}
+      <div className="sm:hidden space-y-3">
+        {displayed.length === 0 ? (
+          <div className="bg-surface-container-lowest border border-surface-container-high/70 rounded-2xl p-6 text-center text-xs text-on-surface-variant">
+            {tab === "activos" ? "No hay préstamos activos pendientes." : "No hay préstamos saldados aún."}
+          </div>
+        ) : (
+          displayed.map((l) => {
+            const nombre = rel(l.contactos)?.nombre ?? "—";
+            const isPaid = l.estado === "pagado" || l.estado === "cancelado";
+            return (
+              <div
+                key={l.id}
+                className={`bg-surface-container-lowest border border-surface-container-high/70 rounded-2xl p-4 shadow-2xs space-y-3 ${
+                  isPaid ? "opacity-75" : ""
+                }`}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <ContactAvatar name={nombre} size={36} className="rounded-full shadow-xs shrink-0" />
+                    <div className="min-w-0">
+                      <h4 className="font-bold text-sm text-on-surface truncate">{nombre}</h4>
+                      <p className="text-xs text-on-surface-variant truncate">{l.nombre}</p>
+                    </div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <span className="text-[10px] text-on-surface-variant font-medium block">
+                      {tab === "activos" ? "Por cobrar" : "Capital pagado"}
+                    </span>
+                    <span className="font-mono text-base font-bold text-primary">
+                      {isPaid ? money(Number(l.monto_capital_pagado)) : money(loanBalance(l))}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 pt-2 border-t border-surface-container-low text-xs">
+                  <div>
+                    <span className="text-[10px] text-on-surface-variant block">Capital inicial</span>
+                    <span className="font-mono font-medium text-on-surface">{money(Number(l.monto_principal))}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-on-surface-variant block">Interés mensual</span>
+                    <span className="font-mono font-medium text-on-surface">
+                      {l.cobra_interes ? `${l.tasa_interes_mensual}% (${money(monthlyInterest(l))})` : "Sin interés"}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-on-surface-variant block">Cobro</span>
+                    <span className="font-medium text-on-surface">Día {l.dia_pago} de cada mes</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-on-surface-variant block">Próximo abono</span>
+                    <span className={`font-medium ${l.vence_hoy ? "text-amber-600 font-bold" : "text-on-surface"}`}>
+                      {l.vence_hoy ? "Hoy" : l.fecha_proximo_pago ? formatDateEs(l.fecha_proximo_pago) : "Al día"}
+                    </span>
+                    {l.meses_atrasados > 0 && (
+                      <span className="text-[10px] text-error font-semibold block">
+                        {l.meses_atrasados} periodo{l.meses_atrasados > 1 ? "s" : ""} atrasado
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="pt-2 border-t border-surface-container-low flex items-center justify-between gap-2">
+                  <span className="text-[11px] font-semibold text-on-surface-variant">Estado:</span>
+                  <select
+                    value={l.estado}
+                    onChange={(event) => onStatusChange(l.id, event.target.value as "activo" | "pagado" | "atrasado" | "cancelado")}
+                    className={`px-3 py-1.5 rounded-full text-xs font-semibold border cursor-pointer ${
+                      l.estado === "atrasado" ? "bg-error-container text-on-error-container border-error/20" :
+                      l.estado === "pagado" ? "bg-emerald-50 text-emerald-700 border-emerald-200/60" :
+                      l.estado === "cancelado" ? "bg-surface-container text-on-surface-variant border-surface-container-high/40" :
+                      "bg-secondary-container/50 text-on-secondary-container border-primary/20"
+                    }`}
+                    aria-label={`Estado de ${l.nombre}`}
+                  >
+                    <option value="activo">Activo</option>
+                    <option value="atrasado">Atrasado</option>
+                    <option value="pagado">Pagado</option>
+                    <option value="cancelado">Cancelado</option>
+                  </select>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {/* Vista Desktop / Tablet (Tabla) */}
+      <div className="hidden sm:block bg-surface-container-lowest border border-surface-container-high/70 rounded-2xl overflow-x-auto shadow-2xs">
+        <table className="w-full text-left text-sm min-w-[760px]">
           <thead>
-            <tr className="bg-surface-container-low text-xs font-semibold uppercase tracking-wider text-on-surface-variant">
-              <th className="py-3 px-4">Persona</th>
+            <tr className="bg-surface-container-low/70 text-on-surface-variant text-xs font-semibold uppercase tracking-wider">
+              <th className="py-3 px-4 rounded-l-lg">Persona</th>
               <th className="py-3 px-4">Préstamo</th>
               <th className="py-3 px-4">Capital inicial</th>
               <th className="py-3 px-4">{tab === "activos" ? "Por cobrar" : "Capital pagado"}</th>
               <th className="py-3 px-4">Interés mensual</th>
               <th className="py-3 px-4">Día cobro</th>
               <th className="py-3 px-4">Próximo vencimiento</th>
-              <th className="py-3 px-4 text-right">Estado</th>
+              <th className="py-3 px-4 rounded-r-lg text-right">Estado</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-surface-container-low text-on-surface">
@@ -512,27 +813,61 @@ function PrestamosView({
 function PagosView({ pagos, openModal }: { pagos: Pago[]; openModal: () => void }) {
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between pb-4 border-b border-surface-container-high/60">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-surface-container-high/60">
         <div>
           <h1 className="font-heading text-2xl font-extrabold text-on-surface">Cobros recibidos</h1>
           <p className="text-xs text-on-surface-variant mt-0.5">Registro del dinero que realmente recibiste de tus préstamos.</p>
         </div>
-        <button className="px-4 py-2.5 rounded-xl bg-primary text-on-primary text-xs font-semibold shadow-xs hover:bg-primary-container flex items-center gap-2" onClick={openModal}>
+        <button className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-primary text-on-primary text-xs font-semibold shadow-xs hover:bg-primary-container flex items-center justify-center gap-2 cursor-pointer" onClick={openModal}>
           <Plus className="w-4 h-4" /><span>Registrar cobro</span>
         </button>
       </div>
-      <div className="bg-surface-container-lowest border border-surface-container-high/70 rounded-2xl overflow-hidden shadow-2xs">
-        <table className="w-full text-left text-sm">
+      {/* Vista Móvil (Tarjetas de cobros) */}
+      <div className="sm:hidden space-y-2.5">
+        {pagos.length === 0 ? (
+          <div className="bg-surface-container-lowest border border-surface-container-high/70 rounded-2xl p-6 text-center text-xs text-on-surface-variant">
+            Sin cobros registrados aún.
+          </div>
+        ) : (
+          pagos.map((p) => {
+            const prestamo = rel(p.prestamos);
+            const contacto = rel(prestamo?.contactos);
+            return (
+              <div key={p.id} className="bg-surface-container-lowest border border-surface-container-high/70 rounded-2xl p-4 shadow-2xs space-y-2.5">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <h4 className="font-bold text-sm text-on-surface truncate">{contacto?.nombre ?? "—"}</h4>
+                    <p className="text-xs text-on-surface-variant truncate">{prestamo?.nombre ?? "—"}</p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <span className="font-mono text-base font-bold text-primary block">+{money(Number(p.monto_total))}</span>
+                    <span className="text-[10px] text-on-surface-variant">{formatDateEs(p.recibido_en)}</span>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between pt-2 border-t border-surface-container-low text-[11px] text-on-surface-variant">
+                  <span>Capital: <strong className="text-on-surface font-mono">{money(Number(p.monto_principal))}</strong> · Interés: <strong className="text-on-surface font-mono">{money(Number(p.monto_interes))}</strong></span>
+                  <span className="font-medium text-on-surface bg-surface-container-low px-2 py-0.5 rounded-md border border-surface-container-high/40">{rel(p.cuentas_dinero)?.nombre ?? "—"}</span>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {/* Vista Desktop / Tablet (Tabla) */}
+      <div className="hidden sm:block bg-surface-container-lowest border border-surface-container-high/70 rounded-2xl overflow-x-auto shadow-2xs">
+        <table className="w-full text-left text-sm min-w-[680px]">
           <thead>
-            <tr className="bg-surface-container-low text-xs font-semibold uppercase tracking-wider text-on-surface-variant">
-              <th className="py-3 px-4">Vencimiento</th>
+            <tr className="bg-surface-container-low/70 text-on-surface-variant text-xs font-semibold uppercase tracking-wider">
+              <th className="py-3 px-4 rounded-l-lg">Vencimiento</th>
               <th className="py-3 px-4">Cobrado</th>
               <th className="py-3 px-4">Contacto</th>
               <th className="py-3 px-4">Préstamo</th>
               <th className="py-3 px-4">Total</th>
               <th className="py-3 px-4">Capital</th>
               <th className="py-3 px-4">Interés</th>
-              <th className="py-3 px-4">Cuenta</th>
+              <th className="py-3 px-4 rounded-r-lg">Cuenta</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-surface-container-low text-on-surface">
@@ -569,12 +904,12 @@ function CuentasView({ cuentas, openModal }: { cuentas: Cuenta[]; openModal: () 
   };
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between pb-4 border-b border-surface-container-high/60">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-surface-container-high/60">
         <div>
           <h1 className="font-heading text-2xl font-extrabold text-on-surface">Cuentas de Dinero</h1>
           <p className="text-xs text-on-surface-variant mt-0.5">Efectivo, bancos, billeteras y su saldo actual.</p>
         </div>
-        <button className="px-4 py-2.5 rounded-xl bg-primary text-on-primary text-xs font-semibold shadow-xs hover:bg-primary-container flex items-center gap-2" onClick={openModal}>
+        <button className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-primary text-on-primary text-xs font-semibold shadow-xs hover:bg-primary-container flex items-center justify-center gap-2 cursor-pointer" onClick={openModal}>
           <Plus className="w-4 h-4" /><span>Nueva cuenta</span>
         </button>
       </div>
@@ -605,24 +940,58 @@ function CuentasView({ cuentas, openModal }: { cuentas: Cuenta[]; openModal: () 
 }
 
 function MovimientosView({ movimientos, openModal }: { movimientos: Movimiento[]; openModal: () => void }) {
-  const TIPO_LABELS: Record<string, string> = {
-    ingreso: "Ingreso", gasto: "Gasto", transferencia_entrada: "Transferencia ↓",
-    transferencia_salida: "Transferencia ↑", ajuste: "Ajuste",
-    entrega_prestamo: "Préstamo entregado", pago_prestamo: "Cobro de préstamo",
-  };
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between pb-4 border-b border-surface-container-high/60">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-surface-container-high/60">
         <div>
           <h1 className="font-heading text-2xl font-extrabold text-on-surface">Movimientos</h1>
           <p className="text-xs text-on-surface-variant mt-0.5">Todos los flujos de dinero del espacio.</p>
         </div>
-        <button className="px-4 py-2.5 rounded-xl bg-primary text-on-primary text-xs font-semibold shadow-xs hover:bg-primary-container flex items-center gap-2" onClick={openModal}>
+        <button className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-primary text-on-primary text-xs font-semibold shadow-xs hover:bg-primary-container flex items-center justify-center gap-2 cursor-pointer" onClick={openModal}>
           <Plus className="w-4 h-4" /><span>Registrar movimiento</span>
         </button>
       </div>
-      <div className="bg-surface-container-lowest border border-surface-container-high/70 rounded-2xl overflow-hidden shadow-2xs">
-        <table className="w-full text-left text-sm">
+      {/* Vista Móvil (Tarjetas de movimientos) */}
+      <div className="sm:hidden space-y-2.5">
+        {movimientos.length === 0 ? (
+          <div className="bg-surface-container-lowest border border-surface-container-high/70 rounded-2xl p-6 text-center text-xs text-on-surface-variant">
+            Sin movimientos registrados aún.
+          </div>
+        ) : (
+          movimientos.map((m) => {
+            const isPositive = ["ingreso", "pago_prestamo", "transferencia_entrada"].includes(m.tipo)
+              || (m.tipo === "ajuste" && m.ajuste_sentido === "sumar");
+            const badge = getTipoMovimientoBadge(m.tipo, m.ajuste_sentido);
+            const BadgeIcon = badge.Icon;
+            const cuentaNombre = (Array.isArray(m.cuentas_dinero)
+              ? (m.cuentas_dinero[0] as unknown as { nombre?: string })?.nombre
+              : (m.cuentas_dinero as unknown as { nombre?: string })?.nombre) ?? "—";
+            return (
+              <div key={m.id} className="bg-surface-container-lowest border border-surface-container-high/70 rounded-xl p-3.5 shadow-2xs flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="mb-1">
+                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border shadow-2xs ${badge.badgeClass}`}>
+                      <BadgeIcon className="w-2.5 h-2.5 shrink-0" />
+                      <span>{badge.label}</span>
+                    </span>
+                  </div>
+                  <p className="text-xs font-semibold text-on-surface truncate">{m.descripcion ? fixSpanishEncoding(m.descripcion) : badge.label}</p>
+                  <p className="text-[11px] text-on-surface-variant truncate">{formatDateEs(m.ocurrido_en)} · {cuentaNombre}</p>
+                </div>
+                <div className="text-right shrink-0">
+                  <span className={`font-mono text-xs font-bold block ${isPositive ? "text-primary" : "text-error"}`}>
+                    {isPositive ? "+" : "-"}{money(Number(m.monto))}
+                  </span>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {/* Vista Desktop / Tablet (Tabla) */}
+      <div className="hidden sm:block bg-surface-container-lowest border border-surface-container-high/70 rounded-2xl overflow-x-auto shadow-2xs">
+        <table className="w-full text-left text-sm min-w-[600px]">
           <thead>
             <tr className="bg-surface-container-low text-xs font-semibold uppercase tracking-wider text-on-surface-variant">
               <th className="py-3 px-4">Fecha</th>
@@ -638,13 +1007,17 @@ function MovimientosView({ movimientos, openModal }: { movimientos: Movimiento[]
             ) : movimientos.map((m) => {
               const isPositive = ["ingreso", "pago_prestamo", "transferencia_entrada"].includes(m.tipo)
                 || (m.tipo === "ajuste" && m.ajuste_sentido === "sumar");
-              const tipoLabel = m.tipo === "ajuste" && m.ajuste_sentido
-                ? `Ajuste (${m.ajuste_sentido})`
-                : TIPO_LABELS[m.tipo] ?? m.tipo;
+              const badge = getTipoMovimientoBadge(m.tipo, m.ajuste_sentido);
+              const BadgeIcon = badge.Icon;
               return (
                 <tr key={m.id} className="hover:bg-surface-container-low/40 transition-colors">
                   <td className="py-3.5 px-4 text-xs text-on-surface-variant">{formatDateEs(m.ocurrido_en)}</td>
-                  <td className="py-3.5 px-4 text-xs font-semibold text-on-surface-variant">{tipoLabel}</td>
+                  <td className="py-3.5 px-4">
+                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border shadow-2xs ${badge.badgeClass}`}>
+                      <BadgeIcon className="w-3.5 h-3.5 shrink-0" />
+                      <span>{badge.label}</span>
+                    </span>
+                  </td>
                   <td className="py-3.5 px-4 text-sm font-medium text-on-surface">{m.descripcion ? fixSpanishEncoding(m.descripcion) : "—"}</td>
                   <td className="py-3.5 px-4 text-xs text-on-surface-variant">
                     {(Array.isArray(m.cuentas_dinero)
@@ -664,29 +1037,6 @@ function MovimientosView({ movimientos, openModal }: { movimientos: Movimiento[]
   );
 }
 
-function ReportesView({ totals, prestamos }: { totals: ReturnType<typeof Object.assign>; prestamos: Prestamo[] }) {
-  return (
-    <div className="space-y-6">
-      <div className="pb-4 border-b border-surface-container-high/60">
-        <h1 className="font-heading text-2xl font-extrabold text-on-surface">Reportes</h1>
-        <p className="text-xs text-on-surface-variant mt-0.5">Próximamente: exportación PDF, gráficas avanzadas y comparativas.</p>
-      </div>
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {[
-          { label: "Capital en cuentas", value: totals.available },
-          { label: "Capital prestado pendiente", value: totals.pending },
-          { label: "Interés mensual est.", value: totals.interest },
-          { label: "Préstamos atrasados", value: totals.lateCount, isMoney: false },
-        ].map((item) => (
-          <div key={item.label} className="bg-surface-container-lowest rounded-2xl p-5 border border-surface-container-high/70 shadow-2xs">
-            <p className="text-xs text-on-surface-variant font-semibold uppercase tracking-wider">{item.label}</p>
-            <p className="font-mono text-xl font-extrabold text-on-surface mt-2">{item.isMoney === false ? item.value : money(item.value)}</p>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
 
 function ConfiguracionView({
   preferencias,
@@ -755,8 +1105,18 @@ function ConfiguracionView({
             <input
               type="checkbox"
               checked={oscuro}
-              onChange={(event) => setOscuro(event.target.checked)}
-              className="w-5 h-5 accent-primary"
+              onChange={(event) => {
+                const val = event.target.checked;
+                setOscuro(val);
+                document.documentElement.setAttribute("data-theme", val ? "dark" : "light");
+                document.documentElement.style.colorScheme = val ? "dark" : "light";
+                if (val) {
+                  document.documentElement.classList.add("dark");
+                } else {
+                  document.documentElement.classList.remove("dark");
+                }
+              }}
+              className="w-5 h-5 accent-primary cursor-pointer"
             />
           </label>
           <div>

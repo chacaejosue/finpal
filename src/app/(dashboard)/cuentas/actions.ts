@@ -5,9 +5,16 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { cuentaDineroSchema } from "@/lib/validations/schemas";
 
+import { isValidUuid, sanitizeText } from "@/lib/security";
+
 // ── Listar cuentas del espacio ────────────────────────────────────────────
 export async function getCuentas(espacioId: string) {
+  if (!isValidUuid(espacioId)) return [];
+
   const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return [];
+
   const { data, error } = await supabase
     .from("cuentas_dinero")
     .select("id, nombre, tipo, saldo_inicial, codigo_moneda, es_activa, created_at")
@@ -22,7 +29,12 @@ export async function getCuentas(espacioId: string) {
 // Cargar todos los saldos con una consulta de movimientos, evitando una
 // petición independiente por cada cuenta.
 export async function getCuentasConSaldo(espacioId: string) {
+  if (!isValidUuid(espacioId)) return [];
+
   const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return [];
+
   const [{ data: cuentas, error: cuentasError }, { data: movimientos, error: movimientosError }] =
     await Promise.all([
       supabase
@@ -114,8 +126,12 @@ export async function crearCuenta(espacioId: string, formData: FormData) {
 
 // ── Actualizar cuenta ─────────────────────────────────────────────────────
 export async function actualizarCuenta(cuentaId: string, espacioId: string, formData: FormData) {
+  if (!isValidUuid(cuentaId) || !isValidUuid(espacioId)) {
+    return { error: { _global: ["Identificadores no válidos"] } };
+  }
+
   const parsed = cuentaDineroSchema.safeParse({
-    nombre: formData.get("nombre"),
+    nombre: sanitizeText(formData.get("nombre")),
     tipo: formData.get("tipo"),
     saldo_inicial: formData.get("saldo_inicial"),
     codigo_moneda: formData.get("codigo_moneda") ?? "BOB",
@@ -124,6 +140,9 @@ export async function actualizarCuenta(cuentaId: string, espacioId: string, form
   if (!parsed.success) return { error: parsed.error.flatten().fieldErrors };
 
   const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/iniciar-sesion");
+
   const { error } = await supabase
     .from("cuentas_dinero")
     .update({
@@ -141,9 +160,16 @@ export async function actualizarCuenta(cuentaId: string, espacioId: string, form
   return { success: true };
 }
 
-// ── Desactivar (soft-delete) cuenta ──────────────────────────────────────
+// ── Desactivar (borrado lógico) cuenta ────────────────────────────────────
 export async function desactivarCuenta(cuentaId: string, espacioId: string) {
+  if (!isValidUuid(cuentaId) || !isValidUuid(espacioId)) {
+    return { error: "Identificadores no válidos" };
+  }
+
   const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/iniciar-sesion");
+
   const { error } = await supabase
     .from("cuentas_dinero")
     .update({ es_activa: false })
