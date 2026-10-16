@@ -1163,7 +1163,7 @@ function LoanForm({ data, submit }: { data: FinPalData; submit: (f: FormData) =>
 
       <div className="flex items-center gap-2 pt-1">
         <input name="chargesInterest" type="checkbox" defaultChecked className="w-4 h-4 rounded text-primary" />
-        <label className="text-xs font-semibold text-on-surface">Cobra interés mensual fijo</label>
+        <label className="text-xs font-semibold text-on-surface">Genera cobro de interés mensual (el deudor paga intereses)</label>
       </div>
 
       <div>

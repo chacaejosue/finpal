@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ReactNode, useState, useTransition, useEffect, useMemo } from "react";
+import { ReactNode, useState, useTransition, useEffect, useMemo, useRef } from "react";
 import type { CSSProperties } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
@@ -24,6 +24,10 @@ import {
   Calendar,
   FileBarChart2,
   Menu,
+  Sun,
+  Moon,
+  Check,
+  ChevronRight,
 } from "lucide-react";
 import { useEspacio } from "@/lib/espacio-context";
 import { useDashboard, money, loanBalance, monthlyInterest, rel, type Contacto, type Cuenta, type Prestamo } from "@/lib/dashboard-context";
@@ -45,6 +49,90 @@ const navItems = [
   { label: "Reportes", path: "/reportes", key: "reportes", icon: FileBarChart2 },
   { label: "Configuración", path: "/configuracion", key: "configuracion", icon: Settings },
 ] as const;
+
+function SlideToConfirm({
+  onConfirm,
+  submitting,
+  label = "Desliza para registrar",
+}: {
+  onConfirm: () => void;
+  submitting: boolean;
+  label?: string;
+}) {
+  const [sliderPosition, setSliderPosition] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const trackRef = useRef<HTMLDivElement>(null);
+
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (submitting) return;
+    setIsDragging(true);
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isDragging || submitting || !trackRef.current) return;
+    const rect = trackRef.current.getBoundingClientRect();
+    const maxOffset = rect.width - 48;
+    const currentX = e.clientX - rect.left - 24;
+    const clamped = Math.max(0, Math.min(currentX, maxOffset));
+    setSliderPosition(clamped);
+
+    if (clamped >= maxOffset * 0.85) {
+      setIsDragging(false);
+      setSliderPosition(maxOffset);
+      onConfirm();
+    }
+  };
+
+  const handlePointerUp = () => {
+    if (!isDragging) return;
+    setIsDragging(false);
+    if (!submitting) {
+      setSliderPosition(0);
+    }
+  };
+
+  return (
+    <div
+      ref={trackRef}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerUp}
+      className="relative w-full h-12 bg-surface-container-high/60 border border-surface-container-high rounded-2xl overflow-hidden select-none flex items-center px-1 shadow-inner touch-none"
+    >
+      <div
+        className="absolute left-0 top-0 bottom-0 bg-primary/20 transition-all duration-75"
+        style={{ width: `${sliderPosition + 48}px` }}
+      />
+      <div className="absolute inset-0 flex items-center justify-center text-xs font-bold text-on-surface-variant pointer-events-none gap-1.5 px-12 text-center">
+        {submitting ? (
+          <span className="flex items-center gap-2 text-primary font-bold">
+            <Loader2 className="w-4 h-4 animate-spin" />
+            <span>Registrando información...</span>
+          </span>
+        ) : (
+          <span>{label}</span>
+        )}
+      </div>
+      <div
+        onPointerDown={handlePointerDown}
+        style={{ transform: `translateX(${sliderPosition}px)` }}
+        className={`relative z-10 w-10 h-10 rounded-xl bg-primary text-on-primary flex items-center justify-center shadow-md transition-shadow cursor-grab active:cursor-grabbing ${
+          isDragging ? "scale-105 shadow-lg" : ""
+        }`}
+        title="Arrastra hasta el final para confirmar el registro"
+      >
+        {submitting ? (
+          <Loader2 className="w-4 h-4 animate-spin text-on-primary" />
+        ) : sliderPosition > 40 ? (
+          <Check className="w-4 h-4 text-on-primary" />
+        ) : (
+          <ChevronRight className="w-5 h-5 text-on-primary" />
+        )}
+      </div>
+    </div>
+  );
+}
 
 export function DashboardShell({
   children,
@@ -72,12 +160,55 @@ export function DashboardShell({
     setSuccessNotice,
     handleSubmitModal,
     preferencias,
+    guardarPreferencias,
   } = useDashboard();
 
   const [showWorkspaceDropdown, setShowWorkspaceDropdown] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [optimisticPath, setOptimisticPath] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [isFormDirty, setIsFormDirty] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
+
+  // Advertencia antes de cerrar pestaña con formulario incompleto
+  useEffect(() => {
+    setIsFormDirty(false);
+  }, [modal]);
+
+  useEffect(() => {
+    if (!modal || !isFormDirty) return;
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "Tienes cambios sin guardar en el formulario. ¿Deseas salir?";
+      return e.returnValue;
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [modal, isFormDirty]);
+
+  const handleSafeCloseModal = () => {
+    if (isFormDirty) {
+      const confirmLeave = window.confirm("Tienes datos ingresados en el formulario. ¿Estás seguro de que deseas salir sin guardar?");
+      if (!confirmLeave) return;
+    }
+    setIsFormDirty(false);
+    closeModal();
+  };
+
+  const handleToggleGlobalTheme = async () => {
+    const nextDark = !preferencias.modoOscuro;
+    document.documentElement.setAttribute("data-theme", nextDark ? "dark" : "light");
+    document.documentElement.style.colorScheme = nextDark ? "dark" : "light";
+    if (nextDark) {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
+    try {
+      localStorage.setItem("finpal-dark-mode", nextDark ? "true" : "false");
+    } catch {}
+    await guardarPreferencias(preferencias.colorAcento, nextDark, preferencias.tasaInteresPredeterminada);
+  };
 
   // Cerrar menú móvil automáticamente al navegar
   useEffect(() => {
@@ -429,6 +560,19 @@ export function DashboardShell({
           <div className="flex items-center gap-2 sm:gap-4">
             <button
               type="button"
+              onClick={handleToggleGlobalTheme}
+              className="p-2 rounded-xl text-on-surface hover:bg-surface-container transition-colors cursor-pointer"
+              title={preferencias.modoOscuro ? "Cambiar a modo claro" : "Cambiar a modo oscuro"}
+              aria-label={preferencias.modoOscuro ? "Cambiar a modo claro" : "Cambiar a modo oscuro"}
+            >
+              {preferencias.modoOscuro ? (
+                <Sun className="w-4 h-4 text-amber-400 hover:rotate-45 transition-transform" />
+              ) : (
+                <Moon className="w-4 h-4 text-primary hover:-rotate-12 transition-transform" />
+              )}
+            </button>
+            <button
+              type="button"
               onClick={() => setShowImportModal(true)}
               className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-semibold rounded-lg bg-surface-container-low hover:bg-surface-container border border-surface-container-high/40 text-on-surface transition-colors cursor-pointer"
               title="Importar Excel o CSV"
@@ -450,52 +594,10 @@ export function DashboardShell({
         </header>
 
         {/* Children Rendered Instantly */}
-        <main className="w-full pt-20 px-3.5 sm:px-8 pb-24 md:pb-12 min-h-[calc(100dvh-4rem)]">
+        <main className="w-full pt-20 px-3.5 sm:px-8 pb-12 min-h-[calc(100dvh-4rem)]">
           {isRouteLoading ? <DashboardRouteSkeleton path={optimisticPath} /> : children}
         </main>
       </div>
-
-      {/* Barra de Navegación Móvil Inferior (Thumb-friendly) */}
-      <nav
-        aria-label="Navegación rápida inferior"
-        className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-surface-container-lowest/95 backdrop-blur-lg border-t border-surface-container-high/60 z-40 flex items-center justify-around px-1 shadow-[0_-2px_12px_rgba(0,0,0,0.06)]"
-      >
-        {[
-          { label: "Inicio", path: "/inicio", icon: LayoutDashboard },
-          { label: "Préstamos", path: "/prestamos", icon: HandCoins },
-          { label: "Cobros", path: "/pagos", icon: ReceiptText },
-          { label: "Contactos", path: "/contactos", icon: UsersRound },
-        ].map((item) => {
-          const isActive = activePath === item.path;
-          const Icon = item.icon;
-          return (
-            <Link
-              key={item.path}
-              href={item.path}
-              prefetch={true}
-              onClick={() => setOptimisticPath(item.path)}
-              className={`flex flex-col items-center justify-center flex-1 py-1 gap-0.5 transition-colors cursor-pointer ${
-                isActive ? "text-primary font-bold" : "text-on-surface-variant hover:text-on-surface"
-              }`}
-            >
-              <div className={`p-1 rounded-xl transition-all ${isActive ? "bg-primary/10 text-primary scale-105" : ""}`}>
-                <Icon className="w-5 h-5" />
-              </div>
-              <span className="text-[10px] leading-tight truncate">{item.label}</span>
-            </Link>
-          );
-        })}
-        <button
-          type="button"
-          onClick={() => setMobileNavOpen(true)}
-          className="flex flex-col items-center justify-center flex-1 py-1 gap-0.5 text-on-surface-variant hover:text-on-surface transition-colors cursor-pointer"
-        >
-          <div className="p-1 rounded-xl">
-            <Menu className="w-5 h-5" />
-          </div>
-          <span className="text-[10px] leading-tight">Más</span>
-        </button>
-      </nav>
 
       {/* Modals Compartidos */}
       {/* Notificación Circular Animada Estilo Móvil con Timbre Armónico */}
@@ -516,10 +618,14 @@ export function DashboardShell({
                 movement: "Registrar movimiento",
               }[modal]
             }
-
-            close={closeModal}
+            close={handleSafeCloseModal}
           >
-            <form onSubmit={handleSubmitModal} className="space-y-4">
+            <form
+              ref={formRef}
+              onSubmit={handleSubmitModal}
+              onChange={() => setIsFormDirty(true)}
+              className="space-y-4"
+            >
               {modal === "contact" && <ContactoForm />}
               {modal === "account" && <CuentaForm />}
               {modal === "loan" && (
@@ -539,22 +645,33 @@ export function DashboardShell({
                 </p>
               )}
 
-              <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 sm:gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={closeModal}
-                  className="w-full sm:w-auto px-4 py-2.5 rounded-xl text-xs font-semibold text-on-surface hover:bg-surface-container transition-colors cursor-pointer text-center"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="w-full sm:w-auto px-5 py-2.5 rounded-xl text-xs font-semibold bg-primary text-on-primary hover:bg-primary-container transition-colors shadow-xs flex items-center justify-center gap-2 disabled:opacity-60 cursor-pointer"
-                >
-                  {submitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                  {submitting ? modal === "account" ? "Creando cuenta..." : "Guardando..." : "Guardar"}
-                </button>
+              <div className="pt-2 space-y-2.5">
+                <SlideToConfirm
+                  submitting={submitting}
+                  onConfirm={() => {
+                    formRef.current?.requestSubmit();
+                  }}
+                  label={
+                    modal === "loan"
+                      ? "Desliza para registrar el préstamo"
+                      : modal === "payment"
+                      ? "Desliza para registrar el cobro"
+                      : modal === "movement"
+                      ? "Desliza para registrar el movimiento"
+                      : modal === "account"
+                      ? "Desliza para crear la cuenta"
+                      : "Desliza para confirmar y registrar"
+                  }
+                />
+                <div className="flex justify-center">
+                  <button
+                    type="button"
+                    onClick={handleSafeCloseModal}
+                    className="text-xs font-semibold text-on-surface-variant hover:text-on-surface py-1 transition-colors cursor-pointer"
+                  >
+                    Cancelar y descartar
+                  </button>
+                </div>
               </div>
             </form>
           </ModalWrapper>
@@ -831,6 +948,7 @@ function PrestamoForm({
   const [contactoSeleccionado, setContactoSeleccionado] = useState("");
   const [fechaInicio, setFechaInicio] = useState(new Date().toISOString().slice(0, 10));
   const [diaPago, setDiaPago] = useState(new Date().getDate());
+  const [metodoEntrega, setMetodoEntrega] = useState("");
   return (
     <>
       <FormField label="Deudor *">
@@ -871,31 +989,42 @@ function PrestamoForm({
       <FormField label="Monto principal (Bs) *">
         <input type="number" name="monto_principal" required min={1} step="0.01" className={inputCls} />
       </FormField>
-      <div className="flex items-center justify-between">
-        <label className="flex items-center gap-2 text-xs font-semibold text-on-surface cursor-pointer">
-          <input
-            type="checkbox"
-            name="cobra_interes"
-            value="true"
-            checked={cobraInteres}
-            onChange={(e) => {
-              const checked = e.target.checked;
-              setCobraInteres(checked);
-              if (!checked) {
-                setTasaInteres(0);
-              } else if (Number(tasaInteres) === 0) {
-                setTasaInteres(tasaPredeterminada > 0 ? tasaPredeterminada : 3);
-              }
-            }}
-            className="w-4 h-4 rounded accent-primary"
-          />
-          Cobra interés mensual
-        </label>
-        {cobraInteres && Number(tasaInteres) === 0 && (
-          <span className="text-[11px] font-semibold text-primary bg-primary/10 px-2 py-0.5 rounded-md">
-            Sin interés (0%)
-          </span>
-        )}
+      <div className="rounded-xl border border-outline/15 bg-surface-container-low/50 p-3 space-y-2">
+        <div className="flex items-start justify-between gap-3">
+          <label className="flex items-start gap-2.5 text-xs font-semibold text-on-surface cursor-pointer select-none">
+            <input
+              type="checkbox"
+              name="cobra_interes"
+              value="true"
+              checked={cobraInteres}
+              onChange={(e) => {
+                const checked = e.target.checked;
+                setCobraInteres(checked);
+                if (!checked) {
+                  setTasaInteres(0);
+                } else if (Number(tasaInteres) === 0) {
+                  setTasaInteres(tasaPredeterminada > 0 ? tasaPredeterminada : 3);
+                }
+              }}
+              className="mt-0.5 w-4 h-4 rounded accent-primary cursor-pointer"
+            />
+            <div>
+              <span className="block text-xs font-semibold text-on-surface">
+                Genera cobro de interés mensual (el deudor paga intereses)
+              </span>
+              <span className="block text-[11px] font-normal text-on-surface-variant">
+                {cobraInteres
+                  ? "El deudor debe pagar intereses cada mes según la tasa acordada."
+                  : "Préstamo de confianza / sin intereses (0%). Solo devuelve el capital prestado."}
+              </span>
+            </div>
+          </label>
+          {cobraInteres && Number(tasaInteres) === 0 && (
+            <span className="shrink-0 text-[11px] font-semibold text-primary bg-primary/10 px-2 py-0.5 rounded-md">
+              0% (sin interés)
+            </span>
+          )}
+        </div>
       </div>
       {cobraInteres && (
         <FormField label="Tasa mensual (%)">
@@ -961,12 +1090,33 @@ function PrestamoForm({
         )}
       </div>
       <FormField label="Método de entrega (opcional)">
-        <input
-          type="text"
-          name="metodo_entrega"
-          className={inputCls}
-          placeholder="Efectivo, transferencia, QR..."
-        />
+        <div className="space-y-2">
+          <input
+            type="text"
+            name="metodo_entrega"
+            className={inputCls}
+            value={metodoEntrega}
+            onChange={(e) => setMetodoEntrega(e.target.value)}
+            placeholder="Efectivo, transferencia, QR..."
+          />
+          <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+            <span className="text-[11px] text-on-surface-variant">Opciones rápidas:</span>
+            {["Efectivo", "Transferencia bancaria", "Pago QR", "Depósito"].map((metodo) => (
+              <button
+                key={metodo}
+                type="button"
+                onClick={() => setMetodoEntrega(metodo)}
+                className={`text-[11px] px-2.5 py-1 rounded-lg border transition-all cursor-pointer ${
+                  metodoEntrega === metodo
+                    ? "bg-primary text-on-primary border-primary font-semibold shadow-xs"
+                    : "bg-surface-container-low hover:bg-surface-container text-on-surface-variant hover:text-on-surface border-outline/15"
+                }`}
+              >
+                {metodo}
+              </button>
+            ))}
+          </div>
+        </div>
       </FormField>
       <FormField label="Notas">
         <textarea name="notas" rows={2} className={`${inputCls} h-auto py-2.5`} />
