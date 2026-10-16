@@ -343,3 +343,36 @@ html, body, div, main, section {
 .animate-float-bounce {
   animation: float-bounce 2s ease-in-out infinite;
 }
+
+/* ─── Reglas de Impresión y Exportación a PDF Formal ─── */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 12mm 14mm;
+  }
+
+  html, body {
+    background-color: #ffffff !important;
+    color: #0f172a !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    font-size: 11pt !important;
+  }
+
+  /* Ocultar elementos de navegación y decorativos en el reporte impreso */
+  header, aside, nav, .print\:hidden, button {
+    display: none !important;
+  }
+
+  main {
+    padding: 0 !important;
+    margin: 0 !important;
+    min-height: auto !important;
+    width: 100% !important;
+  }
+
+  .print-avoid-break {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+}

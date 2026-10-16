@@ -59,6 +59,7 @@ import {
   type Preferencias,
 } from "@/lib/dashboard-context";
 import { ContactAvatar } from "@/components/contact-avatar";
+import { FinPalLogo } from "@/components/finpal-logo";
 import { formatDateEs } from "@/lib/format-date";
 import { sanitizeSpreadsheetCell } from "@/lib/security";
 
@@ -876,8 +877,49 @@ export function ReportesBiDashboard({
 
   return (
     <div className="space-y-6 pb-12 print:space-y-4 print:pb-0">
+      {/* ─── Encabezado Ejecutivo Formal Exclusivo para PDF / Impresión ───────── */}
+      <div className="hidden print:block mb-6 pb-4 border-b-2 border-slate-900">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <FinPalLogo size={36} className="w-9 h-9" priority />
+            <div>
+              <div className="flex items-baseline tracking-tight font-heading text-xl">
+                <span className="font-extrabold text-slate-900">Fin</span>
+                <span className="font-extrabold text-primary">Pal</span>
+              </div>
+              <p className="text-[10px] text-slate-500 uppercase tracking-widest font-semibold">
+                Financial Management Protocol
+              </p>
+            </div>
+          </div>
+          <div className="text-right">
+            <span className="inline-block px-2.5 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-800 border border-slate-300 uppercase tracking-wider">
+              Informe Financiero Oficial
+            </span>
+            <p className="text-[11px] font-mono text-slate-600 mt-1">
+              Fecha: {new Date().toLocaleDateString("es-BO", { year: "numeric", month: "long", day: "numeric" })}
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-4 pt-3 border-t border-slate-200 flex items-center justify-between text-xs">
+          <div>
+            <h1 className="font-heading text-lg font-bold text-slate-900">
+              Reporte Ejecutivo de Cartera, Rendimiento y Liquidez
+            </h1>
+            <p className="text-[11px] text-slate-600">
+              Auditoría consolidada de activos, créditos activos y flujo de caja neto.
+            </p>
+          </div>
+          <div className="text-right text-[11px] text-slate-600">
+            <p><span className="font-semibold text-slate-800">Filtro temporal:</span> {periodo === "todo" ? "Histórico Total" : periodo.toUpperCase()}</p>
+            <p><span className="font-semibold text-slate-800">Moneda Base:</span> BOB (Bolivianos)</p>
+          </div>
+        </div>
+      </div>
+
       {/* ─── Encabezado Superior de Inteligencia de Negocios (BI) ───────── */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-5 border-b border-surface-container-high/60">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-5 border-b border-surface-container-high/60 print:hidden">
         <div>
           <div className="flex items-center gap-2">
             <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-primary/10 text-primary border border-primary/20">
@@ -1047,17 +1089,17 @@ export function ReportesBiDashboard({
           </div>
 
           {/* Card 2: Gastos Registrados */}
-          <div className="bg-surface-container-lowest rounded-2xl p-4 sm:p-5 border border-surface-container-high/70 shadow-2xs hover:border-rose-500/30 hover:shadow-sm transition-all duration-200 flex flex-col justify-between">
+          <div className="bg-surface-container-lowest print:bg-slate-50 rounded-2xl p-4 sm:p-5 border border-surface-container-high/70 print:border-slate-300 shadow-2xs hover:border-red-600/30 hover:shadow-sm transition-all duration-200 flex flex-col justify-between print-avoid-break">
             <div className="flex items-center justify-between">
               <span className="text-[11px] text-on-surface-variant font-bold uppercase tracking-wider">
                 Gastos Registrados
               </span>
-              <div className="w-10 h-10 rounded-xl bg-rose-500/10 text-rose-600 dark:text-rose-400 ring-1 ring-rose-500/20 flex items-center justify-center shrink-0">
+              <div className="w-10 h-10 rounded-xl bg-red-500/10 text-red-700 dark:text-red-300 ring-1 ring-red-500/25 flex items-center justify-center shrink-0">
                 <ArrowUpRight className="w-5 h-5" />
               </div>
             </div>
             <div className="mt-3">
-              <div className="font-mono text-xl sm:text-2xl font-extrabold text-error tracking-tight">
+              <div className="font-mono text-xl sm:text-2xl font-extrabold text-red-700 dark:text-red-300 tracking-tight">
                 {money(metrics.totalGastos)}
               </div>
               <p className="text-[11px] text-on-surface-variant mt-1.5 font-medium">
@@ -2066,6 +2108,14 @@ export function ReportesBiDashboard({
               </tfoot>
             )}
           </table>
+        </div>
+      </div>
+
+      {/* ─── Pie de Reporte Formal para Impresión / PDF ───────── */}
+      <div className="hidden print:block mt-8 pt-4 border-t-2 border-slate-300 text-[10px] text-slate-500">
+        <div className="flex items-center justify-between">
+          <span>FinPal Financial Ledger · Sistema Integral de Gestión de Cartera y Préstamos · Confidencial</span>
+          <span>Página 1 · Informe Oficial Generado Electrónicamente</span>
         </div>
       </div>
     </div>
