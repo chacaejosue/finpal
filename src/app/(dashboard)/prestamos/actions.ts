@@ -5,6 +5,8 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { prestamoSchema } from "@/lib/validations/schemas";
 
+import { isValidUuid, sanitizeText } from "@/lib/security";
+
 function isoDate(date: Date) {
   return date.toISOString().slice(0, 10);
 }
@@ -21,7 +23,12 @@ function nextMonthDate(date: string, day: number) {
 
 // ── Listar préstamos del espacio ──────────────────────────────────────────
 export async function getPrestamos(espacioId: string) {
+  if (!isValidUuid(espacioId)) return [];
+
   const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return [];
+
   const [{ data, error }, { data: pagos, error: pagosError }] = await Promise.all([
     supabase
     .from("prestamos")
@@ -29,7 +36,7 @@ export async function getPrestamos(espacioId: string) {
       id, nombre, monto_principal, monto_capital_pagado, cobra_interes,
       tasa_interes_mensual, fecha_inicio, dia_pago, estado, notas,
       archivado_en, created_at,
-      contactos(id, nombre)
+      contactos(id, nombre, telefono, email, notas)
     `)
     .eq("espacio_id", espacioId)
     .is("archivado_en", null)
@@ -98,18 +105,27 @@ function pendingPush(periodos: string[], vencimiento: string) {
 }
 
 // ── Crear préstamo + transacción de entrega ────────────────────────────────
+
+/**
+ * Registra un nuevo préstamo y genera su impacto contable automático:
+ * 1. Valida el esquema con `prestamoSchema` (coerción de tasa 0% a sin interés).
+ * 2. Asocia o crea automáticamente el deudor en la tabla `contactos` del espacio de trabajo.
+ * 3. Inserta el registro del préstamo con estado `activo`.
+ * 4. Inserta la transacción contable de tipo `entrega_prestamo` para debitar el dinero de la cuenta origen.
+ * 5. Revalida rutas del dashboard para actualización en tiempo real.
+ */
 export async function crearPrestamo(espacioId: string, formData: FormData) {
   const parsed = prestamoSchema.safeParse({
-    contacto_id: formData.get("contacto_id"),
-    contacto_nombre: formData.get("contacto_nombre"),
-    nombre: formData.get("nombre"),
+    contacto_id: (formData.get("contacto_id") as string) || undefined,
+    contacto_nombre: (formData.get("contacto_nombre") as string) || undefined,
+    nombre: (formData.get("nombre") as string) || undefined,
     monto_principal: formData.get("monto_principal"),
     cobra_interes: formData.get("cobra_interes") === "true",
     tasa_interes_mensual: formData.get("tasa_interes_mensual"),
     fecha_inicio: formData.get("fecha_inicio"),
     dia_pago: formData.get("dia_pago"),
-    metodo_entrega: formData.get("metodo_entrega"),
-    notas: formData.get("notas"),
+    metodo_entrega: (formData.get("metodo_entrega") as string) || undefined,
+    notas: (formData.get("notas") as string) || undefined,
     cuenta_dinero_id: formData.get("cuenta_dinero_id"),
   });
 
@@ -120,29 +136,41 @@ export async function crearPrestamo(espacioId: string, formData: FormData) {
   if (!user) redirect("/iniciar-sesion");
 
   let contactoId = parsed.data.contacto_id || "";
-  if (!contactoId && parsed.data.contacto_nombre) {
-    const nombreContacto = parsed.data.contacto_nombre.trim();
+  let nombreDeudor = parsed.data.contacto_nombre?.trim() || "";
+
+  if (!contactoId && nombreDeudor) {
     const { data: contactoExistente } = await supabase
       .from("contactos")
-      .select("id")
+      .select("id, nombre")
       .eq("espacio_id", espacioId)
-      .ilike("nombre", nombreContacto)
+      .ilike("nombre", nombreDeudor)
       .is("archivado_en", null)
       .maybeSingle();
 
     if (contactoExistente) {
       contactoId = contactoExistente.id;
+      nombreDeudor = contactoExistente.nombre;
     } else {
       const { data: nuevoContacto, error: contactoError } = await supabase
         .from("contactos")
-        .insert({ espacio_id: espacioId, nombre: nombreContacto })
-        .select("id")
+        .insert({ espacio_id: espacioId, nombre: nombreDeudor })
+        .select("id, nombre")
         .single();
 
       if (contactoError || !nuevoContacto) {
         return { error: { _global: [contactoError?.message ?? "No se pudo crear el deudor"] } };
       }
       contactoId = nuevoContacto.id;
+      nombreDeudor = nuevoContacto.nombre;
+    }
+  } else if (contactoId && !nombreDeudor) {
+    const { data: c } = await supabase
+      .from("contactos")
+      .select("nombre")
+      .eq("id", contactoId)
+      .maybeSingle();
+    if (c?.nombre) {
+      nombreDeudor = c.nombre;
     }
   }
 
@@ -152,7 +180,7 @@ export async function crearPrestamo(espacioId: string, formData: FormData) {
 
   // Insertar préstamo
   const nombrePrestamo =
-    parsed.data.nombre || `Préstamo a ${parsed.data.contacto_nombre || "este deudor"}`;
+    parsed.data.nombre?.trim() || (nombreDeudor ? `Préstamo a ${nombreDeudor}` : "Préstamo");
   const { data: prestamo, error: errPrestamo } = await supabase
     .from("prestamos")
     .insert({
@@ -164,8 +192,8 @@ export async function crearPrestamo(espacioId: string, formData: FormData) {
       tasa_interes_mensual: parsed.data.tasa_interes_mensual,
       fecha_inicio: parsed.data.fecha_inicio,
       dia_pago: parsed.data.dia_pago,
-      metodo_entrega: parsed.data.metodo_entrega,
-      notas: parsed.data.notas,
+      metodo_entrega: parsed.data.metodo_entrega || null,
+      notas: parsed.data.notas || null,
     })
     .select("id")
     .single();
@@ -195,7 +223,17 @@ export async function actualizarEstadoPrestamo(
   espacioId: string,
   estado: "activo" | "pagado" | "atrasado" | "cancelado"
 ) {
+  if (!isValidUuid(prestamoId) || !isValidUuid(espacioId)) {
+    return { error: "Identificadores no válidos" };
+  }
+  if (!["activo", "pagado", "atrasado", "cancelado"].includes(estado)) {
+    return { error: "Estado no válido" };
+  }
+
   const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/iniciar-sesion");
+
   const { error } = await supabase
     .from("prestamos")
     .update({ estado })
@@ -211,7 +249,14 @@ export async function actualizarEstadoPrestamo(
 
 // ── Archivar préstamo ─────────────────────────────────────────────────────
 export async function archivarPrestamo(prestamoId: string, espacioId: string) {
+  if (!isValidUuid(prestamoId) || !isValidUuid(espacioId)) {
+    return { error: "Identificadores no válidos" };
+  }
+
   const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/iniciar-sesion");
+
   const { error } = await supabase
     .from("prestamos")
     .update({ archivado_en: new Date().toISOString() })

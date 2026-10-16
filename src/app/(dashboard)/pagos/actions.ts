@@ -5,9 +5,16 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { pagoPrestamoSchema } from "@/lib/validations/schemas";
 
+import { isValidUuid, sanitizeText } from "@/lib/security";
+
 // ── Listar pagos del espacio ──────────────────────────────────────────────
 export async function getPagos(espacioId: string) {
+  if (!isValidUuid(espacioId)) return [];
+
   const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return [];
+
   const { data, error } = await supabase
     .from("pagos_prestamos")
     .select(`
@@ -24,7 +31,21 @@ export async function getPagos(espacioId: string) {
 }
 
 // ── Registrar cobro ────────────────────────────────────────────────────────
+
+/**
+ * Registra un cobro de préstamo y procesa su impacto contable y estado de cartera:
+ * 1. Valida el desglose contable (total = capital + interés) y sanea entradas de texto.
+ * 2. Verifica que el abono de capital no exceda el saldo pendiente real del préstamo.
+ * 3. Inserta el cobro en `pagos_prestamos`.
+ * 4. Inserta la transacción contable de tipo `pago_prestamo` para acreditar el dinero a la cuenta seleccionada.
+ * 5. Actualiza `monto_capital_pagado` en el préstamo:
+ *    - Si el capital devuelto cubre el 100% del principal -> estado pasa a `pagado`.
+ *    - Si queda saldo y la fecha de cobro excedió el vencimiento -> pasa a `atrasado`.
+ *    - Si queda saldo y está al día -> permanece `activo`.
+ */
 export async function registrarPago(espacioId: string, formData: FormData) {
+  if (!isValidUuid(espacioId)) return { error: { _global: ["Espacio de trabajo no válido"] } };
+
   const parsed = pagoPrestamoSchema.safeParse({
     prestamo_id: formData.get("prestamo_id"),
     fecha_esperada: formData.get("fecha_esperada"),
@@ -33,8 +54,8 @@ export async function registrarPago(espacioId: string, formData: FormData) {
     monto_principal: formData.get("monto_principal"),
     monto_interes: formData.get("monto_interes"),
     cuenta_dinero_id: formData.get("cuenta_dinero_id"),
-    metodo_pago: formData.get("metodo_pago"),
-    notas: formData.get("notas"),
+    metodo_pago: sanitizeText(formData.get("metodo_pago"), 100),
+    notas: sanitizeText(formData.get("notas")),
   });
 
   if (!parsed.success) return { error: parsed.error.flatten().fieldErrors };
@@ -107,7 +128,8 @@ export async function registrarPago(espacioId: string, formData: FormData) {
     await supabase
       .from("prestamos")
       .update({ monto_capital_pagado: nuevoPagado, estado: estadoNuevo })
-      .eq("id", parsed.data.prestamo_id);
+      .eq("id", parsed.data.prestamo_id)
+      .eq("espacio_id", espacioId);
   }
 
   revalidatePath("/pagos");

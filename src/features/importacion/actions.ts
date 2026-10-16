@@ -142,13 +142,16 @@ export async function importarPrestamos(
 
     if (!cId) continue;
 
+    const tasaInteres = Number(data.tasa_interes || 0);
+    const cobraInteres = Boolean(data.cobra_interes) && tasaInteres > 0;
+
     registrosParaInsertar.push({
       espacio_id: espacioId,
       contacto_id: cId,
       nombre: data.nombre,
       monto_principal: data.monto,
-      cobra_interes: Boolean(data.cobra_interes),
-      tasa_interes_mensual: data.cobra_interes ? Number(data.tasa_interes) : 0,
+      cobra_interes: cobraInteres,
+      tasa_interes_mensual: cobraInteres ? tasaInteres : 0,
       base_interes: "saldo_pendiente",
       fecha_inicio: data.fecha_inicio,
       dia_pago: Number(data.dia_pago),
