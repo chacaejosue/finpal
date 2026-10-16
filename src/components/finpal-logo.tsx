@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Image from "next/image";
 
 interface LogoProps {
@@ -15,20 +16,26 @@ export function FinPalLogo({
   priority = false,
   colorAcento,
 }: LogoProps) {
-  const logoSrc =
-    colorAcento && ["azul", "violeta", "naranja", "rosa"].includes(colorAcento)
+  const [loadError, setLoadError] = useState(false);
+
+  const validAccents = ["azul", "violeta", "naranja", "rosa"];
+  const preferredSrc =
+    colorAcento && validAccents.includes(colorAcento)
       ? `/logo-${colorAcento}.svg`
       : "/logo.svg";
+
+  const activeSrc = loadError ? "/logo.svg" : preferredSrc;
 
   return (
     <div className={`relative inline-flex items-center justify-center shrink-0 ${className}`}>
       <Image
-        src={logoSrc}
+        src={activeSrc}
         alt="FinPal Logo"
         width={size * 2}
         height={size * 2}
         className="w-full h-full object-contain"
         priority={priority}
+        onError={() => setLoadError(true)}
       />
     </div>
   );
