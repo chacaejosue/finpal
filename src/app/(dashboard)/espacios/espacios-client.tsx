@@ -219,9 +219,13 @@ export default function EspaciosClient({
         </div>
 
         {/* Helpful Info Tip */}
-        <div className="mt-8 sm:mt-10 flex items-center justify-center gap-2 text-xs text-on-surface-variant text-center max-w-lg mx-auto">
-          <Info className="w-4 h-4 text-primary shrink-0" />
-          <span>Puedes alternar libremente entre tus espacios de trabajo en cualquier momento desde el menú superior o lateral.</span>
+        <div className="mt-8 sm:mt-10 flex justify-center px-4">
+          <div className="inline-flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-surface-container-low/60 border border-surface-container-high/60 text-xs text-on-surface-variant max-w-lg shadow-2xs">
+            <Info className="w-4 h-4 text-primary shrink-0" />
+            <span className="leading-relaxed text-left">
+              Puedes alternar libremente entre tus espacios de trabajo en cualquier momento desde el menú superior o lateral.
+            </span>
+          </div>
         </div>
       </main>
 
