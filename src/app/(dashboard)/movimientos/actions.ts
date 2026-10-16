@@ -5,9 +5,18 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { transaccionSchema } from "@/lib/validations/schemas";
 
+import { isValidUuid, sanitizeText } from "@/lib/security";
+
 // ── Listar transacciones del espacio ──────────────────────────────────────
-export async function getMovimientos(espacioId: string, limit = 50) {
+export async function getMovimientos(espacioId: string, limit = 200) {
+  if (!isValidUuid(espacioId)) return [];
+
   const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return [];
+
+  const safeLimit = Math.min(Math.max(1, limit), 1000);
+
   const { data, error } = await supabase
     .from("transacciones")
     .select(`
@@ -17,7 +26,7 @@ export async function getMovimientos(espacioId: string, limit = 50) {
     `)
     .eq("espacio_id", espacioId)
     .order("ocurrido_en", { ascending: false })
-    .limit(limit);
+    .limit(safeLimit);
 
   if (error) throw new Error(error.message);
   return data ?? [];
@@ -25,13 +34,15 @@ export async function getMovimientos(espacioId: string, limit = 50) {
 
 // ── Registrar movimiento (ingreso / gasto / ajuste) ───────────────────────
 export async function registrarMovimiento(espacioId: string, formData: FormData) {
+  if (!isValidUuid(espacioId)) return { error: { _global: ["Espacio no válido"] } };
+
   const parsed = transaccionSchema.safeParse({
     cuenta_dinero_id: formData.get("cuenta_dinero_id"),
     tipo: formData.get("tipo"),
     ajuste_sentido: formData.get("ajuste_sentido") || null,
     monto: formData.get("monto"),
     ocurrido_en: formData.get("ocurrido_en"),
-    descripcion: formData.get("descripcion"),
+    descripcion: sanitizeText(formData.get("descripcion"), 500),
     categoria_id: formData.get("categoria_id") || null,
   });
 
@@ -62,7 +73,14 @@ export async function registrarMovimiento(espacioId: string, formData: FormData)
 
 // ── Eliminar movimiento ───────────────────────────────────────────────────
 export async function eliminarMovimiento(txId: string, espacioId: string) {
+  if (!isValidUuid(txId) || !isValidUuid(espacioId)) {
+    return { error: "Identificadores no válidos" };
+  }
+
   const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/iniciar-sesion");
+
   const { error } = await supabase
     .from("transacciones")
     .delete()

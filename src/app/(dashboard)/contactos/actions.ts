@@ -5,9 +5,16 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { contactoSchema } from "@/lib/validations/schemas";
 
+import { isValidUuid, sanitizeText } from "@/lib/security";
+
 // ── Listar contactos del espacio ──────────────────────────────────────────
 export async function getContactos(espacioId: string) {
+  if (!isValidUuid(espacioId)) return [];
+
   const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return [];
+
   const { data, error } = await supabase
     .from("contactos")
     .select(`
@@ -24,11 +31,13 @@ export async function getContactos(espacioId: string) {
 
 // ── Crear contacto ────────────────────────────────────────────────────────
 export async function crearContacto(espacioId: string, formData: FormData) {
+  if (!isValidUuid(espacioId)) return { error: { _global: ["Espacio de trabajo no válido"] } };
+
   const parsed = contactoSchema.safeParse({
-    nombre: formData.get("nombre"),
-    telefono: formData.get("telefono"),
+    nombre: sanitizeText(formData.get("nombre")),
+    telefono: sanitizeText(formData.get("telefono"), 30),
     email: formData.get("email"),
-    notas: formData.get("notas"),
+    notas: sanitizeText(formData.get("notas")),
   });
 
   if (!parsed.success) return { error: parsed.error.flatten().fieldErrors };
@@ -50,16 +59,23 @@ export async function crearContacto(espacioId: string, formData: FormData) {
 
 // ── Actualizar contacto ───────────────────────────────────────────────────
 export async function actualizarContacto(contactoId: string, espacioId: string, formData: FormData) {
+  if (!isValidUuid(contactoId) || !isValidUuid(espacioId)) {
+    return { error: { _global: ["Identificador de contacto o espacio no válido"] } };
+  }
+
   const parsed = contactoSchema.safeParse({
-    nombre: formData.get("nombre"),
-    telefono: formData.get("telefono"),
+    nombre: sanitizeText(formData.get("nombre")),
+    telefono: sanitizeText(formData.get("telefono"), 30),
     email: formData.get("email"),
-    notas: formData.get("notas"),
+    notas: sanitizeText(formData.get("notas")),
   });
 
   if (!parsed.success) return { error: parsed.error.flatten().fieldErrors };
 
   const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/iniciar-sesion");
+
   const { error } = await supabase
     .from("contactos")
     .update(parsed.data)
@@ -72,9 +88,16 @@ export async function actualizarContacto(contactoId: string, espacioId: string, 
   return { success: true };
 }
 
-// ── Archivar (soft-delete) contacto ──────────────────────────────────────
+// ── Archivar (borrado lógico) contacto ────────────────────────────────────
 export async function archivarContacto(contactoId: string, espacioId: string) {
+  if (!isValidUuid(contactoId) || !isValidUuid(espacioId)) {
+    return { error: "Identificador no válido" };
+  }
+
   const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/iniciar-sesion");
+
   const { error } = await supabase
     .from("contactos")
     .update({ archivado_en: new Date().toISOString() })
