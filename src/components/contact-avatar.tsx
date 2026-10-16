@@ -61,17 +61,17 @@ function PersonSVG({ bg, bodyColor, headColor, style }: {
       style={{ borderRadius: bgRadii[style] }}
       className="w-full h-full"
     >
-      {/* Background */}
-      <rect width="40" height="40" fill={bg} />
+      {/* Background transparentoso armónico adaptado a modo claro y oscuro */}
+      <rect width="40" height="40" fill={headColor} fillOpacity="0.16" />
 
       {/* Head */}
-      <circle cx="20" cy="14.5" r="6.5" fill={headColor} opacity="0.9" />
+      <circle cx="20" cy="14.5" r="6.5" fill={headColor} opacity="0.95" />
 
       {/* Body / shoulders */}
       <path
         d="M8 38 C8 28 12 24 20 24 C28 24 32 28 32 38"
         fill={bodyColor}
-        opacity="0.75"
+        opacity="0.85"
       />
     </svg>
   );
