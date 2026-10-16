@@ -23,6 +23,8 @@ import {
   Plus,
   Terminal,
   WalletCards,
+  X,
+  ShieldCheck,
 } from "lucide-react";
 
 const githubUrl = "https://github.com/chacaejosue/finpal.git";
@@ -119,6 +121,7 @@ export default function Home() {
 
   const [copied, setCopied] = useState(false);
   const [showBackToTop, setShowBackToTop] = useState(false);
+  const [legalModal, setLegalModal] = useState<"terminos" | "privacidad" | null>(null);
 
   useEffect(() => {
     const onScroll = () => setShowBackToTop(window.scrollY > 350);
@@ -176,10 +179,10 @@ export default function Home() {
             </a>
           </nav>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             <Link
               href="/iniciar-sesion"
-              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold text-on-surface hover:text-primary transition-colors"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary/10 sm:bg-transparent text-xs sm:text-sm font-semibold text-primary sm:text-on-surface hover:text-primary hover:bg-primary/15 transition-all cursor-pointer"
             >
               <LogIn className="w-4 h-4 text-primary" />
               <span>Iniciar sesión</span>
@@ -333,14 +336,16 @@ export default function Home() {
                 transition={{ duration: 0.5, delay: 0.1 }}
               >
                 <div className="relative w-full rounded-2xl bg-surface-container-lowest border border-surface-container-high/70 p-4 shadow-xl">
-                  <div className="flex items-center justify-between pb-3 px-1 border-b border-surface-container-low mb-3">
-                    <div className="flex items-center gap-1.5">
-                      <span className="w-2.5 h-2.5 rounded-full bg-error/70" />
-                      <span className="w-2.5 h-2.5 rounded-full bg-secondary-fixed-dim" />
-                      <span className="w-2.5 h-2.5 rounded-full bg-primary-fixed" />
-                      <span className="ml-2 font-mono text-xs text-outline">finpal.local/prestamos</span>
+                  <div className="flex flex-wrap items-center justify-between gap-2 pb-3 px-1 border-b border-surface-container-low mb-3">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span className="w-2.5 h-2.5 rounded-full bg-error/70 shrink-0" />
+                      <span className="w-2.5 h-2.5 rounded-full bg-secondary-fixed-dim shrink-0" />
+                      <span className="w-2.5 h-2.5 rounded-full bg-primary-fixed shrink-0" />
+                      <span className="ml-1 sm:ml-2 font-mono text-[10px] sm:text-xs text-outline truncate max-w-[140px] sm:max-w-none">
+                        finpal.local/prestamos
+                      </span>
                     </div>
-                    <span className="inline-flex items-center gap-1.5 text-xs text-primary font-semibold bg-surface-container px-2.5 py-0.5 rounded-full border border-primary/10">
+                    <span className="inline-flex items-center gap-1.5 text-[11px] sm:text-xs text-primary font-semibold bg-surface-container px-2 sm:px-2.5 py-0.5 rounded-full border border-primary/10 shrink-0">
                       <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" /> Espacio: Préstamos
                     </span>
                   </div>
@@ -706,38 +711,39 @@ export default function Home() {
 
               <div>
                 <h4 className="font-heading text-sm font-bold text-on-surface mb-3 uppercase tracking-wider">
-                  Comunidad
+                  Recursos
                 </h4>
                 <ul className="space-y-2.5 text-sm text-on-surface-variant">
                   <li>
                     <a
-                      className="hover:text-primary transition-colors"
-                      href={`${githubWebUrl}/issues`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      GitHub Issues
-                    </a>
-                  </li>
-                  <li>
-                    <a
-                      className="hover:text-primary transition-colors"
+                      className="hover:text-primary transition-colors inline-flex items-center gap-1.5"
                       href={githubUrl}
                       target="_blank"
                       rel="noopener noreferrer"
                     >
-                      Guía de Contribución
+                      <span>Código Fuente en GitHub</span>
+                      <ExternalLink className="w-3.5 h-3.5 text-on-surface-variant" />
                     </a>
                   </li>
                   <li>
                     <a
-                      className="hover:text-primary transition-colors"
-                      href={`${githubWebUrl}/discussions`}
+                      className="hover:text-primary transition-colors inline-flex items-center gap-1.5"
+                      href={`${githubWebUrl}/issues`}
                       target="_blank"
                       rel="noopener noreferrer"
                     >
-                      Discusiones
+                      <span>Reportar un problema (Issues)</span>
+                      <ExternalLink className="w-3.5 h-3.5 text-on-surface-variant" />
                     </a>
+                  </li>
+                  <li>
+                    <button
+                      type="button"
+                      onClick={() => setLegalModal("privacidad")}
+                      className="hover:text-primary transition-colors text-left cursor-pointer"
+                    >
+                      Privacidad y Soberanía de Datos
+                    </button>
                   </li>
                 </ul>
               </div>
@@ -769,12 +775,20 @@ export default function Home() {
             <span>© 2026 FinPal. Josué Chacae.</span>
           </div>
           <div className="flex items-center gap-6 text-xs text-on-surface-variant font-medium">
-            <a className="hover:text-on-surface transition-colors" href="#alcance">
-              Términos
-            </a>
-            <a className="hover:text-on-surface transition-colors" href="#alcance">
-              Privacidad
-            </a>
+            <button
+              type="button"
+              onClick={() => setLegalModal("terminos")}
+              className="hover:text-primary transition-colors cursor-pointer"
+            >
+              Términos de servicio
+            </button>
+            <button
+              type="button"
+              onClick={() => setLegalModal("privacidad")}
+              className="hover:text-primary transition-colors cursor-pointer"
+            >
+              Privacidad y datos
+            </button>
             <a
               className="hover:text-on-surface transition-colors"
               href={githubUrl}
@@ -803,6 +817,78 @@ export default function Home() {
           >
             <ArrowUp className="w-5 h-5 group-hover:-translate-y-0.5 transition-transform duration-200" />
           </motion.button>
+        )}
+      </AnimatePresence>
+
+      {/* Modal Funcional de Términos y Privacidad */}
+      <AnimatePresence>
+        {legalModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="bg-surface-container-lowest border border-surface-container-high/80 rounded-2xl shadow-2xl w-full max-w-lg p-6 relative text-on-surface max-h-[85vh] overflow-y-auto"
+            >
+              <button
+                type="button"
+                onClick={() => setLegalModal(null)}
+                className="absolute top-4 right-4 p-1.5 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors cursor-pointer"
+                aria-label="Cerrar modal"
+              >
+                <X className="w-5 h-5" />
+              </button>
+
+              <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-surface-container-low">
+                <ShieldCheck className="w-6 h-6 text-primary" />
+                <h3 className="font-heading text-lg font-bold">
+                  {legalModal === "terminos" ? "Términos de Servicio" : "Política de Privacidad y Seguridad"}
+                </h3>
+              </div>
+
+              {legalModal === "terminos" ? (
+                <div className="space-y-3.5 text-xs text-on-surface-variant leading-relaxed">
+                  <p>
+                    <strong className="text-on-surface">1. Propósito de la Plataforma:</strong> FinPal es un sistema diseñado para el registro, cálculo de intereses y control administrativo de préstamos y finanzas personales o familiares.
+                  </p>
+                  <p>
+                    <strong className="text-on-surface">2. Sin Custodia de Fondos:</strong> FinPal no es un banco ni custodio monetario. No capta dinero ni custodia fondos reales; actúa exclusivamente como libro contable digital y calculadora de amortizaciones.
+                  </p>
+                  <p>
+                    <strong className="text-on-surface">3. Responsabilidad del Usuario:</strong> La veracidad de los datos, acuerdos pactados con deudores y registros contables introducidos en la plataforma son responsabilidad exclusiva de cada usuario.
+                  </p>
+                  <p>
+                    <strong className="text-on-surface">4. Licencia Abierta:</strong> El código fuente está disponible públicamente con fines de transparencia, auditabilidad y soberanía sobre los datos propios.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3.5 text-xs text-on-surface-variant leading-relaxed">
+                  <p>
+                    <strong className="text-on-surface">1. Cero Venta de Información:</strong> FinPal no vende, no comercializa ni comparte tu información financiera, deudores ni saldos con anunciantes ni terceros.
+                  </p>
+                  <p>
+                    <strong className="text-on-surface">2. Seguridad y Aislamiento por RLS:</strong> Tu información está aislada mediante políticas de seguridad a nivel de fila (Row Level Security - RLS) en la base de datos; únicamente tu usuario autenticado puede leer y modificar tus espacios de trabajo.
+                  </p>
+                  <p>
+                    <strong className="text-on-surface">3. Sesiones y Control:</strong> Puedes cerrar sesión en cualquier momento y decidir si recordar tu sesión en tu navegador o requerir autenticación cada vez que abras una nueva pestaña.
+                  </p>
+                  <p>
+                    <strong className="text-on-surface">4. Exportación y Respaldo:</strong> Tienes derecho a descargar copias de tus datos en formatos abiertos (CSV, reporte ejecutivo en PDF) cuando lo consideres oportuno.
+                  </p>
+                </div>
+              )}
+
+              <div className="mt-6 pt-4 border-t border-surface-container-low flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setLegalModal(null)}
+                  className="px-4 py-2 rounded-xl bg-primary text-on-primary text-xs font-semibold hover:bg-primary-container transition-colors cursor-pointer"
+                >
+                  Entendido
+                </button>
+              </div>
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
     </div>
