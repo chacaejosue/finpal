@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { motion } from "motion/react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   ArrowRight,
   BadgeCheck,
@@ -179,49 +179,49 @@ function getTipoMovimientoBadge(tipo: string, ajusteSentido?: string | null): Ti
     case "ingreso":
       return {
         label: "Ingreso",
-        badgeClass: "bg-emerald-50 text-emerald-700 border-emerald-200/80 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/50",
+        badgeClass: "bg-emerald-100 text-emerald-950 font-bold border border-emerald-300 dark:bg-emerald-950/70 dark:text-emerald-200 dark:border-emerald-700/60 shadow-2xs",
         Icon: ArrowDownLeft,
       };
     case "gasto":
       return {
         label: "Gasto",
-        badgeClass: "bg-rose-50 text-rose-700 border-rose-200/80 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800/50",
+        badgeClass: "bg-red-100/90 text-red-950 font-bold border border-red-300 dark:bg-red-950/60 dark:text-red-200 dark:border-red-800/60 shadow-2xs",
         Icon: ArrowUpRight,
       };
     case "entrega_prestamo":
       return {
         label: "Préstamo entregado",
-        badgeClass: "bg-violet-50 text-violet-700 border-violet-200/80 dark:bg-violet-950/40 dark:text-violet-300 dark:border-violet-800/50",
+        badgeClass: "bg-violet-100 text-violet-950 font-bold border border-violet-300 dark:bg-violet-950/70 dark:text-violet-200 dark:border-violet-700/60 shadow-2xs",
         Icon: HandCoins,
       };
     case "pago_prestamo":
       return {
         label: "Cobro de préstamo",
-        badgeClass: "bg-teal-50 text-teal-700 border-teal-200/80 dark:bg-teal-950/40 dark:text-teal-300 dark:border-teal-800/50",
+        badgeClass: "bg-teal-100 text-teal-950 font-bold border border-teal-300 dark:bg-teal-950/70 dark:text-teal-200 dark:border-teal-700/60 shadow-2xs",
         Icon: CheckCircle2,
       };
     case "transferencia_entrada":
       return {
         label: "Transferencia ↓",
-        badgeClass: "bg-sky-50 text-sky-700 border-sky-200/80 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-800/50",
+        badgeClass: "bg-sky-100 text-sky-950 font-bold border border-sky-300 dark:bg-sky-950/70 dark:text-sky-200 dark:border-sky-700/60 shadow-2xs",
         Icon: ArrowDownLeft,
       };
     case "transferencia_salida":
       return {
         label: "Transferencia ↑",
-        badgeClass: "bg-blue-50 text-blue-700 border-blue-200/80 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800/50",
+        badgeClass: "bg-blue-100 text-blue-950 font-bold border border-blue-300 dark:bg-blue-950/70 dark:text-blue-200 dark:border-blue-700/60 shadow-2xs",
         Icon: ArrowUpRight,
       };
     case "ajuste":
       return {
         label: ajusteSentido ? `Ajuste (${ajusteSentido})` : "Ajuste",
-        badgeClass: "bg-amber-50 text-amber-700 border-amber-200/80 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800/50",
+        badgeClass: "bg-amber-100 text-amber-950 font-bold border border-amber-300 dark:bg-amber-950/70 dark:text-amber-200 dark:border-amber-700/60 shadow-2xs",
         Icon: Scale,
       };
     default:
       return {
         label: tipo.charAt(0).toUpperCase() + tipo.slice(1).replace("_", " "),
-        badgeClass: "bg-surface-container text-on-surface-variant border-surface-container-high/70",
+        badgeClass: "bg-surface-container-high text-on-surface font-semibold border border-surface-container-highest dark:bg-surface-container-high dark:text-on-surface shadow-2xs",
         Icon: ArrowLeftRight,
       };
   }
@@ -898,6 +898,75 @@ function PagosView({ pagos, openModal }: { pagos: Pago[]; openModal: () => void 
   );
 }
 
+const ACCOUNT_CARD_THEMES = [
+  { id: "emerald", label: "Esmeralda", dot: "#059669", cls: "bg-emerald-500/15 border-emerald-500/40 hover:border-emerald-500/60 dark:bg-emerald-950/45 dark:border-emerald-700/60" },
+  { id: "blue", label: "Azul Océano", dot: "#2563eb", cls: "bg-blue-500/15 border-blue-500/40 hover:border-blue-500/60 dark:bg-blue-950/45 dark:border-blue-700/60" },
+  { id: "violet", label: "Violeta", dot: "#7c3aed", cls: "bg-violet-500/15 border-violet-500/40 hover:border-violet-500/60 dark:bg-violet-950/45 dark:border-violet-700/60" },
+  { id: "amber", label: "Ámbar Dorado", dot: "#d97706", cls: "bg-amber-500/15 border-amber-500/40 hover:border-amber-500/60 dark:bg-amber-950/45 dark:border-amber-700/60" },
+  { id: "rose", label: "Carmesí Suave", dot: "#dc2626", cls: "bg-rose-500/15 border-rose-500/40 hover:border-rose-500/60 dark:bg-rose-950/45 dark:border-rose-700/60" },
+  { id: "slate", label: "Grafito", dot: "#475569", cls: "bg-slate-500/15 border-slate-500/40 hover:border-slate-500/60 dark:bg-slate-800/50 dark:border-slate-600/60" },
+];
+
+function AccountCardItem({ c, index, tipoLabel }: { c: Cuenta; index: number; tipoLabel: string }) {
+  const [themeId, setThemeId] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem(`finpal_account_color_${c.id}`);
+      if (saved) return saved;
+    }
+    return ACCOUNT_CARD_THEMES[index % ACCOUNT_CARD_THEMES.length].id;
+  });
+
+  const currentTheme = ACCOUNT_CARD_THEMES.find((t) => t.id === themeId) ?? ACCOUNT_CARD_THEMES[0];
+
+  const handleSelectTheme = (id: string) => {
+    setThemeId(id);
+    try {
+      localStorage.setItem(`finpal_account_color_${c.id}`, id);
+    } catch {}
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 14, scale: 0.98 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={{ duration: 0.28, delay: Math.min(index * 0.07, 0.35), ease: "easeOut" }}
+      className={`rounded-2xl border p-5 shadow-xs transition-colors relative flex flex-col justify-between ${currentTheme.cls}`}
+    >
+      <div>
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-xs font-bold text-on-surface-variant uppercase tracking-wider">{tipoLabel}</p>
+          {/* Selector de color de fondo interactivo */}
+          <div className="flex items-center gap-1.5 bg-surface-container-lowest/80 backdrop-blur-xs px-2 py-1 rounded-full border border-surface-container-high/60 shadow-2xs">
+            {ACCOUNT_CARD_THEMES.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => handleSelectTheme(t.id)}
+                title={`Cambiar a fondo ${t.label}`}
+                className={`w-3 h-3 rounded-full transition-transform cursor-pointer ${
+                  themeId === t.id ? "scale-125 ring-2 ring-primary ring-offset-1 ring-offset-surface-container-lowest" : "opacity-60 hover:opacity-100"
+                }`}
+                style={{ backgroundColor: t.dot }}
+              />
+            ))}
+          </div>
+        </div>
+        <p className="font-heading text-lg font-extrabold text-on-surface mt-2.5">{c.nombre}</p>
+      </div>
+
+      <div className="mt-4 pt-3 border-t border-surface-container-high/50 flex items-baseline justify-between">
+        <div>
+          <span className="text-[10px] text-on-surface-variant block uppercase font-medium">Saldo disponible</span>
+          <p className="font-mono text-2xl font-bold text-primary mt-0.5">{money(c.saldo)}</p>
+        </div>
+        <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-surface-container-lowest/80 text-on-surface-variant border border-surface-container-high/50 font-mono">
+          {c.codigo_moneda}
+        </span>
+      </div>
+    </motion.div>
+  );
+}
+
 function CuentasView({ cuentas, openModal }: { cuentas: Cuenta[]; openModal: () => void }) {
   const TIPO_LABELS: Record<string, string> = {
     efectivo: "Efectivo", banco: "Cuenta bancaria", billetera_movil: "Billetera móvil", ahorro: "Cuenta de ahorro", otra: "Otra",
@@ -907,7 +976,7 @@ function CuentasView({ cuentas, openModal }: { cuentas: Cuenta[]; openModal: () 
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-surface-container-high/60">
         <div>
           <h1 className="font-heading text-2xl font-extrabold text-on-surface">Cuentas de Dinero</h1>
-          <p className="text-xs text-on-surface-variant mt-0.5">Efectivo, bancos, billeteras y su saldo actual.</p>
+          <p className="text-xs text-on-surface-variant mt-0.5">Efectivo, bancos, billeteras y personalización de fondo.</p>
         </div>
         <button className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-primary text-on-primary text-xs font-semibold shadow-xs hover:bg-primary-container flex items-center justify-center gap-2 cursor-pointer" onClick={openModal}>
           <Plus className="w-4 h-4" /><span>Nueva cuenta</span>
@@ -917,23 +986,14 @@ function CuentasView({ cuentas, openModal }: { cuentas: Cuenta[]; openModal: () 
         {cuentas.length === 0 && (
           <p className="text-xs text-on-surface-variant col-span-3 text-center py-8">Sin cuentas registradas aún.</p>
         )}
-        {cuentas.map((c, i) => {
-          const colors = ["bg-emerald-50 border-emerald-200/60", "bg-blue-50 border-blue-200/60", "bg-amber-50 border-amber-200/60", "bg-violet-50 border-violet-200/60"];
-          return (
-            <motion.div
-              key={c.id}
-              initial={{ opacity: 0, y: 14, scale: 0.98 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              transition={{ duration: 0.28, delay: Math.min(i * 0.07, 0.35), ease: "easeOut" }}
-              className={`rounded-2xl border p-5 shadow-2xs ${colors[i % colors.length]}`}
-            >
-              <p className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider">{TIPO_LABELS[c.tipo] ?? c.tipo}</p>
-              <p className="font-heading text-lg font-extrabold text-on-surface mt-1">{c.nombre}</p>
-              <p className="font-mono text-2xl font-bold text-primary mt-3">{money(c.saldo)}</p>
-              <p className="text-[11px] text-on-surface-variant mt-1">{c.codigo_moneda}</p>
-            </motion.div>
-          );
-        })}
+        {cuentas.map((c, i) => (
+          <AccountCardItem
+            key={c.id}
+            c={c}
+            index={i}
+            tipoLabel={TIPO_LABELS[c.tipo] ?? c.tipo}
+          />
+        ))}
       </div>
     </div>
   );
@@ -1051,6 +1111,12 @@ function ConfiguracionView({
   const [guardando, setGuardando] = useState(false);
   const [mensaje, setMensaje] = useState<string | null>(null);
 
+  useEffect(() => {
+    setColor(preferencias.colorAcento);
+    setOscuro(preferencias.modoOscuro);
+    setTasa(preferencias.tasaInteresPredeterminada);
+  }, [preferencias.colorAcento, preferencias.modoOscuro, preferencias.tasaInteresPredeterminada]);
+
   async function guardar() {
     setGuardando(true);
     setMensaje(null);
@@ -1097,7 +1163,7 @@ function ConfiguracionView({
               ))}
             </div>
           </div>
-          <label className="flex items-center justify-between gap-4 rounded-xl border border-surface-container-high p-3 text-sm font-semibold text-on-surface">
+          <label className="flex items-center justify-between gap-4 rounded-xl border border-surface-container-high p-3 text-sm font-semibold text-on-surface cursor-pointer">
             <span>
               Modo oscuro
               <span className="block text-xs font-normal text-on-surface-variant mt-0.5">Reduce el brillo de la interfaz.</span>
@@ -1115,6 +1181,10 @@ function ConfiguracionView({
                 } else {
                   document.documentElement.classList.remove("dark");
                 }
+                try {
+                  localStorage.setItem("finpal-dark-mode", val ? "true" : "false");
+                } catch {}
+                void guardarPreferencias(color, val, tasa);
               }}
               className="w-5 h-5 accent-primary cursor-pointer"
             />
