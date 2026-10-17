@@ -4,6 +4,7 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import { LogOut, ShieldAlert, Clock } from "lucide-react";
 import { signOut } from "@/app/(auth)/actions";
 import { INACTIVITY_TIMEOUT_MS, INACTIVITY_WARNING_MS } from "@/lib/security";
+import { clearSessionAccent } from "@/lib/theme-utils";
 
 /**
  * Monitor de seguridad contra abandono de sesión por inactividad.
@@ -53,6 +54,7 @@ export function InactivityMonitor() {
 
       if (elapsed >= INACTIVITY_TIMEOUT_MS) {
         isLoggingOutRef.current = true;
+        clearSessionAccent();
         signOut();
         return;
       }
@@ -117,6 +119,7 @@ export function InactivityMonitor() {
             type="button"
             onClick={() => {
               isLoggingOutRef.current = true;
+              clearSessionAccent();
               signOut();
             }}
             className="py-2.5 px-4 rounded-xl border border-surface-container-high text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-all text-sm flex items-center justify-center gap-2 cursor-pointer"

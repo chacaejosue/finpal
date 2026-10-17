@@ -17,6 +17,7 @@ import { getPrestamos, crearPrestamo } from "@/app/(dashboard)/prestamos/actions
 import { getPagos, registrarPago } from "@/app/(dashboard)/pagos/actions";
 import { getMovimientos, registrarMovimiento } from "@/app/(dashboard)/movimientos/actions";
 import { getPreferencias, actualizarPreferencias } from "@/app/(dashboard)/configuracion/actions";
+import { getSessionAccent, setSessionAccent, applyCustomAccent } from "@/lib/theme-utils";
 
 export type Contacto = Awaited<ReturnType<typeof getContactos>>[number];
 export type Cuenta = Awaited<ReturnType<typeof getCuentasConSaldo>>[number];
@@ -130,6 +131,18 @@ export function DashboardProvider({
     tasaInteresPredeterminada: 3,
   });
 
+  useEffect(() => {
+    const cachedAccent = getSessionAccent();
+    const validAccents = ["verde", "azul", "violeta", "naranja", "rosa"];
+    if (cachedAccent && validAccents.includes(cachedAccent) && cachedAccent !== "verde") {
+      setPreferencias((prev) => ({
+        ...prev,
+        colorAcento: cachedAccent as Preferencias["colorAcento"],
+      }));
+      applyCustomAccent(cachedAccent);
+    }
+  }, []);
+
   const loadData = useCallback(async () => {
     if (!espacioId) return;
     setError(null);
@@ -149,6 +162,10 @@ export function DashboardProvider({
       setPagos(pg);
       setMovimientos(m);
       setPreferencias(prefs);
+      if (prefs?.colorAcento) {
+        setSessionAccent(prefs.colorAcento);
+        applyCustomAccent(prefs.colorAcento);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error al cargar los datos");
     } finally {
@@ -161,10 +178,30 @@ export function DashboardProvider({
     modoOscuro: boolean,
     tasaInteresPredeterminada: number,
   ) => {
+    setSessionAccent(colorAcento);
+    applyCustomAccent(colorAcento);
     const result = await actualizarPreferencias(colorAcento, modoOscuro, tasaInteresPredeterminada);
     if (result.error) return result.error;
     setPreferencias({ colorAcento: colorAcento as Preferencias["colorAcento"], modoOscuro, tasaInteresPredeterminada });
     return null;
+  }, []);
+
+  // Carga de preferencias globales del usuario (independiente de si hay espacioId seleccionado o no)
+  useEffect(() => {
+    getPreferencias()
+      .then((prefs) => {
+        if (prefs) {
+          setPreferencias((prev) => ({
+            ...prev,
+            ...prefs,
+          }));
+          if (prefs.colorAcento) {
+            setSessionAccent(prefs.colorAcento);
+            applyCustomAccent(prefs.colorAcento);
+          }
+        }
+      })
+      .catch(() => {});
   }, []);
 
   useEffect(() => {

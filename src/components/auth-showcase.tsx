@@ -234,11 +234,11 @@ export function AuthShowcase() {
               {/* Insignia dinámica de estado */}
               <div className="shrink-0">
                 {isSettled ? (
-                  <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-bold badge-saldado">
                     <Check className="w-2.5 h-2.5" /> Saldado
                   </span>
                 ) : (
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-secondary-container/50 text-on-secondary-container border border-primary/20">
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold badge-al-dia">
                     Al día (+{currentBorrower.rate}% mes)
                   </span>
                 )}
