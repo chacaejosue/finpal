@@ -5,8 +5,10 @@ import { motion, AnimatePresence } from "motion/react";
 import { useEffect, useState, type MouseEvent } from "react";
 import { FinPalLogo } from "@/components/finpal-logo";
 import { ContactAvatar } from "@/components/contact-avatar";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { MODO_MANTENIMIENTO } from "@/config/mantenimiento";
 import { PantallaMantenimiento } from "@/components/pantalla-mantenimiento";
+import { resetGlobalThemeColors, clearSessionAccent } from "@/lib/theme-utils";
 import {
   ArrowUp,
   Banknote,
@@ -72,25 +74,25 @@ const features = [
     title: "Cuentas organizadas",
     description: "Separa espacios personales o proyectos sin mezclar saldos, movimientos ni información.",
     icon: Landmark,
-    bgColor: "bg-surface-container text-primary",
+    bgColor: "kpi-icon-blue",
   },
   {
     title: "Movimientos claros",
     description: "Registra entradas, salidas y ajustes para entender cómo cambia el dinero disponible.",
     icon: Percent,
-    bgColor: "bg-secondary-container/50 text-secondary",
+    bgColor: "kpi-icon-teal",
   },
   {
     title: "Cobros y fechas",
     description: "Conserva la fecha esperada y la fecha real de cada cobro, incluidos atrasos y abonos parciales.",
     icon: CalendarDays,
-    bgColor: "bg-surface-container text-primary",
+    bgColor: "kpi-icon-amber",
   },
   {
     title: "Préstamos en contexto",
     description: "Consulta préstamos, intereses y estados junto con el resto de tu información financiera.",
     icon: WalletCards,
-    bgColor: "bg-secondary-container/50 text-secondary",
+    bgColor: "kpi-icon-emerald",
   },
 ];
 
@@ -122,8 +124,18 @@ export default function Home() {
   const [copied, setCopied] = useState(false);
   const [showBackToTop, setShowBackToTop] = useState(false);
   const [legalModal, setLegalModal] = useState<"terminos" | "privacidad" | null>(null);
+  const [mesActualLanding, setMesActualLanding] = useState("Mes Actual");
 
   useEffect(() => {
+    const meses = [
+      "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+      "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
+    ];
+    setMesActualLanding(meses[new Date().getMonth()]);
+  }, []);
+
+  useEffect(() => {
+    clearSessionAccent();
     const onScroll = () => setShowBackToTop(window.scrollY > 350);
     window.addEventListener("scroll", onScroll, { passive: true });
     onScroll();
@@ -142,15 +154,15 @@ export default function Home() {
 
   return (
     <div
-      className="bg-surface font-sans text-on-surface antialiased min-h-screen selection:bg-primary-fixed selection:text-on-primary-fixed relative"
+      className="bg-surface font-sans text-on-surface antialiased min-h-screen selection:bg-primary-fixed selection:text-on-primary-fixed relative overflow-x-hidden w-full max-w-full"
       onClick={handleLandingNavigation}
     >
       {/* Barra de navegación superior fija */}
       <header className="fixed top-0 w-full z-50 bg-surface-container-lowest/85 backdrop-blur-xl border-b border-surface-container-high/60 shadow-[0_1px_8px_rgba(0,0,0,0.04)]">
-        <div className="h-16 max-w-7xl mx-auto px-6 lg:px-12 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2.5 text-on-surface hover:opacity-90 transition-opacity">
-            <FinPalLogo size={40} className="w-10 h-10" priority />
-            <div className="flex items-baseline tracking-tight font-heading text-2xl">
+        <div className="h-16 max-w-7xl mx-auto px-4 sm:px-6 lg:px-12 flex items-center justify-between gap-2">
+          <Link href="/" className="flex items-center gap-2 sm:gap-2.5 text-on-surface hover:opacity-90 transition-opacity shrink-0">
+            <FinPalLogo size={36} className="w-9 h-9 sm:w-10 sm:h-10 shrink-0" priority />
+            <div className="flex items-baseline tracking-tight font-heading text-xl sm:text-2xl">
               <span className="font-extrabold text-on-surface">Fin</span>
               <span className="font-extrabold text-primary">Pal</span>
             </div>
@@ -179,35 +191,39 @@ export default function Home() {
             </a>
           </nav>
 
-          <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
+            {/* Botón de cambio de Modo Oscuro */}
+            <ThemeToggle />
+
+            {/* Botón de Iniciar Sesión adaptado a móvil */}
             <Link
               href="/iniciar-sesion"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary/10 sm:bg-transparent text-xs sm:text-sm font-semibold text-primary sm:text-on-surface hover:text-primary hover:bg-primary/15 transition-all cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl bg-primary text-on-primary text-xs sm:text-sm font-semibold hover:bg-primary-container transition-all cursor-pointer shadow-xs active:scale-95 shrink-0"
             >
-              <LogIn className="w-4 h-4 text-primary" />
+              <LogIn className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               <span>Iniciar sesión</span>
             </Link>
           </div>
         </div>
       </header>
 
-      <main className="w-full pt-16 bg-surface">
+      <main className="w-full pt-16 bg-surface overflow-x-hidden">
         {/* Hero Area */}
         <div className="relative w-full overflow-hidden border-b border-surface-container-high/40">
           {/* Subtle top accent glow */}
-          <div className="absolute -top-32 left-1/2 -translate-x-1/2 w-[780px] h-[380px] bg-gradient-to-b from-primary-fixed/35 via-secondary-container/20 to-transparent blur-3xl pointer-events-none rounded-full" />
+          <div className="absolute -top-32 left-1/2 -translate-x-1/2 w-[780px] max-w-[100vw] h-[380px] bg-gradient-to-b from-primary-fixed/35 via-secondary-container/20 to-transparent blur-3xl pointer-events-none rounded-full" />
 
           {/* Project context strip */}
-          <div className="max-w-7xl mx-auto px-6 lg:px-12 pt-6 pb-4 flex flex-wrap items-center justify-between gap-4 relative z-10">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-12 pt-6 pb-4 flex flex-wrap items-center justify-between gap-3 relative z-10">
             <div className="flex items-center gap-2">
-              <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-surface-container text-primary font-mono text-xs font-semibold border border-primary/15 shadow-2xs">
-                <span className="inline-block w-2 h-2 rounded-full bg-primary animate-pulse" />
+              <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full badge-emerald font-mono text-xs font-semibold shadow-2xs">
+                <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                 <span>Proyecto personal en desarrollo</span>
               </span>
             </div>
             <div className="flex items-center gap-3">
               <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-surface-container-low text-xs font-mono text-on-surface-variant border border-surface-container-high/40">
-                <span className="w-1.5 h-1.5 rounded-full bg-primary" /> Disponible en la web
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Disponible en la web
               </span>
               <a
                 className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg bg-surface-container-lowest text-on-surface shadow-xs hover:bg-surface-container border border-surface-container-high/60 transition-all text-xs font-semibold"
@@ -222,8 +238,8 @@ export default function Home() {
           </div>
 
           {/* Contenido principal del Hero */}
-          <section className="max-w-7xl mx-auto px-6 lg:px-12 pt-6 pb-16 relative z-10">
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+          <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-12 pt-4 sm:pt-6 pb-12 sm:pb-16 relative z-10">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
               {/* Columna izquierda: Descripción y Acciones */}
               <motion.div
                 className="lg:col-span-7 flex flex-col items-start space-y-6"
@@ -231,13 +247,13 @@ export default function Home() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5 }}
               >
-                <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-secondary-container/40 text-on-secondary-container text-xs font-semibold border border-secondary-container/60">
-                  <Handshake className="w-4 h-4 text-primary" />
+                <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full badge-teal text-xs font-semibold">
+                  <Handshake className="w-4 h-4 text-teal-600 dark:text-teal-400" />
                   <span>Hecho para una necesidad real • En desarrollo continuo</span>
                 </div>
 
                 {/* Título principal H1 */}
-                <h1 className="font-heading text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight leading-[1.12] text-on-surface text-balance">
+                <h1 className="font-heading text-3xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight leading-[1.12] text-on-surface text-balance break-words">
                   Deja de repartir tu información entre varias herramientas:{" "}
                   <motion.span
                     className="relative inline-block text-primary font-bold"
@@ -262,25 +278,25 @@ export default function Home() {
                 </h1>
 
                 {/* Párrafo descriptivo */}
-                <p className="text-base sm:text-lg text-on-surface-variant max-w-2xl leading-relaxed">
+                <p className="text-sm sm:text-lg text-on-surface-variant max-w-2xl leading-relaxed">
                   FinPal nace para centralizar tu información financiera y evitar que tengas que consultar varios
                   lugares. Aquí puedes consultar tus cuentas, registrar movimientos y dar seguimiento a cobros y
                   préstamos desde el mismo sistema.
                 </p>
 
                 {/* Botones de acción principales (CTAs) */}
-                <div className="flex flex-wrap items-center gap-3 pt-2 w-full sm:w-auto">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-2 w-full sm:w-auto">
                   <a
-                    className="inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-primary hover:bg-primary-container text-on-primary font-semibold text-base shadow-md hover:shadow-lg transition-all active:scale-[0.99]"
+                    className="inline-flex items-center justify-center gap-2 px-5 py-3 sm:px-6 sm:py-3.5 rounded-xl bg-primary hover:bg-primary-container text-on-primary font-semibold text-sm sm:text-base shadow-md hover:shadow-lg transition-all active:scale-[0.99] text-center"
                     href={githubUrl}
                     rel="noopener noreferrer"
                     target="_blank"
                   >
-                    <Code2 className="w-5 h-5" />
+                    <Code2 className="w-5 h-5 shrink-0" />
                     <span>Ver en GitHub</span>
                   </a>
                   <a
-                    className="inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-surface-container-lowest text-on-surface hover:bg-surface-container border border-surface-container-high/80 font-semibold text-base shadow-xs transition-colors"
+                    className="inline-flex items-center justify-center gap-2 px-5 py-3 sm:px-6 sm:py-3.5 rounded-xl bg-surface-container-lowest text-on-surface hover:bg-surface-container border border-surface-container-high/80 font-semibold text-sm sm:text-base shadow-xs transition-colors text-center"
                     href="#vista-sistema"
                   >
                     <span>Ver la vista del sistema</span>
@@ -288,13 +304,13 @@ export default function Home() {
                 </div>
 
                 {/* Quick Clone Box */}
-                <div className="w-full max-w-lg mt-2 px-4 py-3 rounded-xl bg-surface-container-low border border-surface-container-high/50 text-on-surface flex items-center justify-between gap-3 shadow-xs">
-                  <div className="flex items-center gap-2.5 overflow-hidden">
+                <div className="w-full max-w-lg mt-2 px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl bg-surface-container-low border border-surface-container-high/50 text-on-surface flex items-center justify-between gap-2 sm:gap-3 shadow-xs">
+                  <div className="flex items-center gap-2 overflow-hidden min-w-0 flex-1">
                     <Terminal className="w-4 h-4 text-primary shrink-0" />
-                    <span className="font-mono text-xs text-on-surface-variant truncate">{cloneCommand}</span>
+                    <span className="font-mono text-[11px] sm:text-xs text-on-surface-variant truncate">{cloneCommand}</span>
                   </div>
                   <button
-                    className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-surface-container hover:bg-surface-container-high text-on-surface transition-colors shrink-0 flex items-center gap-1.5"
+                    className="px-2.5 sm:px-3 py-1.5 text-xs font-semibold rounded-lg bg-surface-container hover:bg-surface-container-high text-on-surface transition-colors shrink-0 flex items-center gap-1.5 cursor-pointer"
                     type="button"
                     onClick={copyCommand}
                   >
@@ -313,7 +329,7 @@ export default function Home() {
                 </div>
 
                 {/* Micro specs badges */}
-                <div className="flex flex-wrap items-center gap-4 pt-2 text-on-surface-variant text-xs font-medium">
+                <div className="flex flex-wrap items-center gap-3 sm:gap-4 pt-2 text-on-surface-variant text-xs font-medium">
                   <span className="flex items-center gap-1.5">
                     <Check className="w-4 h-4 text-primary stroke-[3]" /> Next.js 16 App Router
                   </span>
@@ -330,23 +346,23 @@ export default function Home() {
 
               {/* Columna derecha: Maqueta visual e interfaz destacada */}
               <motion.div
-                className="lg:col-span-5 relative flex flex-col items-center lg:-translate-y-6"
+                className="lg:col-span-5 relative flex flex-col items-center lg:-translate-y-6 w-full overflow-hidden"
                 initial={{ opacity: 0, scale: 0.96 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ duration: 0.5, delay: 0.1 }}
               >
-                <div className="relative w-full rounded-2xl bg-surface-container-lowest border border-surface-container-high/70 p-4 shadow-xl">
-                  <div className="flex flex-wrap items-center justify-between gap-2 pb-3 px-1 border-b border-surface-container-low mb-3">
+                <div className="relative w-full rounded-2xl bg-surface-container-lowest border border-surface-container-high/70 p-3 sm:p-4 shadow-xl overflow-hidden">
+                  <div className="flex items-center justify-between gap-2 pb-3 px-1 border-b border-surface-container-low mb-3">
                     <div className="flex items-center gap-1.5 min-w-0">
-                      <span className="w-2.5 h-2.5 rounded-full bg-error/70 shrink-0" />
-                      <span className="w-2.5 h-2.5 rounded-full bg-secondary-fixed-dim shrink-0" />
-                      <span className="w-2.5 h-2.5 rounded-full bg-primary-fixed shrink-0" />
-                      <span className="ml-1 sm:ml-2 font-mono text-[10px] sm:text-xs text-outline truncate max-w-[140px] sm:max-w-none">
+                      <span className="w-2.5 h-2.5 rounded-full bg-rose-500/80 shrink-0" />
+                      <span className="w-2.5 h-2.5 rounded-full bg-amber-400/80 shrink-0" />
+                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-500/80 shrink-0" />
+                      <span className="ml-1 sm:ml-2 font-mono text-[10px] sm:text-xs text-outline truncate max-w-[110px] xs:max-w-[140px] sm:max-w-none">
                         finpal.local/prestamos
                       </span>
                     </div>
-                    <span className="inline-flex items-center gap-1.5 text-[11px] sm:text-xs text-primary font-semibold bg-surface-container px-2 sm:px-2.5 py-0.5 rounded-full border border-primary/10 shrink-0">
-                      <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" /> Espacio: Préstamos
+                    <span className="inline-flex items-center gap-1.5 text-[10px] sm:text-xs font-semibold badge-emerald px-2 sm:px-2.5 py-0.5 rounded-full shrink-0">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Espacio: Préstamos
                     </span>
                   </div>
 
@@ -398,23 +414,23 @@ export default function Home() {
           viewport={{ once: true, amount: 0.15 }}
           transition={{ duration: 0.5 }}
         >
-          <div className="max-w-7xl mx-auto px-6 lg:px-12">
-            <div className="flex flex-col md:flex-row md:items-end justify-between mb-10 gap-4 border-b border-surface-container-high/40 pb-6">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-12">
+            <div className="flex flex-col md:flex-row md:items-end justify-between mb-8 sm:mb-10 gap-4 border-b border-surface-container-high/40 pb-6">
               <div>
                 <span className="font-mono text-primary font-bold text-xs tracking-wider uppercase">
                   Tablero Simple y Práctico
                 </span>
                 {/* Normalized H2 */}
-                <h2 className="font-heading text-3xl sm:text-4xl font-bold text-on-surface mt-1.5">
+                <h2 className="font-heading text-2xl sm:text-4xl font-bold text-on-surface mt-1.5">
                   Tu balance centralizado en segundos
                 </h2>
-                <p className="text-base text-on-surface-variant mt-2 max-w-xl">
+                <p className="text-sm sm:text-base text-on-surface-variant mt-2 max-w-xl">
                   Registra préstamos, abonos parciales y visualiza el saldo de tus cuentas sin curvas de aprendizaje.
                 </p>
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-center gap-3">
                 <a
-                  className="px-4 py-2.5 rounded-xl bg-surface-container-lowest border border-surface-container-high/60 text-sm font-semibold text-on-surface shadow-xs hover:bg-surface-container transition-colors"
+                  className="px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl bg-surface-container-lowest border border-surface-container-high/60 text-xs sm:text-sm font-semibold text-on-surface shadow-xs hover:bg-surface-container transition-colors"
                   href={githubUrl}
                   rel="noopener noreferrer"
                   target="_blank"
@@ -422,7 +438,7 @@ export default function Home() {
                   Repositorio GitHub
                 </a>
                 <Link
-                  className="px-4 py-2.5 rounded-xl bg-primary text-on-primary text-sm font-semibold shadow-xs flex items-center gap-2 hover:bg-primary-container transition-colors"
+                  className="px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl bg-primary text-on-primary text-xs sm:text-sm font-semibold shadow-xs flex items-center gap-2 hover:bg-primary-container transition-colors"
                   href="/registrarse"
                 >
                   <Plus className="w-4 h-4" />
@@ -434,22 +450,22 @@ export default function Home() {
             {/* Cuadrícula Bento */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
               {/* Tabla interactiva de préstamos y movimientos (Ocupa 8 columnas) */}
-              <div className="lg:col-span-8 bg-surface-container-lowest border border-surface-container-high/70 rounded-2xl p-6 shadow-xs flex flex-col justify-between">
+              <div className="lg:col-span-8 bg-surface-container-lowest border border-surface-container-high/70 rounded-2xl p-4 sm:p-6 shadow-xs flex flex-col justify-between overflow-hidden">
                 <div>
-                  <div className="flex items-center justify-between pb-4 border-b border-surface-container-low mb-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2 pb-4 border-b border-surface-container-low mb-4">
                     <div className="flex items-center gap-2.5">
-                      <WalletCards className="w-5 h-5 text-primary" />
-                      <h3 className="font-heading text-lg font-bold text-on-surface">
+                      <WalletCards className="w-5 h-5 text-primary shrink-0" />
+                      <h3 className="font-heading text-base sm:text-lg font-bold text-on-surface">
                         Deudores y Préstamos Recientes
                       </h3>
                     </div>
-                    <span className="px-3 py-1 rounded-full bg-surface-container text-on-surface-variant font-mono text-xs font-semibold border border-surface-container-high/40">
+                    <span className="px-2.5 sm:px-3 py-1 rounded-full bg-surface-container text-on-surface-variant font-mono text-[11px] sm:text-xs font-semibold border border-surface-container-high/40 shrink-0">
                       Espacio: Préstamos
                     </span>
                   </div>
 
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-sm">
+                  <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
+                    <table className="w-full text-left text-sm min-w-[500px]">
                       <thead>
                         <tr className="bg-surface-container-low/70 text-on-surface-variant text-xs font-semibold uppercase tracking-wider">
                           <th className="py-3 px-3.5 rounded-l-lg">Contacto</th>
@@ -489,11 +505,11 @@ export default function Home() {
                             </td>
                             <td className="py-3.5 px-3.5 text-right">
                               {borrower.late ? (
-                                <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-error-container text-on-error-container border border-error/20">
+                                <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold badge-atrasado">
                                   {borrower.status}
                                 </span>
                               ) : (
-                                <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-secondary-container/50 text-on-secondary-container border border-primary/20">
+                                <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold badge-al-dia">
                                   {borrower.status}
                                 </span>
                               )}
@@ -508,12 +524,12 @@ export default function Home() {
 
               {/* Lado derecho: Mini gráfico y resumen de flujo de fondos (Ocupa 4 columnas) */}
               <div className="lg:col-span-4 flex flex-col gap-6">
-                <div className="bg-surface-container-lowest border border-surface-container-high/70 rounded-2xl p-6 shadow-xs">
+                <div className="bg-surface-container-lowest border border-surface-container-high/70 rounded-2xl p-4 sm:p-6 shadow-xs">
                   <span className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider font-mono">
-                    Flujo Neto Esperado (Octubre)
+                    Flujo Neto Esperado ({mesActualLanding})
                   </span>
                   <div className="flex items-baseline gap-2 mt-2">
-                    <span className="font-heading text-3xl font-extrabold text-on-surface">$2,154.50</span>
+                    <span className="font-heading text-2xl sm:text-3xl font-extrabold text-on-surface">$2,154.50</span>
                     <span className="text-xs font-semibold text-primary inline-flex items-center gap-0.5">
                       ↑ Cobros programados
                     </span>
@@ -553,7 +569,7 @@ export default function Home() {
                 </div>
 
                 {/* Cuentas de dinero simples */}
-                <div className="bg-surface-container-lowest border border-surface-container-high/70 rounded-2xl p-6 shadow-xs flex flex-col justify-between">
+                <div className="bg-surface-container-lowest border border-surface-container-high/70 rounded-2xl p-4 sm:p-6 shadow-xs flex flex-col justify-between">
                   <div>
                     <div className="flex items-center justify-between mb-3">
                       <h3 className="font-heading text-base font-bold text-on-surface">Cuentas Disponibles</h3>
@@ -562,19 +578,19 @@ export default function Home() {
                     <div className="space-y-2.5 text-xs">
                       <div className="flex items-center justify-between p-2.5 rounded-xl bg-surface-container-low/70">
                         <span className="flex items-center gap-2 text-on-surface font-medium">
-                          <Banknote className="w-4 h-4 text-primary" /> Efectivo en mano
+                          <Banknote className="w-4 h-4 text-emerald-600 dark:text-emerald-400" /> Efectivo en mano
                         </span>
                         <span className="font-mono font-bold text-sm">$380.00</span>
                       </div>
                       <div className="flex items-center justify-between p-2.5 rounded-xl bg-surface-container-low/70">
                         <span className="flex items-center gap-2 text-on-surface font-medium">
-                          <Landmark className="w-4 h-4 text-secondary" /> Banco Principal
+                          <Landmark className="w-4 h-4 text-teal-600 dark:text-teal-400" /> Banco Principal
                         </span>
                         <span className="font-mono font-bold text-sm">$2,840.00</span>
                       </div>
                       <div className="flex items-center justify-between p-2.5 rounded-xl bg-surface-container-low/70">
                         <span className="flex items-center gap-2 text-on-surface font-medium">
-                          <WalletCards className="w-4 h-4 text-on-surface-variant" /> Billetera Móvil
+                          <WalletCards className="w-4 h-4 text-blue-600 dark:text-blue-400" /> Billetera Móvil
                         </span>
                         <span className="font-mono font-bold text-sm">$125.00</span>
                       </div>
@@ -597,7 +613,7 @@ export default function Home() {
 
         {/* SECCIÓN: Alcance del MVP (Hecho para lo que realmente necesitas) */}
         <section className="w-full py-16 bg-surface-container-low/40 border-y border-surface-container-high/40 scroll-mt-20" id="alcance">
-          <div className="max-w-7xl mx-auto px-6 lg:px-12">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-12">
             <div className="flex flex-col md:flex-row md:items-end justify-between mb-10 gap-4">
               <div>
                 <span className="font-mono text-primary font-bold text-xs tracking-wider uppercase">
@@ -642,10 +658,10 @@ export default function Home() {
 
         {/* Banner de llamada a la acción del proyecto */}
         <section className="w-full py-20 bg-surface-container relative overflow-hidden">
-          <div className="max-w-7xl mx-auto px-6 lg:px-12 text-center relative z-10">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-12 text-center relative z-10">
             <div className="max-w-2xl mx-auto flex flex-col items-center">
-              <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-secondary-container text-on-secondary-container text-xs font-semibold mb-4 border border-primary/10">
-                <Terminal className="w-4 h-4 text-primary" /> Proyecto personal en desarrollo
+              <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full badge-emerald text-xs font-semibold mb-4">
+                <Terminal className="w-4 h-4 text-emerald-600 dark:text-emerald-400" /> Proyecto personal en desarrollo
               </span>
               {/* Normalized H2 */}
               <h2 className="font-heading text-3xl sm:text-4xl font-extrabold text-on-surface tracking-tight">
@@ -679,7 +695,7 @@ export default function Home() {
 
         {/* Cuadrícula de enlaces del pie de página */}
         <section className="w-full py-14 bg-surface-container-lowest border-t border-surface-container-high/40">
-          <div className="max-w-7xl mx-auto px-6 lg:px-12">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-12">
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-8 lg:gap-16">
               <div>
                 <h4 className="font-heading text-sm font-bold text-on-surface mb-3 uppercase tracking-wider">
@@ -769,7 +785,7 @@ export default function Home() {
 
       {/* Barra de pie de página inferior */}
       <footer className="w-full bg-surface-container-lowest border-t border-surface-container-high/40 py-8">
-        <div className="max-w-7xl mx-auto px-6 lg:px-12 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-12 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2 text-on-surface-variant text-xs font-medium">
             <span className="font-bold text-on-surface">FinPal</span>
             <span>© 2026 FinPal. Josué Chacae.</span>
