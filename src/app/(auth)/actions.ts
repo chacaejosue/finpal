@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 export async function signIn(formData: FormData) {
   const email = String(formData.get("email") ?? "").trim();
   const password = String(formData.get("password") ?? "");
+  const remember = formData.get("remember") === "on";
   const supabase = await createClient();
   const { error } = await supabase.auth.signInWithPassword({ email, password });
 
@@ -18,9 +19,18 @@ export async function signIn(formData: FormData) {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
+    ...(remember ? { maxAge: 60 * 60 * 24 * 30 } : {}),
   });
 
-  redirect("/inicio");
+  cookieStore.set("finpal_remember_session", remember ? "true" : "false", {
+    path: "/",
+    httpOnly: false,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    ...(remember ? { maxAge: 60 * 60 * 24 * 30 } : {}),
+  });
+
+  redirect("/espacios");
 }
 
 export async function signUp(formData: FormData) {
@@ -61,5 +71,6 @@ export async function signOut() {
   const cookieStore = await cookies();
   cookieStore.delete("finpal_last_active");
   cookieStore.delete("finora_last_active");
+  cookieStore.delete("finpal_remember_session");
   redirect("/iniciar-sesion");
 }

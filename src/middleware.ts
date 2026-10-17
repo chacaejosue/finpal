@@ -116,12 +116,13 @@ export async function middleware(request: NextRequest) {
 
   // Si el usuario está autenticado y navegando en ruta protegida, actualizar timestamp de actividad
   if (user && !isPublicRoute) {
+    const isRemembered = request.cookies.get("finpal_remember_session")?.value === "true";
     supabaseResponse.cookies.set(ACTIVITY_COOKIE, now.toString(), {
       path: "/",
       httpOnly: true,
       sameSite: "lax",
-      maxAge: 60 * 60 * 24,
       secure: process.env.NODE_ENV === "production",
+      ...(isRemembered ? { maxAge: 60 * 60 * 24 * 30 } : {}),
     });
   }
 

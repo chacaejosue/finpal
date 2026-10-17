@@ -70,7 +70,7 @@ export function PantallaMantenimiento({ isPreview = false }: { isPreview?: boole
         </div>
 
         {/* Indicador de estado en vivo */}
-        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20 text-xs font-semibold shadow-2xs">
+        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full badge-amber text-xs font-bold shadow-2xs">
           <span className="relative flex h-2 w-2">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
             <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500" />
@@ -110,7 +110,7 @@ export function PantallaMantenimiento({ isPreview = false }: { isPreview?: boole
         </p>
 
         {/* Security Reassurance Pill */}
-        <div className="mt-4 inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20 text-xs font-semibold">
+        <div className="mt-4 inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full badge-emerald text-xs font-bold">
           <ShieldCheck className="w-4 h-4 shrink-0" />
           <span>Tus datos, préstamos y balances están 100% seguros y respaldados</span>
         </div>

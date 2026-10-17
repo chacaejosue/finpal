@@ -131,22 +131,25 @@ export function AuthShowcase() {
   const totalExpectedFlow = totalExpectedCapital + totalExpectedInterest;
 
   return (
-    <div className="hidden lg:flex flex-col flex-1 max-w-[420px] pr-4 select-none relative z-10 shrink-0">
-      <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-surface-container text-on-surface-variant font-mono text-[10px] font-medium w-fit mb-1.5 shadow-2xs border border-surface-container-high/40">
-        <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
-        <span>FinPal · Demo interactiva en vivo</span>
-      </div>
+    <div className="hidden lg:flex flex-col flex-1 max-w-md select-none relative z-10 shrink-0">
+      {/* ─── Tarjeta interactiva de demostración con bordes y padding simétricos ─── */}
+      <div className="auth-page-enter bg-surface-container-lowest border border-surface-container-high/70 p-5 sm:p-6 rounded-2xl shadow-xl relative flex flex-col justify-between h-full group">
+        {/* Encabezado sincronizado con la tarjeta de autenticación */}
+        <div className="mb-3.5">
+          <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-surface-container text-on-surface-variant font-mono text-[10px] font-medium w-fit mb-2 shadow-2xs border border-surface-container-high/40">
+            <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+            <span>FinPal · Demo interactiva en vivo</span>
+          </div>
 
-      <h1 className="font-heading text-2xl lg:text-3xl font-extrabold text-on-surface tracking-tight mb-1 leading-tight">
-        Tu dinero, <span className="text-primary font-extrabold">bajo control.</span>
-      </h1>
+          <h2 className="font-heading text-xl sm:text-2xl font-extrabold text-on-surface tracking-tight mb-1 leading-tight">
+            Tu dinero, <span className="text-primary font-extrabold">bajo control.</span>
+          </h2>
 
-      <p className="text-xs text-on-surface-variant mb-2.5 leading-relaxed max-w-sm">
-        Prueba el sistema en vivo: registra cobros simulados, abona capital y visualiza el flujo en tiempo real.
-      </p>
+          <p className="text-xs text-on-surface-variant leading-relaxed">
+            Prueba el sistema en vivo: registra cobros simulados, abona capital y visualiza el flujo en tiempo real.
+          </p>
+        </div>
 
-      {/* ─── Tarjeta interactiva compacta de demostración ─────────────────── */}
-      <div className="relative bg-surface-container-lowest border border-surface-container-high/70 p-3.5 rounded-2xl shadow-lg overflow-hidden group">
         {/* Cabecera de tarjeta: Pestañas y controles estilo ventana */}
         <div className="flex items-center justify-between mb-2.5 pb-2 border-b border-surface-container-low">
           <div className="flex items-center gap-1.5">
@@ -231,11 +234,11 @@ export function AuthShowcase() {
               {/* Insignia dinámica de estado */}
               <div className="shrink-0">
                 {isSettled ? (
-                  <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-bold badge-saldado">
                     <Check className="w-2.5 h-2.5" /> Saldado
                   </span>
                 ) : (
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-secondary-container/50 text-on-secondary-container border border-primary/20">
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold badge-al-dia">
                     Al día (+{currentBorrower.rate}% mes)
                   </span>
                 )}

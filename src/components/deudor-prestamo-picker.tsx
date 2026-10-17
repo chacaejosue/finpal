@@ -275,8 +275,8 @@ export function DeudorPrestamoPicker({
                 onClick={() => setStatusFilter("atrasados")}
                 className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all cursor-pointer ${
                   statusFilter === "atrasados"
-                    ? "bg-error-container text-on-error-container font-bold shadow-2xs"
-                    : "text-error hover:bg-error-container/20"
+                    ? "badge-atrasado font-bold shadow-2xs"
+                    : "text-rose-600 dark:text-rose-400 hover:bg-rose-500/10"
                 }`}
               >
                 Atrasados ({countAtrasados})
@@ -288,7 +288,7 @@ export function DeudorPrestamoPicker({
               onClick={() => setStatusFilter("al_dia")}
               className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all cursor-pointer ${
                 statusFilter === "al_dia"
-                  ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 font-bold shadow-2xs"
+                  ? "badge-al-dia font-bold shadow-2xs"
                   : "text-on-surface-variant hover:text-on-surface"
               }`}
             >
@@ -393,11 +393,11 @@ export function DeudorPrestamoPicker({
                       de {money(Number(p.monto_principal))}
                     </span>
                     {isAtrasado ? (
-                      <span className="inline-flex items-center gap-0.5 text-[9px] font-bold text-error mt-0.5">
-                        <AlertOctagon className="w-2.5 h-2.5" /> Atrasado
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold badge-atrasado mt-0.5">
+                        <AlertOctagon className="w-2.5 h-2.5 shrink-0" /> Atrasado
                       </span>
                     ) : (
-                      <span className="text-[9px] font-semibold text-emerald-600 dark:text-emerald-400 mt-0.5">
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-bold badge-al-dia mt-0.5">
                         Al día
                       </span>
                     )}

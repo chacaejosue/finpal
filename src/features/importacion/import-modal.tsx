@@ -23,6 +23,7 @@ import {
   type ImportResult,
 } from "./actions";
 import { fixSpanishEncoding, decodeTextBuffer } from "@/lib/clean-text";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 
 type EntidadTipo = "prestamos" | "contactos" | "movimientos";
 
@@ -365,8 +366,17 @@ export function ImportModal({
   const [loading, setLoading] = useState(false);
   const [resultado, setResultado] = useState<ImportResult | null>(null);
   const [errorGlobal, setErrorGlobal] = useState<string | null>(null);
+  const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleSafeClose = () => {
+    if (fileRows.length > 0 && !resultado) {
+      setShowDiscardConfirm(true);
+      return;
+    }
+    onClose();
+  };
 
   const currentFields = FIELDS_BY_ENTITY[entidad];
 
@@ -752,8 +762,14 @@ export function ImportModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
-      <div className="bg-surface border border-outline-variant/30 rounded-2xl max-w-3xl w-full p-4 sm:p-6 shadow-2xl space-y-4 sm:space-y-5 max-h-[94vh] flex flex-col">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-black/60 backdrop-blur-sm animate-fade-in"
+      onClick={handleSafeClose}
+    >
+      <div
+        className="bg-surface border border-outline-variant/30 rounded-2xl max-w-3xl w-full p-4 sm:p-6 shadow-2xl space-y-4 sm:space-y-5 max-h-[94vh] flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Encabezado */}
         <div className="flex items-center justify-between border-b border-outline-variant/20 pb-3 sm:pb-4">
           <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
@@ -770,7 +786,7 @@ export function ImportModal({
             </div>
           </div>
           <button
-            onClick={onClose}
+            onClick={handleSafeClose}
             className="p-1.5 text-on-surface-variant hover:text-on-surface rounded-lg hover:bg-surface-container transition-colors shrink-0"
             aria-label="Cerrar modal"
           >
@@ -1136,7 +1152,7 @@ export function ImportModal({
           <div className="flex items-center gap-2.5">
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleSafeClose}
               className="px-4 py-2 text-xs font-semibold rounded-xl text-on-surface hover:bg-surface-container transition-colors cursor-pointer"
             >
               {resultado ? "Cerrar" : "Cancelar"}
@@ -1184,6 +1200,21 @@ export function ImportModal({
           </div>
         </div>
       </div>
+
+      {/* Diálogo nativo del sistema para confirmar descarte de importación */}
+      <ConfirmDialog
+        isOpen={showDiscardConfirm}
+        title="¿Descartar importación?"
+        description="Tienes un archivo cargado con registros pendientes de importar. Si sales ahora, se descartará el progreso."
+        confirmText="Descartar importación"
+        cancelText="Continuar importando"
+        variant="danger"
+        onConfirm={() => {
+          setShowDiscardConfirm(false);
+          onClose();
+        }}
+        onCancel={() => setShowDiscardConfirm(false)}
+      />
     </div>
   );
 }

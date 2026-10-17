@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ReactNode, useState, useTransition, useEffect, useMemo } from "react";
+import { ReactNode, useState, useTransition, useEffect, useMemo, useRef } from "react";
 import type { CSSProperties } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
@@ -24,6 +24,8 @@ import {
   Calendar,
   FileBarChart2,
   Menu,
+  Check,
+  ChevronRight,
 } from "lucide-react";
 import { useEspacio } from "@/lib/espacio-context";
 import { useDashboard, money, loanBalance, monthlyInterest, rel, type Contacto, type Cuenta, type Prestamo } from "@/lib/dashboard-context";
@@ -34,6 +36,9 @@ import { formatDateEs } from "@/lib/format-date";
 import { InactivityMonitor } from "@/components/inactivity-monitor";
 import { DeudorPrestamoPicker } from "@/components/deudor-prestamo-picker";
 import { NotificationToast } from "@/components/notification-toast";
+import { ACCENT_PALETTES, type AccentColorKey, applyCustomAccent, resetGlobalThemeColors, clearSessionAccent, getSessionAccent } from "@/lib/theme-utils";
+import { ThemeToggle } from "@/components/theme-toggle";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 
 const navItems = [
   { label: "Inicio", path: "/inicio", key: "inicio", icon: LayoutDashboard },
@@ -45,6 +50,117 @@ const navItems = [
   { label: "Reportes", path: "/reportes", key: "reportes", icon: FileBarChart2 },
   { label: "Configuración", path: "/configuracion", key: "configuracion", icon: Settings },
 ] as const;
+
+function SlideToConfirm({
+  onConfirm,
+  submitting,
+  resetTrigger,
+  label = "Desliza para registrar",
+}: {
+  onConfirm: () => boolean | void;
+  submitting: boolean;
+  resetTrigger?: unknown;
+  label?: string;
+}) {
+  const [sliderPosition, setSliderPosition] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const trackRef = useRef<HTMLDivElement>(null);
+
+  // Cada vez que termina el envío o cambia la condición de reseteo, devolver la barra al inicio
+  useEffect(() => {
+    if (!submitting) {
+      setSliderPosition(0);
+      setIsDragging(false);
+    }
+  }, [submitting, resetTrigger]);
+
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (submitting) return;
+    setIsDragging(true);
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isDragging || submitting || !trackRef.current) return;
+    const rect = trackRef.current.getBoundingClientRect();
+    const maxOffset = Math.max(0, rect.width - 48);
+    const currentX = e.clientX - rect.left - 24;
+    const clamped = Math.max(0, Math.min(currentX, maxOffset));
+    setSliderPosition(clamped);
+
+    if (clamped >= maxOffset * 0.85) {
+      setIsDragging(false);
+      setSliderPosition(maxOffset);
+      const isOk = onConfirm();
+      if (isOk === false) {
+        // Validación fallida (campos obligatorios vacíos o con formato inválido)
+        setTimeout(() => {
+          setSliderPosition(0);
+        }, 220);
+      } else {
+        // En caso de que el navegador detenga la sumisión sin emitir evento onSubmit
+        setTimeout(() => {
+          setSliderPosition((current) => {
+            return submitting ? current : 0;
+          });
+        }, 600);
+      }
+    }
+  };
+
+  const handlePointerUp = () => {
+    if (!isDragging) return;
+    setIsDragging(false);
+    if (!submitting) {
+      setSliderPosition(0);
+    }
+  };
+
+  return (
+    <div
+      ref={trackRef}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerUp}
+      className="relative w-full h-12 bg-surface-container-high/60 border border-surface-container-high rounded-2xl overflow-hidden select-none flex items-center px-1 shadow-inner touch-none"
+    >
+      <div
+        className={`absolute left-0 top-0 bottom-0 bg-primary/20 ${
+          isDragging ? "transition-none" : "transition-all duration-300 ease-out"
+        }`}
+        style={{ width: `${sliderPosition + 48}px` }}
+      />
+      <div className="absolute inset-0 flex items-center justify-center text-xs font-bold text-on-surface-variant pointer-events-none gap-1.5 px-12 text-center">
+        {submitting ? (
+          <span className="flex items-center gap-2 text-primary font-bold">
+            <Loader2 className="w-4 h-4 animate-spin" />
+            <span>Registrando información...</span>
+          </span>
+        ) : (
+          <span>{label}</span>
+        )}
+      </div>
+      <div
+        onPointerDown={handlePointerDown}
+        style={{ transform: `translateX(${sliderPosition}px)` }}
+        className={`relative z-10 w-10 h-10 rounded-xl bg-primary text-on-primary flex items-center justify-center shadow-md cursor-grab active:cursor-grabbing ${
+          isDragging
+            ? "scale-105 shadow-lg transition-none"
+            : "transition-transform duration-300 ease-out"
+        }`}
+        title="Arrastra hasta el final para confirmar el registro"
+      >
+        {submitting ? (
+          <Loader2 className="w-4 h-4 animate-spin text-on-primary" />
+        ) : sliderPosition > 40 ? (
+          <Check className="w-4 h-4 text-on-primary" />
+        ) : (
+          <ChevronRight className="w-5 h-5 text-on-primary" />
+        )}
+      </div>
+    </div>
+  );
+}
 
 export function DashboardShell({
   children,
@@ -72,12 +188,52 @@ export function DashboardShell({
     setSuccessNotice,
     handleSubmitModal,
     preferencias,
+    guardarPreferencias,
   } = useDashboard();
 
   const [showWorkspaceDropdown, setShowWorkspaceDropdown] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [optimisticPath, setOptimisticPath] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [isFormDirty, setIsFormDirty] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
+
+  // Advertencia antes de cerrar pestaña con formulario incompleto
+  useEffect(() => {
+    setIsFormDirty(false);
+  }, [modal]);
+
+  useEffect(() => {
+    if (!modal || !isFormDirty) return;
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "Tienes cambios sin guardar en el formulario. ¿Deseas salir?";
+      return e.returnValue;
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [modal, isFormDirty]);
+
+  const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
+
+  const handleSafeCloseModal = () => {
+    if (isFormDirty) {
+      setShowDiscardConfirm(true);
+      return;
+    }
+    setIsFormDirty(false);
+    closeModal();
+  };
+
+  const handleConfirmDiscard = () => {
+    setShowDiscardConfirm(false);
+    setIsFormDirty(false);
+    closeModal();
+  };
+
+  const handleCancelDiscard = () => {
+    setShowDiscardConfirm(false);
+  };
 
   // Cerrar menú móvil automáticamente al navegar
   useEffect(() => {
@@ -88,55 +244,47 @@ export function DashboardShell({
   const activePath = isRouteLoading ? optimisticPath : pathname;
   const avatarLetters = userEmail ? userEmail.slice(0, 2).toUpperCase() : "FP";
 
-  const accent = {
-    verde: { primary: "#006948", container: "#00855d", dark: "#005137" },
-    azul: { primary: "#2563eb", container: "#1d4ed8", dark: "#1e40af" },
-    violeta: { primary: "#7c3aed", container: "#6d28d9", dark: "#5b21b6" },
-    naranja: { primary: "#c2410c", container: "#ea580c", dark: "#9a3412" },
-    rosa: { primary: "#e11d48", container: "#be123c", dark: "#9f1239" },
-  }[preferencias.colorAcento];
-  const themeStyle = {
-    "--color-primary": accent.primary,
-    "--color-primary-container": accent.container,
-    "--primary": accent.primary,
-    "--primary-dark": accent.dark,
-  } as CSSProperties;
+  const isCustomAccent = preferencias.colorAcento && preferencias.colorAcento !== "verde";
+  const customAccent = isCustomAccent && preferencias.colorAcento in ACCENT_PALETTES
+    ? ACCENT_PALETTES[preferencias.colorAcento as AccentColorKey]
+    : null;
 
-  // Sincronizar tema oscuro con documentElement para evitar cortes en el fondo y overscroll
-  useEffect(() => {
-    const isDark = Boolean(preferencias.modoOscuro);
-    document.documentElement.setAttribute("data-theme", isDark ? "dark" : "light");
-    document.documentElement.style.colorScheme = isDark ? "dark" : "light";
-    if (isDark) {
-      document.documentElement.classList.add("dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-    }
-    try {
-      localStorage.setItem("finpal-dark-mode", isDark ? "true" : "false");
-    } catch {}
-
-    const metaTheme = document.querySelector('meta[name="theme-color"]');
-    if (metaTheme) {
-      metaTheme.setAttribute("content", isDark ? "#111827" : "#faf8ff");
-    }
-  }, [preferencias.modoOscuro]);
+  const themeStyle = customAccent
+    ? ({
+        "--color-primary": customAccent.primary,
+        "--color-primary-container": customAccent.container,
+        "--primary": customAccent.primary,
+        "--primary-dark": customAccent.dark,
+      } as CSSProperties)
+    : undefined;
 
   useEffect(() => {
-    if (!accent) return;
-    document.documentElement.style.setProperty("--color-primary", accent.primary);
-    document.documentElement.style.setProperty("--color-primary-container", accent.container);
-    document.documentElement.style.setProperty("--primary", accent.primary);
-    document.documentElement.style.setProperty("--primary-dark", accent.dark);
-  }, [accent]);
+    if (!customAccent) {
+      const cached = getSessionAccent();
+      if (!cached || cached === "verde") {
+        resetGlobalThemeColors();
+      }
+      return;
+    }
+
+    applyCustomAccent(preferencias.colorAcento);
+
+    const observer = new MutationObserver(() => {
+      applyCustomAccent(preferencias.colorAcento);
+    });
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class", "data-theme"] });
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [customAccent, preferencias.colorAcento]);
 
   // Si estamos en la selección de espacios, no mostramos el shell del dashboard
   if (pathname === "/espacios") {
     return (
       <div
-        data-theme={preferencias.modoOscuro ? "dark" : "light"}
         style={themeStyle}
-        className="min-h-screen w-full bg-surface text-on-surface antialiased flex flex-col selection:bg-primary-fixed selection:text-on-primary-fixed"
+        className="min-h-screen w-full max-w-full overflow-x-hidden bg-surface text-on-surface antialiased flex flex-col selection:bg-primary-fixed selection:text-on-primary-fixed"
       >
         {children}
         <InactivityMonitor />
@@ -146,9 +294,8 @@ export function DashboardShell({
 
   return (
     <div
-      data-theme={preferencias.modoOscuro ? "dark" : "light"}
       style={themeStyle}
-      className="min-h-screen bg-surface text-on-surface antialiased flex selection:bg-primary-fixed selection:text-on-primary-fixed"
+      className="min-h-screen w-full max-w-full overflow-x-hidden bg-surface text-on-surface antialiased flex selection:bg-primary-fixed selection:text-on-primary-fixed"
     >
       {/* Barra de progreso de carga superior */}
       {(isPending || optimisticPath !== null) && (
@@ -277,9 +424,17 @@ export function DashboardShell({
 
         {/* Cerrar Sesión Móvil */}
         <div className="p-3 border-t border-surface-container-low">
-          <form action={signOut}>
+          <form
+            action={signOut}
+            onSubmit={() => {
+              clearSessionAccent();
+            }}
+          >
             <button
               type="submit"
+              onClick={() => {
+                clearSessionAccent();
+              }}
               className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl bg-surface-container-low hover:bg-error-container/40 hover:text-error text-on-surface transition-colors border border-surface-container-high/40 text-xs font-medium cursor-pointer"
             >
               <LogOut className="w-4 h-4" />
@@ -380,9 +535,17 @@ export function DashboardShell({
 
         {/* Cerrar Sesión */}
         <div className="p-3 border-t border-surface-container-low">
-          <form action={signOut}>
+          <form
+            action={signOut}
+            onSubmit={() => {
+              clearSessionAccent();
+            }}
+          >
             <button
               type="submit"
+              onClick={() => {
+                clearSessionAccent();
+              }}
               className="w-full flex items-center gap-2 px-3 py-2 rounded-xl bg-surface-container-low hover:bg-error-container/40 hover:text-error text-on-surface transition-colors border border-surface-container-high/40 text-xs font-medium cursor-pointer"
             >
               <LogOut className="w-4 h-4" />
@@ -393,29 +556,29 @@ export function DashboardShell({
       </aside>
 
       {/* Contenido Principal con Header Persistente */}
-      <div className="pl-0 md:pl-60 flex-1 flex flex-col min-w-0">
-        <header className="fixed top-0 left-0 md:left-60 right-0 h-16 bg-surface-container-lowest/90 backdrop-blur-md shadow-[0_1px_4px_rgba(0,0,0,0.03)] border-b border-surface-container-high/60 z-30 flex items-center justify-between px-4 sm:px-8">
-          <div className="flex items-center gap-2.5 sm:gap-3">
+      <div className="pl-0 md:pl-60 flex-1 flex flex-col min-w-0 max-w-full overflow-x-hidden">
+        <header className="fixed top-0 left-0 md:left-60 right-0 h-16 bg-surface-container-lowest/90 backdrop-blur-md shadow-[0_1px_4px_rgba(0,0,0,0.03)] border-b border-surface-container-high/60 z-30 flex items-center justify-between px-3 sm:px-8 max-w-full overflow-hidden">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             {/* Botón menú móvil */}
             <button
               type="button"
               onClick={() => setMobileNavOpen(true)}
-              className="md:hidden p-2 -ml-1 text-on-surface hover:bg-surface-container rounded-xl transition-colors cursor-pointer"
+              className="md:hidden p-2 -ml-1 text-on-surface hover:bg-surface-container rounded-xl transition-colors cursor-pointer shrink-0"
               aria-label="Abrir menú"
             >
               <Menu className="w-5 h-5 text-on-surface" />
             </button>
 
             {/* Logo en versión móvil */}
-            <div className="flex items-center gap-2.5 md:hidden">
-              <FinPalLogo size={34} className="w-[34px] h-[34px]" colorAcento={preferencias.colorAcento} priority />
-              <span className="font-heading font-extrabold text-lg tracking-tight text-on-surface">Fin<span className="text-primary">Pal</span></span>
+            <div className="flex items-center gap-2 md:hidden min-w-0">
+              <FinPalLogo size={32} className="w-8 h-8 shrink-0" colorAcento={preferencias.colorAcento} priority />
+              <span className="font-heading font-extrabold text-base tracking-tight text-on-surface truncate">Fin<span className="text-primary">Pal</span></span>
             </div>
 
             {/* Fecha en versión desktop / tablet */}
-            <div className="hidden lg:flex items-center gap-2 text-xs font-semibold text-on-surface-variant bg-surface-container-low px-3 py-1.5 rounded-lg border border-surface-container-high/40">
+            <div suppressHydrationWarning className="hidden lg:flex items-center gap-2 text-xs font-semibold text-on-surface-variant bg-surface-container-low px-3 py-1.5 rounded-lg border border-surface-container-high/40">
               <Calendar className="w-4 h-4 text-primary" />
-              <span className="capitalize">
+              <span className="capitalize" suppressHydrationWarning>
                 {new Date().toLocaleDateString("es-BO", {
                   weekday: "short",
                   year: "numeric",
@@ -426,19 +589,20 @@ export function DashboardShell({
             </div>
           </div>
 
-          <div className="flex items-center gap-2 sm:gap-4">
+          <div className="flex items-center gap-1.5 sm:gap-4 shrink-0">
+            <ThemeToggle />
             <button
               type="button"
               onClick={() => setShowImportModal(true)}
-              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-semibold rounded-lg bg-surface-container-low hover:bg-surface-container border border-surface-container-high/40 text-on-surface transition-colors cursor-pointer"
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-semibold rounded-lg bg-surface-container-low hover:bg-surface-container border border-surface-container-high/40 text-on-surface transition-colors cursor-pointer shrink-0"
               title="Importar Excel o CSV"
             >
               <FileSpreadsheet className="w-4 h-4 text-primary shrink-0" />
               <span className="hidden sm:inline">Importar Excel / CSV</span>
               <span className="sm:hidden text-[11px]">Importar</span>
             </button>
-            <div className="flex items-center gap-2 sm:gap-2.5 pl-2 border-l border-surface-container-low">
-              <div className="w-8 h-8 rounded-full bg-on-surface text-surface-container-lowest flex items-center justify-center font-bold text-xs ring-2 ring-primary/20 shrink-0">
+            <div className="flex items-center gap-1.5 sm:gap-2.5 pl-1.5 sm:pl-2 border-l border-surface-container-low shrink-0">
+              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-on-surface text-surface-container-lowest flex items-center justify-center font-bold text-[11px] sm:text-xs ring-2 ring-primary/20 shrink-0">
                 {avatarLetters}
               </div>
               <div className="hidden md:flex flex-col text-left max-w-[140px] lg:max-w-[180px]">
@@ -450,52 +614,10 @@ export function DashboardShell({
         </header>
 
         {/* Children Rendered Instantly */}
-        <main className="w-full pt-20 px-3.5 sm:px-8 pb-24 md:pb-12 min-h-[calc(100dvh-4rem)]">
+        <main className="w-full max-w-full min-w-0 pt-20 px-3 sm:px-8 pb-12 min-h-[calc(100dvh-4rem)] overflow-x-hidden">
           {isRouteLoading ? <DashboardRouteSkeleton path={optimisticPath} /> : children}
         </main>
       </div>
-
-      {/* Barra de Navegación Móvil Inferior (Thumb-friendly) */}
-      <nav
-        aria-label="Navegación rápida inferior"
-        className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-surface-container-lowest/95 backdrop-blur-lg border-t border-surface-container-high/60 z-40 flex items-center justify-around px-1 shadow-[0_-2px_12px_rgba(0,0,0,0.06)]"
-      >
-        {[
-          { label: "Inicio", path: "/inicio", icon: LayoutDashboard },
-          { label: "Préstamos", path: "/prestamos", icon: HandCoins },
-          { label: "Cobros", path: "/pagos", icon: ReceiptText },
-          { label: "Contactos", path: "/contactos", icon: UsersRound },
-        ].map((item) => {
-          const isActive = activePath === item.path;
-          const Icon = item.icon;
-          return (
-            <Link
-              key={item.path}
-              href={item.path}
-              prefetch={true}
-              onClick={() => setOptimisticPath(item.path)}
-              className={`flex flex-col items-center justify-center flex-1 py-1 gap-0.5 transition-colors cursor-pointer ${
-                isActive ? "text-primary font-bold" : "text-on-surface-variant hover:text-on-surface"
-              }`}
-            >
-              <div className={`p-1 rounded-xl transition-all ${isActive ? "bg-primary/10 text-primary scale-105" : ""}`}>
-                <Icon className="w-5 h-5" />
-              </div>
-              <span className="text-[10px] leading-tight truncate">{item.label}</span>
-            </Link>
-          );
-        })}
-        <button
-          type="button"
-          onClick={() => setMobileNavOpen(true)}
-          className="flex flex-col items-center justify-center flex-1 py-1 gap-0.5 text-on-surface-variant hover:text-on-surface transition-colors cursor-pointer"
-        >
-          <div className="p-1 rounded-xl">
-            <Menu className="w-5 h-5" />
-          </div>
-          <span className="text-[10px] leading-tight">Más</span>
-        </button>
-      </nav>
 
       {/* Modals Compartidos */}
       {/* Notificación Circular Animada Estilo Móvil con Timbre Armónico */}
@@ -516,10 +638,14 @@ export function DashboardShell({
                 movement: "Registrar movimiento",
               }[modal]
             }
-
-            close={closeModal}
+            close={handleSafeCloseModal}
           >
-            <form onSubmit={handleSubmitModal} className="space-y-4">
+            <form
+              ref={formRef}
+              onSubmit={handleSubmitModal}
+              onChange={() => setIsFormDirty(true)}
+              className="space-y-4"
+            >
               {modal === "contact" && <ContactoForm />}
               {modal === "account" && <CuentaForm />}
               {modal === "loan" && (
@@ -539,22 +665,42 @@ export function DashboardShell({
                 </p>
               )}
 
-              <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 sm:gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={closeModal}
-                  className="w-full sm:w-auto px-4 py-2.5 rounded-xl text-xs font-semibold text-on-surface hover:bg-surface-container transition-colors cursor-pointer text-center"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="w-full sm:w-auto px-5 py-2.5 rounded-xl text-xs font-semibold bg-primary text-on-primary hover:bg-primary-container transition-colors shadow-xs flex items-center justify-center gap-2 disabled:opacity-60 cursor-pointer"
-                >
-                  {submitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                  {submitting ? modal === "account" ? "Creando cuenta..." : "Guardando..." : "Guardar"}
-                </button>
+              <div className="pt-2 space-y-2.5">
+                <SlideToConfirm
+                  submitting={submitting}
+                  resetTrigger={`${modal}-${formError ?? ""}`}
+                  onConfirm={() => {
+                    if (formRef.current) {
+                      if (!formRef.current.checkValidity()) {
+                        formRef.current.reportValidity();
+                        return false;
+                      }
+                      formRef.current.requestSubmit();
+                      return true;
+                    }
+                    return false;
+                  }}
+                  label={
+                    modal === "loan"
+                      ? "Desliza para registrar el préstamo"
+                      : modal === "payment"
+                      ? "Desliza para registrar el cobro"
+                      : modal === "movement"
+                      ? "Desliza para registrar el movimiento"
+                      : modal === "account"
+                      ? "Desliza para crear la cuenta"
+                      : "Desliza para confirmar y registrar"
+                  }
+                />
+                <div className="flex justify-center">
+                  <button
+                    type="button"
+                    onClick={handleSafeCloseModal}
+                    className="text-xs font-semibold text-on-surface-variant hover:text-on-surface py-1 transition-colors cursor-pointer"
+                  >
+                    Cancelar y descartar
+                  </button>
+                </div>
               </div>
             </form>
           </ModalWrapper>
@@ -570,6 +716,18 @@ export function DashboardShell({
           loadData();
         }}
         cuentasDisponibles={cuentas.map((c) => ({ id: c.id, nombre: c.nombre }))}
+      />
+
+      {/* Diálogo nativo del sistema para confirmar descarte de cambios */}
+      <ConfirmDialog
+        isOpen={showDiscardConfirm}
+        title="¿Descartar cambios?"
+        description="Tienes información ingresada en el formulario. Si sales ahora, los datos no guardados se perderán."
+        confirmText="Descartar cambios"
+        cancelText="Continuar editando"
+        variant="danger"
+        onConfirm={handleConfirmDiscard}
+        onCancel={handleCancelDiscard}
       />
 
       {/* Monitor de inactividad de sesión (alerta a 15m, cierre automático a 20m) */}
@@ -770,7 +928,7 @@ function DateField({
 }
 
 const inputCls =
-  "w-full h-10 px-3.5 rounded-xl bg-surface-container-lowest border border-surface-container-high/80 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20";
+  "w-full h-10 px-3.5 rounded-xl bg-surface-container-lowest border border-surface-container-high/80 text-base sm:text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20";
 const selectCls = `${inputCls} cursor-pointer`;
 
 function ContactoForm() {
@@ -831,6 +989,7 @@ function PrestamoForm({
   const [contactoSeleccionado, setContactoSeleccionado] = useState("");
   const [fechaInicio, setFechaInicio] = useState(new Date().toISOString().slice(0, 10));
   const [diaPago, setDiaPago] = useState(new Date().getDate());
+  const [metodoEntrega, setMetodoEntrega] = useState("");
   return (
     <>
       <FormField label="Deudor *">
@@ -871,31 +1030,42 @@ function PrestamoForm({
       <FormField label="Monto principal (Bs) *">
         <input type="number" name="monto_principal" required min={1} step="0.01" className={inputCls} />
       </FormField>
-      <div className="flex items-center justify-between">
-        <label className="flex items-center gap-2 text-xs font-semibold text-on-surface cursor-pointer">
-          <input
-            type="checkbox"
-            name="cobra_interes"
-            value="true"
-            checked={cobraInteres}
-            onChange={(e) => {
-              const checked = e.target.checked;
-              setCobraInteres(checked);
-              if (!checked) {
-                setTasaInteres(0);
-              } else if (Number(tasaInteres) === 0) {
-                setTasaInteres(tasaPredeterminada > 0 ? tasaPredeterminada : 3);
-              }
-            }}
-            className="w-4 h-4 rounded accent-primary"
-          />
-          Cobra interés mensual
-        </label>
-        {cobraInteres && Number(tasaInteres) === 0 && (
-          <span className="text-[11px] font-semibold text-primary bg-primary/10 px-2 py-0.5 rounded-md">
-            Sin interés (0%)
-          </span>
-        )}
+      <div className="rounded-xl border border-outline/15 bg-surface-container-low/50 p-3 space-y-2">
+        <div className="flex items-start justify-between gap-3">
+          <label className="flex items-start gap-2.5 text-xs font-semibold text-on-surface cursor-pointer select-none">
+            <input
+              type="checkbox"
+              name="cobra_interes"
+              value="true"
+              checked={cobraInteres}
+              onChange={(e) => {
+                const checked = e.target.checked;
+                setCobraInteres(checked);
+                if (!checked) {
+                  setTasaInteres(0);
+                } else if (Number(tasaInteres) === 0) {
+                  setTasaInteres(tasaPredeterminada > 0 ? tasaPredeterminada : 3);
+                }
+              }}
+              className="mt-0.5 w-4 h-4 rounded accent-primary cursor-pointer"
+            />
+            <div>
+              <span className="block text-xs font-semibold text-on-surface">
+                Genera cobro de interés mensual (el deudor paga intereses)
+              </span>
+              <span className="block text-[11px] font-normal text-on-surface-variant">
+                {cobraInteres
+                  ? "El deudor debe pagar intereses cada mes según la tasa acordada."
+                  : "Préstamo de confianza / sin intereses (0%). Solo devuelve el capital prestado."}
+              </span>
+            </div>
+          </label>
+          {cobraInteres && Number(tasaInteres) === 0 && (
+            <span className="shrink-0 text-[11px] font-semibold text-primary bg-primary/10 px-2 py-0.5 rounded-md">
+              0% (sin interés)
+            </span>
+          )}
+        </div>
       </div>
       {cobraInteres && (
         <FormField label="Tasa mensual (%)">
@@ -961,12 +1131,33 @@ function PrestamoForm({
         )}
       </div>
       <FormField label="Método de entrega (opcional)">
-        <input
-          type="text"
-          name="metodo_entrega"
-          className={inputCls}
-          placeholder="Efectivo, transferencia, QR..."
-        />
+        <div className="space-y-2">
+          <input
+            type="text"
+            name="metodo_entrega"
+            className={inputCls}
+            value={metodoEntrega}
+            onChange={(e) => setMetodoEntrega(e.target.value)}
+            placeholder="Efectivo, transferencia, QR..."
+          />
+          <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+            <span className="text-[11px] text-on-surface-variant">Opciones rápidas:</span>
+            {["Efectivo", "Transferencia bancaria", "Pago QR", "Depósito"].map((metodo) => (
+              <button
+                key={metodo}
+                type="button"
+                onClick={() => setMetodoEntrega(metodo)}
+                className={`text-[11px] px-2.5 py-1 rounded-lg border transition-all cursor-pointer ${
+                  metodoEntrega === metodo
+                    ? "bg-primary text-on-primary border-primary font-semibold shadow-xs"
+                    : "bg-surface-container-low hover:bg-surface-container text-on-surface-variant hover:text-on-surface border-outline/15"
+                }`}
+              >
+                {metodo}
+              </button>
+            ))}
+          </div>
+        </div>
       </FormField>
       <FormField label="Notas">
         <textarea name="notas" rows={2} className={`${inputCls} h-auto py-2.5`} />
@@ -1077,7 +1268,7 @@ function PagoForm({ prestamos, cuentas }: { prestamos: Prestamo[]; cuentas: Cuen
               <button
                 type="button"
                 onClick={handleFillOnlyInterest}
-                className="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20 hover:bg-amber-500/20 transition-colors cursor-pointer"
+                className="px-2 py-0.5 rounded-md text-[11px] font-semibold badge-amber hover:opacity-90 transition-opacity cursor-pointer"
               >
                 Solo interés ({money(interesEstimado)})
               </button>
@@ -1085,7 +1276,7 @@ function PagoForm({ prestamos, cuentas }: { prestamos: Prestamo[]; cuentas: Cuen
             <button
               type="button"
               onClick={handleFillOnlyCapital}
-              className="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20 transition-colors cursor-pointer"
+              className="px-2 py-0.5 rounded-md text-[11px] font-semibold badge-emerald hover:opacity-90 transition-opacity cursor-pointer"
             >
               Liquidar capital ({money(capitalPendiente)})
             </button>
@@ -1093,7 +1284,7 @@ function PagoForm({ prestamos, cuentas }: { prestamos: Prestamo[]; cuentas: Cuen
               <button
                 type="button"
                 onClick={handleFillFullBalance}
-                className="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-surface-container text-on-surface border border-surface-container-high hover:bg-surface-container-high transition-colors cursor-pointer"
+                className="px-2 py-0.5 rounded-md text-[11px] font-semibold badge-neutral hover:opacity-90 transition-opacity cursor-pointer"
               >
                 Capital + interés ({money(capitalPendiente + interesEstimado)})
               </button>
