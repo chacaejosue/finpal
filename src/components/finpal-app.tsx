@@ -708,16 +708,16 @@ function ContactsView({ data, openModal }: { data: FinPalData; openModal: () => 
                   <td className="py-3.5 px-4 text-right">
                     {balance ? (
                       isLate ? (
-                        <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-error-container text-on-error-container border border-error/20">
+                        <span className="px-2.5 py-1 rounded-full text-xs font-bold badge-atrasado inline-flex items-center">
                           Con atraso
                         </span>
                       ) : (
-                        <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-secondary-container/50 text-on-secondary-container border border-primary/20">
+                        <span className="px-2.5 py-1 rounded-full text-xs font-bold badge-al-dia inline-flex items-center">
                           Al día
                         </span>
                       )
                     ) : (
-                      <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-surface-container text-on-surface-variant border border-surface-container-high/40">
+                      <span className="px-2.5 py-1 rounded-full text-xs font-bold badge-saldado inline-flex items-center">
                         Sin deuda
                       </span>
                     )}
@@ -775,10 +775,10 @@ function LoansView({ data, openModal }: { data: FinPalData; openModal: () => voi
                 <td className="py-3.5 px-4 text-xs font-medium text-on-surface-variant">Día {l.paymentDay}</td>
                 <td className="py-3.5 px-4 text-right">
                   <span
-                    className={`px-2.5 py-1 rounded-full text-xs font-semibold border ${
+                    className={`px-2.5 py-1 rounded-full text-xs font-bold inline-flex items-center ${
                       l.status === "Con atraso"
-                        ? "bg-error-container text-on-error-container border-error/20"
-                        : "bg-secondary-container/50 text-on-secondary-container border-primary/20"
+                        ? "badge-atrasado"
+                        : "badge-al-dia"
                     }`}
                   >
                     {l.status}
@@ -879,7 +879,7 @@ function AccountsView({ data, openModal }: { data: FinPalData; openModal: () => 
             </div>
             <div className="mt-4 pt-3 border-t border-surface-container-low flex items-baseline justify-between">
               <span className="text-xs text-on-surface-variant font-medium">Saldo disponible</span>
-              <span className="font-heading text-xl font-extrabold text-primary font-mono">{money(a.balance)}</span>
+              <span className="font-heading text-xl font-extrabold text-black dark:text-white font-mono">{money(a.balance)}</span>
             </div>
           </div>
         ))}

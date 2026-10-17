@@ -45,6 +45,8 @@ import {
   ArrowDownLeft,
   ArrowUpRight,
   Scale,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import {
   money,
@@ -57,6 +59,7 @@ import {
   type Movimiento,
   type Contacto,
   type Preferencias,
+  useDashboard,
 } from "@/lib/dashboard-context";
 import { ContactAvatar } from "@/components/contact-avatar";
 import { FinPalLogo } from "@/components/finpal-logo";
@@ -97,6 +100,7 @@ export function ReportesBiDashboard({
   contactos,
   preferencias,
 }: ReportesBiProps) {
+  const { setSuccessNotice } = useDashboard();
   // Bandera de montaje en cliente para evitar advertencias de hidratación SSR en Recharts
   const [mounted, setMounted] = useState(false);
   useEffect(() => {
@@ -112,6 +116,7 @@ export function ReportesBiDashboard({
   const [sortAsc, setSortAsc] = useState<boolean>(false);
   const [chartType, setChartType] = useState<ChartType>("area");
   const [tipoProyeccion, setTipoProyeccion] = useState<"mes" | "semestre">("mes");
+  const [proyeccionMesOffset, setProyeccionMesOffset] = useState<number>(0);
 
   // Local date parser to prevent UTC midnight timezone displacement
   const parseLocalDate = (dateStr: string | null | undefined): Date => {
@@ -321,43 +326,46 @@ export function ReportesBiDashboard({
     };
   }, [filteredPrestamos, filteredPagos, cuentas, filteredMovimientos]);
 
-  // ─── Proyección de Flujo Neto del Mes Actual (Paridad con Landing) ─────────
+  // ─── Proyección de Flujo Neto Dinámica por Mes ────────────────────────────
+  const targetDate = useMemo(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth() + proyeccionMesOffset, 1);
+  }, [proyeccionMesOffset]);
+
+  const targetYear = targetDate.getFullYear();
+  const targetMonth = targetDate.getMonth();
+
   const mesActualNombre = useMemo(() => {
     const meses = [
       "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
       "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
     ];
-    return meses[new Date().getMonth()];
-  }, []);
+    return meses[targetMonth];
+  }, [targetMonth]);
 
   /**
-   * Proyección del flujo de caja del mes en curso:
+   * Proyección del flujo de caja del mes seleccionado:
    * - interesProyectado: interés mensual de préstamos activos según su saldo deudor pendiente.
-   * - capitalDevuelto: pagos reales de capital recibidos en el mes actual.
+   * - capitalDevuelto: pagos reales de capital recibidos en el mes objetivo.
    * - totalFlujoEsperado: suma transparente y real de ambos conceptos.
    */
   const flujoNetoData = useMemo(() => {
-    const now = new Date();
-    const curMonth = now.getMonth();
-    const curYear = now.getFullYear();
+    const isCurrentMonth = proyeccionMesOffset === 0;
 
     const pagosMes = filteredPagos.filter((p) => {
       const d = parseLocalDate(p.recibido_en || p.created_at);
-      return d.getMonth() === curMonth && d.getFullYear() === curYear;
+      return d.getMonth() === targetMonth && d.getFullYear() === targetYear;
     });
 
     const capitalCobradoMes = pagosMes.reduce((sum, p) => sum + Number(p.monto_principal || 0), 0);
     const interesCobradoMes = pagosMes.reduce((sum, p) => sum + Number(p.monto_interes || 0), 0);
 
-    // Interés mensual contractual programado de los préstamos activos
-    const interesProyectado = metrics.interesMensualEstimado > 0
-      ? metrics.interesMensualEstimado
+    // Interés contractual esperado si es mes actual/futuro, o histórico si es pasado
+    const interesProyectado = proyeccionMesOffset >= 0
+      ? (metrics.interesMensualEstimado > 0 ? metrics.interesMensualEstimado : interesCobradoMes)
       : interesCobradoMes;
 
-    // Capital real devuelto por los deudores en el mes actual (sin inventar porcentajes hardcodeados)
     const capitalDevuelto = capitalCobradoMes;
-
-    // El flujo esperado es el interés programado que esperas recibir del mes más el capital devuelto
     const totalFlujoEsperado = capitalDevuelto + interesProyectado;
 
     return {
@@ -366,8 +374,9 @@ export function ReportesBiDashboard({
       interesProyectado,
       capitalCobradoMes,
       interesCobradoMes,
+      isCurrentMonth,
     };
-  }, [filteredPagos, metrics]);
+  }, [filteredPagos, metrics, targetMonth, targetYear, proyeccionMesOffset]);
 
   /**
    * Genera el desglose realista día a día (1 al último día del mes) del flujo proyectado y cobrado.
@@ -376,15 +385,15 @@ export function ReportesBiDashboard({
    */
   const timelineProyeccionMes = useMemo(() => {
     const now = new Date();
-    const curYear = now.getFullYear();
-    const curMonth = now.getMonth();
+    const isCurrentMonth = proyeccionMesOffset === 0;
+    const isFutureMonth = proyeccionMesOffset > 0;
     const curDay = now.getDate();
-    const totalDiasMes = new Date(curYear, curMonth + 1, 0).getDate();
+    const totalDiasMes = new Date(targetYear, targetMonth + 1, 0).getDate();
 
     // Cobros reales del mes indexados por día calendario
     const pagosMes = filteredPagos.filter((p) => {
       const d = parseLocalDate(p.recibido_en || p.created_at);
-      return d.getMonth() === curMonth && d.getFullYear() === curYear;
+      return d.getMonth() === targetMonth && d.getFullYear() === targetYear;
     });
 
     const cobrosPorDia = new Map<number, { capital: number; interes: number; total: number }>();
@@ -434,9 +443,15 @@ export function ReportesBiDashboard({
       const prog = programadosPorDia.get(d);
       const interesProg = prog?.interes || 0;
 
-      // Si el día ya pasó o es hoy, el flujo del día es el cobro real registrado
-      // Si el día es futuro, el flujo esperado es el interés programado
-      const flujoDia = d <= curDay ? cobroReal : interesProg;
+      let flujoDia = 0;
+      if (isCurrentMonth) {
+        flujoDia = d <= curDay ? cobroReal : interesProg;
+      } else if (isFutureMonth) {
+        flujoDia = interesProg;
+      } else {
+        flujoDia = cobroReal;
+      }
+
       acumulador += flujoDia;
 
       dias.push({
@@ -446,15 +461,15 @@ export function ReportesBiDashboard({
         acumulado: Number(acumulador.toFixed(2)),
         cobrado: Number(cobroReal.toFixed(2)),
         programado: Number(interesProg.toFixed(2)),
-        esHoy: d === curDay,
-        esPasado: d < curDay,
-        esFuturo: d > curDay,
+        esHoy: isCurrentMonth && d === curDay,
+        esPasado: isCurrentMonth ? d < curDay : !isFutureMonth,
+        esFuturo: isCurrentMonth ? d > curDay : isFutureMonth,
         detalles: prog?.detalles || [],
       });
     }
 
     return dias;
-  }, [filteredPagos, filteredPrestamos]);
+  }, [filteredPagos, filteredPrestamos, targetYear, targetMonth, proyeccionMesOffset]);
 
   /**
    * Proyección multimes a 6 meses hacia adelante:
@@ -572,21 +587,21 @@ export function ReportesBiDashboard({
         name: "Al día",
         value: Number(alDiaAmount.toFixed(2)),
         count: alDiaCount,
-        color: "#10b981", // Emerald
+        color: "#059669", // Emerald vivo (matching Capital Pagado)
         pct: total > 0 ? (alDiaAmount / total) * 100 : 0,
       },
       {
         name: "En mora",
         value: Number(moraAmount.toFixed(2)),
         count: moraCount,
-        color: "#ef4444", // Red / Amber
+        color: "#f43f5e", // Rose vivo (matching Gastos Registrados / Mora)
         pct: total > 0 ? (moraAmount / total) * 100 : 0,
       },
       {
         name: "Saldados",
         value: Number(saldadoAmount.toFixed(2)),
         count: saldadoCount,
-        color: "#3b82f6", // Blue
+        color: "#3b82f6", // Blue vivo (matching Resultado Neto / Saldado)
         pct: total > 0 ? (saldadoAmount / total) * 100 : 0,
       },
     ].filter((item) => item.value > 0 || item.count > 0);
@@ -831,9 +846,10 @@ export function ReportesBiDashboard({
 
       const todayStr = new Date().toISOString().slice(0, 10);
       XLSX.writeFile(wb, `FinPal_Reporte_BI_${todayStr}.xlsx`);
+      setSuccessNotice("Reporte Excel descargado correctamente.");
     } catch (err) {
       console.error("Error al exportar Excel:", err);
-      alert("No se pudo generar el archivo Excel.");
+      setSuccessNotice("No se pudo generar el archivo Excel.");
     }
   };
 
@@ -870,8 +886,10 @@ export function ReportesBiDashboard({
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+      setSuccessNotice("Archivo CSV descargado correctamente.");
     } catch (err) {
       console.error("Error exportando CSV:", err);
+      setSuccessNotice("No se pudo exportar el archivo CSV.");
     }
   };
 
@@ -896,7 +914,7 @@ export function ReportesBiDashboard({
             <span className="inline-block px-2.5 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-800 border border-slate-300 uppercase tracking-wider">
               Informe Financiero Oficial
             </span>
-            <p className="text-[11px] font-mono text-slate-600 mt-1">
+            <p className="text-[11px] font-mono text-slate-600 mt-1" suppressHydrationWarning>
               Fecha: {new Date().toLocaleDateString("es-BO", { year: "numeric", month: "long", day: "numeric" })}
             </p>
           </div>
@@ -922,7 +940,7 @@ export function ReportesBiDashboard({
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-5 border-b border-surface-container-high/60 print:hidden">
         <div>
           <div className="flex items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-primary/10 text-primary border border-primary/20">
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold badge-emerald">
               <Sparkles className="w-3.5 h-3.5" />
               <span>Business Intelligence Lite</span>
             </span>
@@ -1072,7 +1090,7 @@ export function ReportesBiDashboard({
               <span className="text-[11px] text-on-surface-variant font-bold uppercase tracking-wider">
                 Ingresos Totales
               </span>
-              <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 ring-1 ring-emerald-500/20 flex items-center justify-center shrink-0">
+              <div className="w-10 h-10 rounded-xl kpi-icon-emerald flex items-center justify-center shrink-0">
                 <ArrowDownLeft className="w-5 h-5" />
               </div>
             </div>
@@ -1080,7 +1098,7 @@ export function ReportesBiDashboard({
               <div className="font-mono text-xl sm:text-2xl font-extrabold text-on-surface tracking-tight">
                 {money(metrics.totalIngresos)}
               </div>
-              <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold mt-1.5 flex items-center gap-1 font-medium truncate">
+              <p className="text-[11px] text-emerald-700 dark:text-emerald-400 font-bold mt-1.5 flex items-center gap-1 truncate">
                 <span>{money(metrics.totalIngresosDirectos)} directos</span>
                 <span className="text-on-surface-variant font-normal">·</span>
                 <span>{money(metrics.totalInteresCobrado)} intereses</span>
@@ -1089,17 +1107,17 @@ export function ReportesBiDashboard({
           </div>
 
           {/* Card 2: Gastos Registrados */}
-          <div className="bg-surface-container-lowest print:bg-slate-50 rounded-2xl p-4 sm:p-5 border border-surface-container-high/70 print:border-slate-300 shadow-2xs hover:border-red-600/30 hover:shadow-sm transition-all duration-200 flex flex-col justify-between print-avoid-break">
+          <div className="bg-surface-container-lowest print:bg-slate-50 rounded-2xl p-4 sm:p-5 border border-surface-container-high/70 print:border-slate-300 shadow-2xs hover:border-rose-400/50 hover:shadow-sm transition-all duration-200 flex flex-col justify-between print-avoid-break">
             <div className="flex items-center justify-between">
               <span className="text-[11px] text-on-surface-variant font-bold uppercase tracking-wider">
                 Gastos Registrados
               </span>
-              <div className="w-10 h-10 rounded-xl bg-red-500/10 text-red-700 dark:text-red-300 ring-1 ring-red-500/25 flex items-center justify-center shrink-0">
+              <div className="w-10 h-10 rounded-xl kpi-icon-rose flex items-center justify-center shrink-0">
                 <ArrowUpRight className="w-5 h-5" />
               </div>
             </div>
             <div className="mt-3">
-              <div className="font-mono text-xl sm:text-2xl font-extrabold text-red-700 dark:text-red-300 tracking-tight">
+              <div className="font-mono text-xl sm:text-2xl font-extrabold text-rose-600 dark:text-rose-400 tracking-tight">
                 {money(metrics.totalGastos)}
               </div>
               <p className="text-[11px] text-on-surface-variant mt-1.5 font-medium">
@@ -1114,14 +1132,14 @@ export function ReportesBiDashboard({
               <span className="text-[11px] text-on-surface-variant font-bold uppercase tracking-wider">
                 Resultado Neto
               </span>
-              <div className="w-10 h-10 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400 ring-1 ring-blue-500/20 flex items-center justify-center shrink-0">
+              <div className="w-10 h-10 rounded-xl kpi-icon-blue flex items-center justify-center shrink-0">
                 <Scale className="w-5 h-5" />
               </div>
             </div>
             <div className="mt-3">
               <div
                 className={`font-mono text-xl sm:text-2xl font-extrabold tracking-tight ${
-                  metrics.resultadoNeto >= 0 ? "text-primary" : "text-error"
+                  metrics.resultadoNeto >= 0 ? "text-primary" : "text-rose-600 dark:text-rose-400"
                 }`}
               >
                 {metrics.resultadoNeto >= 0 ? "+" : ""}
@@ -1131,19 +1149,19 @@ export function ReportesBiDashboard({
                 {metrics.resultadoNeto >= 0 ? (
                   <span className="text-primary font-bold">Superávit operativo</span>
                 ) : (
-                  <span className="text-error font-bold">Déficit en el período</span>
+                  <span className="text-rose-600 dark:text-rose-400 font-bold">Déficit en el período</span>
                 )}
               </p>
             </div>
           </div>
 
           {/* Card 4: Liquidez Disponible */}
-          <div className="bg-surface-container-lowest rounded-2xl p-4 sm:p-5 border border-surface-container-high/70 shadow-2xs hover:border-emerald-500/30 hover:shadow-sm transition-all duration-200 flex flex-col justify-between">
+          <div className="bg-surface-container-lowest rounded-2xl p-4 sm:p-5 border border-surface-container-high/70 shadow-2xs hover:border-teal-500/30 hover:shadow-sm transition-all duration-200 flex flex-col justify-between">
             <div className="flex items-center justify-between">
               <span className="text-[11px] text-on-surface-variant font-bold uppercase tracking-wider">
                 Liquidez Disponible
               </span>
-              <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 ring-1 ring-emerald-500/20 flex items-center justify-center shrink-0">
+              <div className="w-10 h-10 rounded-xl kpi-icon-teal flex items-center justify-center shrink-0">
                 <Landmark className="w-5 h-5" />
               </div>
             </div>
@@ -1179,7 +1197,7 @@ export function ReportesBiDashboard({
               <span className="text-[11px] text-on-surface-variant font-bold uppercase tracking-wider">
                 Cartera Colocada
               </span>
-              <div className="w-10 h-10 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400 ring-1 ring-blue-500/20 flex items-center justify-center shrink-0">
+              <div className="w-10 h-10 rounded-xl kpi-icon-blue flex items-center justify-center shrink-0">
                 <Coins className="w-5 h-5" />
               </div>
             </div>
@@ -1194,12 +1212,12 @@ export function ReportesBiDashboard({
           </div>
 
           {/* Card 2: Capital Devuelto con Progress Bar */}
-          <div className="bg-surface-container-lowest rounded-2xl p-4 sm:p-5 border border-surface-container-high/70 shadow-2xs hover:border-primary/30 hover:shadow-sm transition-all duration-200 flex flex-col justify-between">
+          <div className="bg-surface-container-lowest rounded-2xl p-4 sm:p-5 border border-surface-container-high/70 shadow-2xs hover:border-emerald-500/30 hover:shadow-sm transition-all duration-200 flex flex-col justify-between">
             <div className="flex items-center justify-between">
               <span className="text-[11px] text-on-surface-variant font-bold uppercase tracking-wider">
                 Capital Devuelto
               </span>
-              <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary ring-1 ring-primary/20 flex items-center justify-center shrink-0">
+              <div className="w-10 h-10 rounded-xl kpi-icon-emerald flex items-center justify-center shrink-0">
                 <Percent className="w-5 h-5" />
               </div>
             </div>
@@ -1228,7 +1246,7 @@ export function ReportesBiDashboard({
               <span className="text-[11px] text-on-surface-variant font-bold uppercase tracking-wider">
                 Intereses Percibidos
               </span>
-              <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 ring-1 ring-amber-500/20 flex items-center justify-center shrink-0">
+              <div className="w-10 h-10 rounded-xl kpi-icon-amber flex items-center justify-center shrink-0">
                 <TrendingUp className="w-5 h-5" />
               </div>
             </div>
@@ -1236,7 +1254,7 @@ export function ReportesBiDashboard({
               <div className="font-mono text-xl sm:text-2xl font-extrabold text-on-surface tracking-tight">
                 {money(metrics.totalInteresCobrado)}
               </div>
-              <p className="text-[11px] text-primary font-semibold mt-1.5 flex items-center gap-1 font-medium">
+              <p className="text-[11px] text-amber-700 dark:text-amber-400 font-bold mt-1.5 flex items-center gap-1 font-medium">
                 <span>+{money(metrics.interesMensualEstimado)}</span>
                 <span className="text-[10px] text-on-surface-variant font-normal">est. mes</span>
               </p>
@@ -1244,16 +1262,16 @@ export function ReportesBiDashboard({
           </div>
 
           {/* Card 4: Cartera en Mora / Riesgo */}
-          <div className="bg-surface-container-lowest rounded-2xl p-4 sm:p-5 border border-surface-container-high/70 shadow-2xs hover:border-rose-500/30 hover:shadow-sm transition-all duration-200 flex flex-col justify-between">
+          <div className="bg-surface-container-lowest rounded-2xl p-4 sm:p-5 border border-surface-container-high/70 shadow-2xs hover:border-rose-400/50 hover:shadow-sm transition-all duration-200 flex flex-col justify-between">
             <div className="flex items-center justify-between">
               <span className="text-[11px] text-on-surface-variant font-bold uppercase tracking-wider">
                 Cartera en Mora
               </span>
               <div
-                className={`w-10 h-10 rounded-xl ring-1 flex items-center justify-center shrink-0 ${
+                className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
                   metrics.capitalEnMora > 0
-                    ? "bg-rose-500/10 text-rose-600 dark:text-rose-400 ring-rose-500/20"
-                    : "bg-surface-container text-on-surface-variant ring-surface-container-high/60"
+                    ? "kpi-icon-rose"
+                    : "bg-surface-container text-on-surface-variant border border-surface-container-high/60"
                 }`}
               >
                 <AlertOctagon className="w-5 h-5" />
@@ -1262,14 +1280,14 @@ export function ReportesBiDashboard({
             <div className="mt-3">
               <div
                 className={`font-mono text-xl sm:text-2xl font-extrabold tracking-tight ${
-                  metrics.capitalEnMora > 0 ? "text-error" : "text-on-surface"
+                  metrics.capitalEnMora > 0 ? "text-rose-600 dark:text-rose-400" : "text-on-surface"
                 }`}
               >
                 {money(metrics.capitalEnMora)}
               </div>
               <p className="text-[11px] mt-1.5 font-medium">
                 {metrics.capitalEnMora > 0 ? (
-                  <span className="font-bold text-error">
+                  <span className="font-bold text-rose-600 dark:text-rose-400">
                     {metrics.moraRate.toFixed(1)}% ({metrics.moraCount} préstamos)
                   </span>
                 ) : (
@@ -1343,8 +1361,8 @@ export function ReportesBiDashboard({
                 <AreaChart data={cobrosMensuales} margin={{ top: 10, right: 10, left: -15, bottom: 0 }}>
                   <defs>
                     <linearGradient id="colorCapital" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#006948" stopOpacity={0.45} />
-                      <stop offset="95%" stopColor="#006948" stopOpacity={0.0} />
+                      <stop offset="5%" stopColor="#059669" stopOpacity={0.45} />
+                      <stop offset="95%" stopColor="#059669" stopOpacity={0.0} />
                     </linearGradient>
                     <linearGradient id="colorInteres" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.4} />
@@ -1366,12 +1384,17 @@ export function ReportesBiDashboard({
                     axisLine={false}
                     tickFormatter={(v) => `Bs.${v}`}
                   />
-                  <Tooltip content={<CustomTooltip />} />
+                  <Tooltip
+                    content={<CustomTooltip />}
+                    wrapperStyle={{ pointerEvents: "none", zIndex: 100 }}
+                    allowEscapeViewBox={{ x: true, y: true }}
+                    offset={12}
+                  />
                   <Area
                     type="monotone"
                     dataKey="capital"
                     name="Capital Pagado"
-                    stroke="#006948"
+                    stroke="#059669"
                     strokeWidth={2.5}
                     fillOpacity={1}
                     fill="url(#colorCapital)"
@@ -1405,8 +1428,13 @@ export function ReportesBiDashboard({
                     axisLine={false}
                     tickFormatter={(v) => `Bs.${v}`}
                   />
-                  <Tooltip content={<CustomTooltip />} />
-                  <Bar dataKey="capital" name="Capital Pagado" fill="#006948" radius={[4, 4, 0, 0]} />
+                  <Tooltip
+                    content={<CustomTooltip />}
+                    wrapperStyle={{ pointerEvents: "none", zIndex: 100 }}
+                    allowEscapeViewBox={{ x: true, y: true }}
+                    offset={12}
+                  />
+                  <Bar dataKey="capital" name="Capital Pagado" fill="#059669" radius={[4, 4, 0, 0]} />
                   <Bar dataKey="interes" name="Intereses Cobrados" fill="#f59e0b" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
@@ -1415,11 +1443,11 @@ export function ReportesBiDashboard({
 
           <div className="flex flex-wrap items-center justify-center gap-6 mt-3 pt-3 border-t border-surface-container-low text-xs font-semibold">
             <div className="flex items-center gap-2">
-              <span className="w-3 h-3 rounded-full bg-primary" />
+              <span className="w-3 h-3 rounded-full bg-emerald-600 dark:bg-emerald-400" />
               <span className="text-on-surface">Capital Pagado</span>
             </div>
             <div className="flex items-center gap-2">
-              <span className="w-3 h-3 rounded-full bg-amber-500" />
+              <span className="w-3 h-3 rounded-full bg-amber-500 dark:bg-amber-400" />
               <span className="text-on-surface">Interés Percibido</span>
             </div>
           </div>
@@ -1428,10 +1456,52 @@ export function ReportesBiDashboard({
         {/* Card: Flujo Neto Esperado y Proyección Realista */}
         <div className="bg-surface-container-lowest border border-surface-container-high/70 rounded-2xl p-5 sm:p-6 shadow-2xs flex flex-col justify-between">
           <div>
-            <div className="flex items-center justify-between pb-3 border-b border-surface-container-low mb-3">
-              <span className="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider font-mono">
-                Flujo Neto Esperado ({mesActualNombre})
-              </span>
+            <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-surface-container-low mb-3">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider font-mono">
+                  Flujo Neto Esperado
+                </span>
+                {tipoProyeccion === "mes" ? (
+                  <div className="inline-flex items-center bg-surface-container-low px-1.5 py-0.5 rounded-lg border border-surface-container-high/70 text-xs">
+                    <button
+                      type="button"
+                      onClick={() => setProyeccionMesOffset((prev) => prev - 1)}
+                      className="p-1 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high rounded transition-colors"
+                      title="Mes anterior"
+                      aria-label="Mes anterior"
+                    >
+                      <ChevronLeft className="w-3.5 h-3.5" />
+                    </button>
+                    <span className="text-[11px] font-bold text-on-surface px-1.5 min-w-[105px] text-center select-none font-mono">
+                      {mesActualNombre} {targetYear}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setProyeccionMesOffset((prev) => prev + 1)}
+                      className="p-1 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high rounded transition-colors"
+                      title="Mes siguiente"
+                      aria-label="Mes siguiente"
+                    >
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </button>
+                    {proyeccionMesOffset !== 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setProyeccionMesOffset(0)}
+                        className="text-[9px] font-bold badge-emerald px-1.5 py-0.5 ml-0.5 rounded transition-all"
+                        title="Volver al mes actual"
+                      >
+                        Hoy
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <span className="text-[11px] font-bold text-on-surface-variant font-mono bg-surface-container-low px-2 py-0.5 rounded-md border border-surface-container-high/60">
+                    Próx. 6 Meses
+                  </span>
+                )}
+              </div>
+
               <div className="flex items-center bg-surface-container-high/60 p-0.5 rounded-lg border border-surface-container-high">
                 <button
                   type="button"
@@ -1467,7 +1537,7 @@ export function ReportesBiDashboard({
                   ↑ Cobros programados
                 </span>
               </div>
-              <span className="text-[10px] font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-full border border-primary/20">
+              <span className="text-[10px] font-bold badge-emerald px-2 py-0.5 rounded-full inline-flex items-center">
                 {tipoProyeccion === "mes" ? "Proyección Mes" : "Pronóstico 6M"}
               </span>
             </div>
@@ -1522,8 +1592,8 @@ export function ReportesBiDashboard({
                   >
                     <defs>
                       <linearGradient id="chartGradReportes" x1="0" x2="0" y1="0" y2="1">
-                        <stop offset="5%" stopColor="#006948" stopOpacity={0.4} />
-                        <stop offset="95%" stopColor="#006948" stopOpacity={0.0} />
+                        <stop offset="5%" stopColor="#059669" stopOpacity={0.4} />
+                        <stop offset="95%" stopColor="#059669" stopOpacity={0.0} />
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.15} />
@@ -1543,12 +1613,18 @@ export function ReportesBiDashboard({
                       axisLine={false}
                       tickFormatter={(v) => `${v}`}
                     />
-                    <Tooltip content={<ProyeccionTooltip />} />
+                    <Tooltip
+                      content={<ProyeccionTooltip />}
+                      wrapperStyle={{ pointerEvents: "none", zIndex: 100 }}
+                      allowEscapeViewBox={{ x: true, y: true }}
+                      offset={14}
+                      cursor={{ stroke: "rgba(5, 150, 105, 0.35)", strokeWidth: 1.5, strokeDasharray: "4 4" }}
+                    />
                     <Area
                       type="monotone"
                       dataKey="acumulado"
                       name="Flujo Acumulado"
-                      stroke="#006948"
+                      stroke="#059669"
                       strokeWidth={2.2}
                       fillOpacity={1}
                       fill="url(#chartGradReportes)"
@@ -1560,7 +1636,7 @@ export function ReportesBiDashboard({
                               cx={props.cx}
                               cy={props.cy}
                               r={props.payload.esHoy ? 3.5 : 2.5}
-                              fill={props.payload.esHoy ? "#006948" : "#f59e0b"}
+                              fill={props.payload.esHoy ? "#059669" : "#f59e0b"}
                               stroke="#ffffff"
                               strokeWidth={1.5}
                             />
@@ -1592,11 +1668,17 @@ export function ReportesBiDashboard({
                       axisLine={false}
                       tickFormatter={(v) => `${v}`}
                     />
-                    <Tooltip content={<ProyeccionTooltip />} />
+                    <Tooltip
+                      content={<ProyeccionTooltip />}
+                      wrapperStyle={{ pointerEvents: "none", zIndex: 100 }}
+                      allowEscapeViewBox={{ x: true, y: true }}
+                      offset={14}
+                      cursor={{ fill: "rgba(5, 150, 105, 0.08)" }}
+                    />
                     <Bar
                       dataKey="total"
                       name="Flujo Proyectado"
-                      fill="#006948"
+                      fill="#059669"
                       radius={[4, 4, 0, 0]}
                     />
                   </BarChart>
@@ -1832,7 +1914,7 @@ export function ReportesBiDashboard({
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Insight 1: Concentración de Cartera */}
         <div className="bg-surface-container-lowest rounded-2xl p-4 border border-surface-container-high/70 shadow-2xs flex items-start gap-3">
-          <div className="w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0 mt-0.5">
+          <div className="w-9 h-9 rounded-xl kpi-icon-emerald flex items-center justify-center shrink-0 mt-0.5">
             <ShieldCheck className="w-5 h-5" />
           </div>
           <div>
@@ -1855,7 +1937,7 @@ export function ReportesBiDashboard({
 
         {/* Insight 2: Margen de Interés Mensual */}
         <div className="bg-surface-container-lowest rounded-2xl p-4 border border-surface-container-high/70 shadow-2xs flex items-start gap-3">
-          <div className="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-600 flex items-center justify-center shrink-0 mt-0.5">
+          <div className="w-9 h-9 rounded-xl kpi-icon-amber flex items-center justify-center shrink-0 mt-0.5">
             <TrendingUp className="w-5 h-5" />
           </div>
           <div>
@@ -1871,7 +1953,7 @@ export function ReportesBiDashboard({
 
         {/* Insight 3: Ratio de Cobertura */}
         <div className="bg-surface-container-lowest rounded-2xl p-4 border border-surface-container-high/70 shadow-2xs flex items-start gap-3">
-          <div className="w-9 h-9 rounded-xl bg-blue-500/10 text-blue-600 flex items-center justify-center shrink-0 mt-0.5">
+          <div className="w-9 h-9 rounded-xl kpi-icon-blue flex items-center justify-center shrink-0 mt-0.5">
             <WalletCards className="w-5 h-5" />
           </div>
           <div>
@@ -1888,8 +1970,8 @@ export function ReportesBiDashboard({
         <div className="bg-surface-container-lowest rounded-2xl p-4 border border-surface-container-high/70 shadow-2xs flex items-start gap-3">
           <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 mt-0.5 ${
             metrics.resultadoNeto >= 0
-              ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-              : "bg-rose-500/10 text-rose-600 dark:text-rose-400"
+              ? "kpi-icon-emerald"
+              : "kpi-icon-rose"
           }`}>
             <Scale className="w-5 h-5" />
           </div>
@@ -2068,15 +2150,15 @@ export function ReportesBiDashboard({
                     {/* Estado */}
                     <td className="py-3 px-4 text-right">
                       {r.estado === "pagado" || r.saldo <= 0.01 ? (
-                        <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-blue-100/70 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 border border-blue-200/60">
+                        <span className="px-2.5 py-1 rounded-full text-[11px] font-bold badge-saldado inline-flex items-center">
                           Saldado
                         </span>
                       ) : r.estado === "atrasado" ? (
-                        <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-error-container text-on-error-container border border-error/20">
+                        <span className="px-2.5 py-1 rounded-full text-[11px] font-bold badge-atrasado inline-flex items-center">
                           Atrasado
                         </span>
                       ) : (
-                        <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-secondary-container/60 text-on-secondary-container border border-primary/20">
+                        <span className="px-2.5 py-1 rounded-full text-[11px] font-bold badge-al-dia inline-flex items-center">
                           Al día
                         </span>
                       )}
@@ -2127,7 +2209,7 @@ function CustomTooltip({ active, payload, label }: any) {
   if (!active || !payload || !payload.length) return null;
 
   return (
-    <div className="bg-surface-container-lowest border border-surface-container-high/90 rounded-xl p-3 shadow-xl text-xs space-y-1.5 min-w-[160px]">
+    <div className="bg-surface-container-lowest border border-surface-container-high/90 rounded-xl p-3 shadow-xl text-xs space-y-1.5 min-w-[160px] pointer-events-none select-none">
       <p className="font-heading font-extrabold text-on-surface text-sm border-b border-surface-container-low pb-1">
         {label}
       </p>
@@ -2183,7 +2265,7 @@ function ProyeccionTooltip({
   const titulo = item.periodo || `Día ${item.dia ?? label}`;
 
   return (
-    <div className="bg-surface-container-lowest border border-surface-container-high/90 rounded-xl p-3 shadow-xl text-xs space-y-1.5 min-w-[200px]">
+    <div className="bg-surface-container-lowest border border-surface-container-high/90 rounded-xl p-3 shadow-xl text-xs space-y-1.5 min-w-[200px] pointer-events-none select-none">
       <div className="flex items-center justify-between border-b border-surface-container-low pb-1">
         <span className="font-heading font-bold text-on-surface text-sm">
           {titulo}

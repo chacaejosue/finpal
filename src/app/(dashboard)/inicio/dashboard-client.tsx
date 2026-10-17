@@ -19,6 +19,7 @@ import {
   CheckCircle2,
   Scale,
   ArrowLeftRight,
+  ChevronDown,
 } from "lucide-react";
 import {
   useDashboard,
@@ -572,6 +573,38 @@ function ContactosView({ contactos, prestamos, openModal }: { contactos: Contact
   );
 }
 
+function EstadoPrestamoSelect({
+  estado,
+  nombre,
+  onChange,
+}: {
+  estado: "activo" | "pagado" | "atrasado" | "cancelado";
+  nombre: string;
+  onChange: (nuevoEstado: "activo" | "pagado" | "atrasado" | "cancelado") => void;
+}) {
+  return (
+    <div className="relative inline-flex items-center">
+      <select
+        value={estado}
+        onChange={(event) => onChange(event.target.value as "activo" | "pagado" | "atrasado" | "cancelado")}
+        className={`appearance-none w-[124px] pl-3.5 pr-8 py-1.5 rounded-full text-xs font-bold border cursor-pointer transition-all focus:outline-none focus:ring-2 focus:ring-primary/20 shadow-2xs ${
+          estado === "atrasado" ? "badge-atrasado" :
+          estado === "pagado" ? "badge-saldado" :
+          estado === "cancelado" ? "badge-neutral" :
+          "badge-al-dia"
+        }`}
+        aria-label={`Estado de ${nombre}`}
+      >
+        <option value="activo" className="bg-surface text-on-surface">Activo</option>
+        <option value="atrasado" className="bg-surface text-on-surface">Atrasado</option>
+        <option value="pagado" className="bg-surface text-on-surface">Pagado</option>
+        <option value="cancelado" className="bg-surface text-on-surface">Cancelado</option>
+      </select>
+      <ChevronDown className="w-3.5 h-3.5 absolute right-3 pointer-events-none text-current opacity-70" />
+    </div>
+  );
+}
+
 function PrestamosView({
   prestamos,
   openModal,
@@ -705,22 +738,11 @@ function PrestamosView({
 
                 <div className="pt-2 border-t border-surface-container-low flex items-center justify-between gap-2">
                   <span className="text-[11px] font-semibold text-on-surface-variant">Estado:</span>
-                  <select
-                    value={l.estado}
-                    onChange={(event) => onStatusChange(l.id, event.target.value as "activo" | "pagado" | "atrasado" | "cancelado")}
-                    className={`px-3 py-1.5 rounded-full text-xs font-semibold border cursor-pointer ${
-                      l.estado === "atrasado" ? "bg-error-container text-on-error-container border-error/20" :
-                      l.estado === "pagado" ? "bg-emerald-50 text-emerald-700 border-emerald-200/60" :
-                      l.estado === "cancelado" ? "bg-surface-container text-on-surface-variant border-surface-container-high/40" :
-                      "bg-secondary-container/50 text-on-secondary-container border-primary/20"
-                    }`}
-                    aria-label={`Estado de ${l.nombre}`}
-                  >
-                    <option value="activo">Activo</option>
-                    <option value="atrasado">Atrasado</option>
-                    <option value="pagado">Pagado</option>
-                    <option value="cancelado">Cancelado</option>
-                  </select>
+                  <EstadoPrestamoSelect
+                    estado={l.estado}
+                    nombre={l.nombre}
+                    onChange={(nuevoEstado) => onStatusChange(l.id, nuevoEstado)}
+                  />
                 </div>
               </div>
             );
@@ -740,7 +762,7 @@ function PrestamosView({
               <th className="py-3 px-4">Interés mensual</th>
               <th className="py-3 px-4">Día cobro</th>
               <th className="py-3 px-4">Próximo vencimiento</th>
-              <th className="py-3 px-4 rounded-r-lg text-right">Estado</th>
+              <th className="py-3 px-4 rounded-r-lg text-left">Estado</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-surface-container-low text-on-surface">
@@ -755,26 +777,26 @@ function PrestamosView({
                 <tr key={l.id} className={`hover:bg-surface-container-low/40 transition-colors ${
                   isPaid ? "opacity-70" : ""
                 }`}>
-                  <td className="py-3 px-4">
+                  <td className="py-3.5 px-4 align-middle">
                     <div className="flex items-center gap-2.5">
                       <ContactAvatar name={nombre} size={32} className="rounded-full shadow-xs shrink-0" />
                       <span className="font-semibold text-sm">{nombre}</span>
                     </div>
                   </td>
-                  <td className="py-3 px-4 text-xs text-on-surface-variant">{l.nombre}</td>
-                  <td className="py-3 px-4 font-mono font-medium text-xs">{money(Number(l.monto_principal))}</td>
-                  <td className="py-3 px-4 font-mono font-semibold text-sm">
+                  <td className="py-3.5 px-4 align-middle text-xs text-on-surface-variant">{l.nombre}</td>
+                  <td className="py-3.5 px-4 align-middle font-mono font-medium text-xs">{money(Number(l.monto_principal))}</td>
+                  <td className="py-3.5 px-4 align-middle font-mono font-semibold text-sm">
                     {isPaid
                       ? <span className="text-emerald-600">{money(Number(l.monto_capital_pagado))}</span>
                       : money(loanBalance(l))}
                   </td>
-                  <td className="py-3 px-4 font-mono text-xs text-primary font-semibold">
+                  <td className="py-3.5 px-4 align-middle font-mono text-xs text-primary font-semibold">
                     {l.cobra_interes
                       ? <span>{l.tasa_interes_mensual}% ({money(monthlyInterest(l))})<span className="block text-[10px] text-on-surface-variant font-normal mt-0.5">Cobrado: {money(l.interes_pagado_total)}</span></span>
                       : <span className="text-on-surface-variant font-sans">Sin interés</span>}
                   </td>
-                  <td className="py-3 px-4 text-xs font-medium text-on-surface-variant">Día {l.dia_pago}</td>
-                  <td className="py-3 px-4 text-xs font-medium text-on-surface-variant">
+                  <td className="py-3.5 px-4 align-middle text-xs font-medium text-on-surface-variant">Día {l.dia_pago}</td>
+                  <td className="py-3.5 px-4 align-middle text-xs font-medium text-on-surface-variant">
                     {l.vence_hoy ? "Hoy · día de abono" : l.fecha_proximo_pago ? formatDateEs(l.fecha_proximo_pago) : "Sin pendientes"}
                     {l.meses_atrasados > 0 && (
                       <span className="block text-[10px] text-error mt-0.5">
@@ -782,23 +804,12 @@ function PrestamosView({
                       </span>
                     )}
                   </td>
-                  <td className="py-3 px-4 text-right">
-                    <select
-                      value={l.estado}
-                      onChange={(event) => onStatusChange(l.id, event.target.value as "activo" | "pagado" | "atrasado" | "cancelado")}
-                      className={`px-2.5 py-1 rounded-full text-xs font-semibold border bg-transparent cursor-pointer ${
-                      l.estado === "atrasado" ? "bg-error-container text-on-error-container border-error/20" :
-                      l.estado === "pagado" ? "bg-emerald-50 text-emerald-700 border-emerald-200/60" :
-                      l.estado === "cancelado" ? "bg-surface-container text-on-surface-variant border-surface-container-high/40" :
-                      "bg-secondary-container/50 text-on-secondary-container border-primary/20"
-                    }`}
-                      aria-label={`Estado de ${l.nombre}`}
-                    >
-                      <option value="activo">Activo</option>
-                      <option value="atrasado">Atrasado</option>
-                      <option value="pagado">Pagado</option>
-                      <option value="cancelado">Cancelado</option>
-                    </select>
+                  <td className="py-3.5 px-4 align-middle text-left">
+                    <EstadoPrestamoSelect
+                      estado={l.estado}
+                      nombre={l.nombre}
+                      onChange={(nuevoEstado) => onStatusChange(l.id, nuevoEstado)}
+                    />
                   </td>
                 </tr>
               );
