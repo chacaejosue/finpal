@@ -13,8 +13,26 @@ export const viewport: Viewport = {
   ],
 };
 
+function getMetadataBase(): URL {
+  const raw =
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "") ||
+    "https://finpal.app";
+
+  const urlWithProtocol =
+    raw.startsWith("http://") || raw.startsWith("https://")
+      ? raw
+      : `https://${raw}`;
+
+  try {
+    return new URL(urlWithProtocol);
+  } catch {
+    return new URL("https://finpal.app");
+  }
+}
+
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://finpal.app"),
+  metadataBase: getMetadataBase(),
   title: {
     default: "FinPal | Control Inteligente de Préstamos, Cobros y Finanzas Personales",
     template: "%s | FinPal",

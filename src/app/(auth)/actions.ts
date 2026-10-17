@@ -45,7 +45,16 @@ export async function signUp(formData: FormData) {
 
 export async function signInWithOAuth(provider: "google" | "github") {
   const supabase = await createClient();
-  const origin = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+  const rawOrigin =
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "") ||
+    "http://localhost:3000";
+  const origin = (
+    rawOrigin.startsWith("http://") || rawOrigin.startsWith("https://")
+      ? rawOrigin
+      : `https://${rawOrigin}`
+  ).replace(/\/$/, "");
+
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider,
     options: {
