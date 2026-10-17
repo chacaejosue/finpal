@@ -1,6 +1,17 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { EspacioProvider } from "@/lib/espacio-context";
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 5,
+  viewportFit: "cover",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#faf8ff" },
+    { media: "(prefers-color-scheme: dark)", color: "#111827" },
+  ],
+};
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://finpal.app"),
@@ -82,7 +93,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       data-theme="light"
       style={{ colorScheme: "light" }}
       suppressHydrationWarning
-      className="min-h-full antialiased bg-surface text-on-surface [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      className="min-h-full w-full max-w-full overflow-x-hidden antialiased bg-surface text-on-surface [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
     >
       <head>
         <meta name="theme-color" content="#faf8ff" />
@@ -91,7 +102,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             __html: `
               try {
                 var d = localStorage.getItem('finpal-dark-mode') || localStorage.getItem('finora-dark-mode');
-                if (d === 'true' || (!d && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                var isDark = d === 'true' || (!d && window.matchMedia('(prefers-color-scheme: dark)').matches);
+                if (isDark) {
                   document.documentElement.setAttribute('data-theme', 'dark');
                   document.documentElement.style.colorScheme = 'dark';
                   document.documentElement.classList.add('dark');
@@ -101,6 +113,30 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
                   document.documentElement.setAttribute('data-theme', 'light');
                   document.documentElement.style.colorScheme = 'light';
                   document.documentElement.classList.remove('dark');
+                }
+
+                // Carga ultrarrápida del color de acento de sesión antes de que pinte el DOM
+                var pth = window.location.pathname;
+                var isPub = pth === '/' || pth.startsWith('/iniciar-sesion') || pth.startsWith('/registro') || pth.startsWith('/recuperar');
+                if (!isPub) {
+                  var acc = localStorage.getItem('finpal_session_accent');
+                  if (acc && acc !== 'verde') {
+                    var pals = {
+                      azul: { p: "#2563eb", c: "#1d4ed8", d: "#1e40af", dp: "#60a5fa", dc: "#3b82f6" },
+                      violeta: { p: "#7c3aed", c: "#6d28d9", d: "#5b21b6", dp: "#a78bfa", dc: "#8b5cf6" },
+                      naranja: { p: "#c2410c", c: "#ea580c", d: "#9a3412", dp: "#fb923c", dc: "#f97316" },
+                      rosa: { p: "#e11d48", c: "#be123c", d: "#9f1239", dp: "#fb7185", dc: "#f43f5e" }
+                    };
+                    var item = pals[acc];
+                    if (item) {
+                      var prim = isDark ? item.dp : item.p;
+                      var cont = isDark ? item.dc : item.c;
+                      document.documentElement.style.setProperty('--color-primary', prim);
+                      document.documentElement.style.setProperty('--color-primary-container', cont);
+                      document.documentElement.style.setProperty('--primary', prim);
+                      document.documentElement.style.setProperty('--primary-dark', item.d);
+                    }
+                  }
                 }
               } catch(e) {}
             `,
@@ -150,7 +186,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       </head>
       <body
         suppressHydrationWarning
-        className="min-h-screen bg-surface text-on-surface flex flex-col [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className="min-h-screen w-full max-w-full overflow-x-hidden bg-surface text-on-surface flex flex-col [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
         <EspacioProvider>{children}</EspacioProvider>
       </body>

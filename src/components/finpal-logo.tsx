@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Image from "next/image";
+import { getSessionAccent } from "@/lib/theme-utils";
 
 interface LogoProps {
   className?: string;
@@ -17,23 +18,42 @@ export function FinPalLogo({
   colorAcento,
 }: LogoProps) {
   const [loadError, setLoadError] = useState(false);
+  const [sessionAccent, setSessionAccent] = useState<string | null>(null);
+
+  useEffect(() => {
+    setSessionAccent(getSessionAccent());
+    const onStorage = () => setSessionAccent(getSessionAccent());
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
 
   const validAccents = ["azul", "violeta", "naranja", "rosa"];
+  const resolvedAccent = colorAcento ?? sessionAccent;
   const preferredSrc =
-    colorAcento && validAccents.includes(colorAcento)
-      ? `/logo-${colorAcento}.svg`
+    resolvedAccent && validAccents.includes(resolvedAccent)
+      ? `/logo-${resolvedAccent}.svg`
       : "/logo.svg";
+
+  useEffect(() => {
+    setLoadError(false);
+  }, [preferredSrc]);
 
   const activeSrc = loadError ? "/logo.svg" : preferredSrc;
 
   return (
-    <div className={`relative inline-flex items-center justify-center shrink-0 ${className}`}>
+    <div
+      suppressHydrationWarning
+      className={`relative inline-flex items-center justify-center shrink-0 ${className}`}
+    >
       <Image
+        key={activeSrc}
         src={activeSrc}
         alt="FinPal Logo"
         width={size * 2}
         height={size * 2}
-        className="w-full h-full object-contain"
+        unoptimized
+        suppressHydrationWarning
+        className="w-full h-full object-contain select-none"
         priority={priority}
         onError={() => setLoadError(true)}
       />
