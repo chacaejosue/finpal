@@ -19,6 +19,9 @@ import {
   CheckCircle2,
   Scale,
   ArrowLeftRight,
+  Palette,
+  Check,
+  X,
   ChevronDown,
 } from "lucide-react";
 import {
@@ -71,6 +74,7 @@ export default function DashboardClient({
     loadData,
     preferencias,
     guardarPreferencias,
+    setSuccessNotice,
   } = useDashboard();
   const { espacioId } = useEspacio();
 
@@ -124,7 +128,7 @@ export default function DashboardClient({
             if (!espacioId) return;
             const result = await actualizarEstadoPrestamo(prestamoId, espacioId, estado);
             if (result.error) {
-              window.alert(result.error);
+              setSuccessNotice(result.error);
               return;
             }
             await loadData();
@@ -180,49 +184,49 @@ function getTipoMovimientoBadge(tipo: string, ajusteSentido?: string | null): Ti
     case "ingreso":
       return {
         label: "Ingreso",
-        badgeClass: "bg-emerald-100 text-emerald-950 font-bold border border-emerald-300 dark:bg-emerald-950/70 dark:text-emerald-200 dark:border-emerald-700/60 shadow-2xs",
+        badgeClass: "badge-ingreso",
         Icon: ArrowDownLeft,
       };
     case "gasto":
       return {
         label: "Gasto",
-        badgeClass: "bg-red-100/90 text-red-950 font-bold border border-red-300 dark:bg-red-950/60 dark:text-red-200 dark:border-red-800/60 shadow-2xs",
+        badgeClass: "badge-gasto",
         Icon: ArrowUpRight,
       };
     case "entrega_prestamo":
       return {
         label: "Préstamo entregado",
-        badgeClass: "bg-violet-100 text-violet-950 font-bold border border-violet-300 dark:bg-violet-950/70 dark:text-violet-200 dark:border-violet-700/60 shadow-2xs",
+        badgeClass: "badge-entrega",
         Icon: HandCoins,
       };
     case "pago_prestamo":
       return {
         label: "Cobro de préstamo",
-        badgeClass: "bg-teal-100 text-teal-950 font-bold border border-teal-300 dark:bg-teal-950/70 dark:text-teal-200 dark:border-teal-700/60 shadow-2xs",
+        badgeClass: "badge-cobro",
         Icon: CheckCircle2,
       };
     case "transferencia_entrada":
       return {
         label: "Transferencia ↓",
-        badgeClass: "bg-sky-100 text-sky-950 font-bold border border-sky-300 dark:bg-sky-950/70 dark:text-sky-200 dark:border-sky-700/60 shadow-2xs",
+        badgeClass: "badge-entrada",
         Icon: ArrowDownLeft,
       };
     case "transferencia_salida":
       return {
         label: "Transferencia ↑",
-        badgeClass: "bg-blue-100 text-blue-950 font-bold border border-blue-300 dark:bg-blue-950/70 dark:text-blue-200 dark:border-blue-700/60 shadow-2xs",
+        badgeClass: "badge-salida",
         Icon: ArrowUpRight,
       };
     case "ajuste":
       return {
         label: ajusteSentido ? `Ajuste (${ajusteSentido})` : "Ajuste",
-        badgeClass: "bg-amber-100 text-amber-950 font-bold border border-amber-300 dark:bg-amber-950/70 dark:text-amber-200 dark:border-amber-700/60 shadow-2xs",
+        badgeClass: "badge-ajuste",
         Icon: Scale,
       };
     default:
       return {
         label: tipo.charAt(0).toUpperCase() + tipo.slice(1).replace("_", " "),
-        badgeClass: "bg-surface-container-high text-on-surface font-semibold border border-surface-container-highest dark:bg-surface-container-high dark:text-on-surface shadow-2xs",
+        badgeClass: "badge-neutral",
         Icon: ArrowLeftRight,
       };
   }
@@ -275,10 +279,10 @@ function DashboardView({
       {/* KPI Cards (2x2 en móviles, 4 cols en desktop) */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
         {[
-          { label: "Total en cuentas", value: totals.available, icon: WalletCards, colorClass: "bg-emerald-50 text-primary", sub: "Saldo disponible" },
-          { label: "Por cobrar", value: totals.pending, icon: HandCoins, colorClass: "bg-amber-50 text-amber-700", sub: `${totals.activeLoansCount} pré${totals.activeLoansCount === 1 ? 'stamo activo' : 'stamos activos'}` },
-          { label: "Ya cobrado", value: totals.collected, icon: BadgeCheck, colorClass: "bg-emerald-50 text-emerald-700", sub: `${totals.paidLoansCount} saldado${totals.paidLoansCount !== 1 ? 's' : ''}` },
-          { label: "Interés cobrado", value: totals.interestPaid, icon: Percent, colorClass: "bg-blue-50 text-blue-700", sub: "Acumulado real" },
+          { label: "Total en cuentas", value: totals.available, icon: WalletCards, colorClass: "kpi-icon-emerald", sub: "Saldo disponible" },
+          { label: "Por cobrar", value: totals.pending, icon: HandCoins, colorClass: "kpi-icon-amber", sub: `${totals.activeLoansCount} pré${totals.activeLoansCount === 1 ? 'stamo activo' : 'stamos activos'}` },
+          { label: "Ya cobrado", value: totals.collected, icon: BadgeCheck, colorClass: "kpi-icon-teal", sub: `${totals.paidLoansCount} saldado${totals.paidLoansCount !== 1 ? 's' : ''}` },
+          { label: "Interés cobrado", value: totals.interestPaid, icon: Percent, colorClass: "kpi-icon-blue", sub: "Acumulado real" },
         ].map((kpi, i) => {
           const Ic = kpi.icon;
           return (
@@ -322,81 +326,148 @@ function DashboardView({
         {prestamos.length === 0 ? (
           <p className="text-xs text-on-surface-variant text-center py-6">No hay préstamos registrados aún.</p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm min-w-[580px]">
-              <thead>
-                <tr className="bg-surface-container-low/70 text-on-surface-variant text-xs font-semibold uppercase tracking-wider">
-                  <th className="py-3 px-3.5 rounded-l-lg">Contacto</th>
-                  <th className="py-3 px-3.5">Capital</th>
-                  <th className="py-3 px-3.5">Interés</th>
-                  <th className="py-3 px-3.5">Próximo Pago</th>
-                  <th className="py-3 px-3.5 rounded-r-lg text-right">Estado</th>
-                </tr>
-              </thead>
-              <tbody className="text-on-surface divide-y divide-surface-container-low">
-                {(upcoming.length > 0 ? upcoming : prestamos.slice(0, 5)).map((p) => {
-                  const contactoNombre = rel(p.contactos)?.nombre ?? "—";
-                  const balance = loanBalance(p);
-                  const isLate = p.estado === "atrasado";
-                  const isPaid = p.estado === "pagado";
-                  return (
-                    <tr
-                      key={p.id}
-                      className="hover:bg-surface-container-low/40 transition-colors"
-                    >
-                      <td className="py-3.5 px-3.5 flex items-center gap-3">
+          <>
+            {/* Vista Móvil (Tarjetas táctiles sin scroll horizontal forzado) */}
+            <div className="sm:hidden space-y-3">
+              {(upcoming.length > 0 ? upcoming : prestamos.slice(0, 5)).map((p) => {
+                const contactoNombre = rel(p.contactos)?.nombre ?? "—";
+                const balance = loanBalance(p);
+                const isLate = p.estado === "atrasado";
+                const isPaid = p.estado === "pagado";
+                return (
+                  <div
+                    key={p.id}
+                    className="bg-surface-container-low/50 border border-surface-container-high/60 rounded-xl p-3.5 space-y-2.5"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2.5 min-w-0">
                         <ContactAvatar
                           name={contactoNombre}
-                          size={36}
+                          size={34}
                           className="rounded-full shadow-2xs shrink-0"
                         />
                         <div className="min-w-0">
-                          <p className="font-semibold text-sm leading-snug truncate">{contactoNombre}</p>
-                          <p className="text-xs text-on-surface-variant truncate">{p.nombre}</p>
+                          <p className="font-bold text-xs sm:text-sm text-on-surface truncate leading-tight">{contactoNombre}</p>
+                          <p className="text-[11px] text-on-surface-variant truncate">{p.nombre}</p>
                         </div>
-                      </td>
-                      <td className="py-3.5 px-3.5 font-mono font-semibold text-sm">
-                        {money(balance > 0 ? balance : Number(p.monto_principal))}
-                      </td>
-                      <td className="py-3.5 px-3.5 font-mono text-xs text-primary font-medium">
-                        {p.cobra_interes ? (
-                          <span>+{p.tasa_interes_mensual}% mes ({money(monthlyInterest(p))})</span>
-                        ) : (
-                          <span className="text-on-surface-variant font-sans">Sin interés</span>
-                        )}
-                      </td>
-                      <td
-                        className={`py-3.5 px-3.5 text-xs ${
-                          isLate ? "text-error font-semibold" : "text-on-surface-variant"
-                        }`}
-                      >
-                        {p.vence_hoy
-                          ? "Hoy (Día de cobro)"
-                          : p.fecha_proximo_pago
-                          ? formatDateEs(p.fecha_proximo_pago)
-                          : `Día ${p.dia_pago}`}
-                      </td>
-                      <td className="py-3.5 px-3.5 text-right">
+                      </div>
+                      <span className="shrink-0">
                         {isLate ? (
-                          <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-error-container text-on-error-container border border-error/20">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold badge-atrasado">
                             Con atraso
                           </span>
                         ) : isPaid ? (
-                          <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-surface-container text-on-surface-variant border border-surface-container-high/40">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold badge-saldado">
                             Saldado
                           </span>
                         ) : (
-                          <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-secondary-container/50 text-on-secondary-container border border-primary/20">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold badge-al-dia">
                             Al día
                           </span>
                         )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 pt-2 border-t border-surface-container-high/50 text-[11px]">
+                      <div>
+                        <span className="text-on-surface-variant text-[10px] block uppercase font-medium">Por cobrar</span>
+                        <span className="font-mono font-bold text-on-surface text-xs">
+                          {money(balance > 0 ? balance : Number(p.monto_principal))}
+                        </span>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-on-surface-variant text-[10px] block uppercase font-medium">Vencimiento</span>
+                        <span className={`font-medium ${isLate ? "text-error font-bold" : "text-on-surface"}`}>
+                          {p.vence_hoy
+                            ? "Hoy"
+                            : p.fecha_proximo_pago
+                            ? formatDateEs(p.fecha_proximo_pago)
+                            : `Día ${p.dia_pago}`}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Vista Desktop / Tablet (Tabla) */}
+            <div className="hidden sm:block overflow-x-auto">
+              <table className="w-full text-left text-sm min-w-[580px]">
+                <thead>
+                  <tr className="bg-surface-container-low/70 text-on-surface-variant text-xs font-semibold uppercase tracking-wider">
+                    <th className="py-3 px-3.5 rounded-l-lg">Contacto</th>
+                    <th className="py-3 px-3.5">Capital</th>
+                    <th className="py-3 px-3.5">Interés</th>
+                    <th className="py-3 px-3.5">Próximo Pago</th>
+                    <th className="py-3 px-3.5 rounded-r-lg text-right">Estado</th>
+                  </tr>
+                </thead>
+                <tbody className="text-on-surface divide-y divide-surface-container-low">
+                  {(upcoming.length > 0 ? upcoming : prestamos.slice(0, 5)).map((p) => {
+                    const contactoNombre = rel(p.contactos)?.nombre ?? "—";
+                    const balance = loanBalance(p);
+                    const isLate = p.estado === "atrasado";
+                    const isPaid = p.estado === "pagado";
+                    return (
+                      <tr
+                        key={p.id}
+                        className="hover:bg-surface-container-low/40 transition-colors"
+                      >
+                        <td className="py-3.5 px-3.5 flex items-center gap-3">
+                          <ContactAvatar
+                            name={contactoNombre}
+                            size={36}
+                            className="rounded-full shadow-2xs shrink-0"
+                          />
+                          <div className="min-w-0">
+                            <p className="font-semibold text-sm leading-snug truncate">{contactoNombre}</p>
+                            <p className="text-xs text-on-surface-variant truncate">{p.nombre}</p>
+                          </div>
+                        </td>
+                        <td className="py-3.5 px-3.5 font-mono font-semibold text-sm">
+                          {money(balance > 0 ? balance : Number(p.monto_principal))}
+                        </td>
+                        <td className="py-3.5 px-3.5 font-mono text-xs text-primary font-medium">
+                          {p.cobra_interes ? (
+                            <span>+{p.tasa_interes_mensual}% mes ({money(monthlyInterest(p))})</span>
+                          ) : (
+                            <span className="text-on-surface-variant font-sans">Sin interés</span>
+                          )}
+                        </td>
+                        <td
+                          className={`py-3.5 px-3.5 text-xs ${
+                            isLate ? "text-error font-semibold" : "text-on-surface-variant"
+                          }`}
+                        >
+                          {p.vence_hoy
+                            ? "Hoy (Día de cobro)"
+                            : p.fecha_proximo_pago
+                            ? formatDateEs(p.fecha_proximo_pago)
+                            : `Día ${p.dia_pago}`}
+                        </td>
+                        <td className="py-3.5 px-3.5 text-right">
+                          {isLate ? (
+                            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold badge-atrasado">
+                              Con atraso
+                            </span>
+                          ) : isPaid ? (
+                            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold badge-saldado">
+                              Saldado
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold badge-al-dia">
+                              Al día
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </div>
 
@@ -429,7 +500,7 @@ function DashboardView({
                       <p className="text-[11px] text-on-surface-variant truncate">{formatDateEs(m.ocurrido_en)} · {rel(m.cuentas_dinero)?.nombre}</p>
                     </div>
                   </div>
-                  <span className={`font-mono text-xs font-bold shrink-0 ${isPositive ? "text-primary" : "text-error"}`}>
+                  <span className={`font-mono text-xs font-bold shrink-0 ${isPositive ? "text-primary" : "text-rose-600 dark:text-rose-400"}`}>
                     {isPositive ? "+" : "-"}{money(Number(m.monto))}
                   </span>
                 </div>
@@ -484,11 +555,11 @@ function ContactosView({ contactos, prestamos, openModal }: { contactos: Contact
                   </div>
                   <div>
                     {activeLoans.length > 0 ? isLate ? (
-                      <span className="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-error-container text-on-error-container border border-error/20">Con atraso</span>
+                      <span className="px-2.5 py-1 rounded-full text-[11px] font-bold badge-atrasado inline-flex items-center">Con atraso</span>
                     ) : (
-                      <span className="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-secondary-container/50 text-on-secondary-container border border-primary/20">Al día</span>
+                      <span className="px-2.5 py-1 rounded-full text-[11px] font-bold badge-al-dia inline-flex items-center">Al día</span>
                     ) : (
-                      <span className="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-surface-container text-on-surface-variant border border-surface-container-high/40">Sin deuda</span>
+                      <span className="px-2.5 py-1 rounded-full text-[11px] font-bold badge-saldado inline-flex items-center">Sin deuda</span>
                     )}
                   </div>
                 </div>
@@ -556,11 +627,11 @@ function ContactosView({ contactos, prestamos, openModal }: { contactos: Contact
                   </td>
                   <td className="py-3 px-4 text-right">
                     {activeLoans.length > 0 ? isLate ? (
-                      <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-error-container text-on-error-container border border-error/20">Con atraso</span>
+                      <span className="px-2.5 py-1 rounded-full text-xs font-bold badge-atrasado inline-flex items-center">Con atraso</span>
                     ) : (
-                      <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-secondary-container/50 text-on-secondary-container border border-primary/20">Al día</span>
+                      <span className="px-2.5 py-1 rounded-full text-xs font-bold badge-al-dia inline-flex items-center">Al día</span>
                     ) : (
-                      <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-surface-container text-on-surface-variant border border-surface-container-high/40">Sin deuda activa</span>
+                      <span className="px-2.5 py-1 rounded-full text-xs font-bold badge-saldado inline-flex items-center">Sin deuda activa</span>
                     )}
                   </td>
                 </tr>
@@ -909,68 +980,109 @@ function PagosView({ pagos, openModal }: { pagos: Pago[]; openModal: () => void 
   );
 }
 
-const ACCOUNT_CARD_THEMES = [
-  { id: "emerald", label: "Esmeralda", dot: "#059669", cls: "bg-emerald-500/15 border-emerald-500/40 hover:border-emerald-500/60 dark:bg-emerald-950/45 dark:border-emerald-700/60" },
-  { id: "blue", label: "Azul Océano", dot: "#2563eb", cls: "bg-blue-500/15 border-blue-500/40 hover:border-blue-500/60 dark:bg-blue-950/45 dark:border-blue-700/60" },
-  { id: "violet", label: "Violeta", dot: "#7c3aed", cls: "bg-violet-500/15 border-violet-500/40 hover:border-violet-500/60 dark:bg-violet-950/45 dark:border-violet-700/60" },
-  { id: "amber", label: "Ámbar Dorado", dot: "#d97706", cls: "bg-amber-500/15 border-amber-500/40 hover:border-amber-500/60 dark:bg-amber-950/45 dark:border-amber-700/60" },
-  { id: "rose", label: "Carmesí Suave", dot: "#dc2626", cls: "bg-rose-500/15 border-rose-500/40 hover:border-rose-500/60 dark:bg-rose-950/45 dark:border-rose-700/60" },
-  { id: "slate", label: "Grafito", dot: "#475569", cls: "bg-slate-500/15 border-slate-500/40 hover:border-slate-500/60 dark:bg-slate-800/50 dark:border-slate-600/60" },
+interface AccountTheme {
+  id: string;
+  name: string;
+  description: string;
+  dot: string;
+  cardCls: string;
+  badgeCls: string;
+  balanceCls: string;
+}
+
+const ACCOUNT_CARD_THEMES: AccountTheme[] = [
+  {
+    id: "turquoise",
+    name: "Turquesa Al Día",
+    description: "Estilo insignia con la frescura y liquidez de FinPal",
+    dot: "#00a896",
+    cardCls: "bg-teal-100/90 border-teal-300 hover:border-teal-400 dark:bg-teal-950/50 dark:border-teal-700/60 dark:hover:border-teal-600 shadow-2xs transition-colors",
+    badgeCls: "badge-turquesa",
+    balanceCls: "text-slate-800 dark:text-white",
+  },
+  {
+    id: "emerald",
+    name: "Esmeralda Vivo",
+    description: "Rendimientos estables, capital y crecimiento continuo",
+    dot: "#059669",
+    cardCls: "bg-emerald-100/90 border-emerald-300 hover:border-emerald-400 dark:bg-emerald-950/50 dark:border-emerald-700/60 dark:hover:border-emerald-600 shadow-2xs transition-colors",
+    badgeCls: "badge-emerald",
+    balanceCls: "text-slate-800 dark:text-white",
+  },
+  {
+    id: "ocean",
+    name: "Azul Océano",
+    description: "Solidez bancaria, cuentas de nómina e instituciones",
+    dot: "#2563eb",
+    cardCls: "bg-blue-100/90 border-blue-300 hover:border-blue-400 dark:bg-blue-950/50 dark:border-blue-700/60 dark:hover:border-blue-600 shadow-2xs transition-colors",
+    badgeCls: "badge-blue",
+    balanceCls: "text-slate-800 dark:text-white",
+  },
+  {
+    id: "violet",
+    name: "Violeta Real",
+    description: "Fondos de inversión, reservas y metas patrimoniales",
+    dot: "#7c3aed",
+    cardCls: "bg-violet-100/90 border-violet-300 hover:border-violet-400 dark:bg-violet-950/50 dark:border-violet-700/60 dark:hover:border-violet-600 shadow-2xs transition-colors",
+    badgeCls: "badge-violet",
+    balanceCls: "text-slate-800 dark:text-white",
+  },
+  {
+    id: "amber",
+    name: "Ámbar Cálido",
+    description: "Fondos de emergencia, ahorro líquido y reserva diaria",
+    dot: "#d97706",
+    cardCls: "bg-amber-100/90 border-amber-300 hover:border-amber-400 dark:bg-amber-950/50 dark:border-amber-700/60 dark:hover:border-amber-600 shadow-2xs transition-colors",
+    badgeCls: "badge-amber",
+    balanceCls: "text-slate-800 dark:text-white",
+  },
+  {
+    id: "rose",
+    name: "Coral Carmesí",
+    description: "Gastos activos, billeteras QR y consumo personal",
+    dot: "#e11d48",
+    cardCls: "bg-rose-100/90 border-rose-300 hover:border-rose-400 dark:bg-rose-950/50 dark:border-rose-700/60 dark:hover:border-rose-600 shadow-2xs transition-colors",
+    badgeCls: "badge-rose",
+    balanceCls: "text-slate-800 dark:text-white",
+  },
 ];
 
-function AccountCardItem({ c, index, tipoLabel }: { c: Cuenta; index: number; tipoLabel: string }) {
-  const [themeId, setThemeId] = useState<string>(() => {
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem(`finpal_account_color_${c.id}`);
-      if (saved) return saved;
-    }
-    return ACCOUNT_CARD_THEMES[index % ACCOUNT_CARD_THEMES.length].id;
-  });
-
-  const currentTheme = ACCOUNT_CARD_THEMES.find((t) => t.id === themeId) ?? ACCOUNT_CARD_THEMES[0];
-
-  const handleSelectTheme = (id: string) => {
-    setThemeId(id);
-    try {
-      localStorage.setItem(`finpal_account_color_${c.id}`, id);
-    } catch {}
-  };
+function AccountCardItem({
+  c,
+  index,
+  tipoLabel,
+  themeId,
+}: {
+  c: Cuenta;
+  index: number;
+  tipoLabel: string;
+  themeId: string;
+}) {
+  const normalizedId = themeId === "blue" ? "ocean" : themeId;
+  const currentTheme = ACCOUNT_CARD_THEMES.find((t) => t.id === normalizedId) ?? ACCOUNT_CARD_THEMES[index % ACCOUNT_CARD_THEMES.length];
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 14, scale: 0.98 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ duration: 0.28, delay: Math.min(index * 0.07, 0.35), ease: "easeOut" }}
-      className={`rounded-2xl border p-5 shadow-xs transition-colors relative flex flex-col justify-between ${currentTheme.cls}`}
+      className={`rounded-2xl border p-5 shadow-xs transition-colors relative flex flex-col justify-between ${currentTheme.cardCls}`}
     >
       <div>
         <div className="flex items-center justify-between gap-2">
-          <p className="text-xs font-bold text-on-surface-variant uppercase tracking-wider">{tipoLabel}</p>
-          {/* Selector de color de fondo interactivo */}
-          <div className="flex items-center gap-1.5 bg-surface-container-lowest/80 backdrop-blur-xs px-2 py-1 rounded-full border border-surface-container-high/60 shadow-2xs">
-            {ACCOUNT_CARD_THEMES.map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                onClick={() => handleSelectTheme(t.id)}
-                title={`Cambiar a fondo ${t.label}`}
-                className={`w-3 h-3 rounded-full transition-transform cursor-pointer ${
-                  themeId === t.id ? "scale-125 ring-2 ring-primary ring-offset-1 ring-offset-surface-container-lowest" : "opacity-60 hover:opacity-100"
-                }`}
-                style={{ backgroundColor: t.dot }}
-              />
-            ))}
-          </div>
+          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold border uppercase tracking-wider ${currentTheme.badgeCls}`}>
+            {tipoLabel}
+          </span>
         </div>
-        <p className="font-heading text-lg font-extrabold text-on-surface mt-2.5">{c.nombre}</p>
+        <p className="font-heading text-lg font-extrabold text-slate-800 dark:text-white mt-3 tracking-tight">{c.nombre}</p>
       </div>
 
-      <div className="mt-4 pt-3 border-t border-surface-container-high/50 flex items-baseline justify-between">
+      <div className="mt-4 pt-3 border-t border-black/10 dark:border-white/10 flex items-baseline justify-between">
         <div>
-          <span className="text-[10px] text-on-surface-variant block uppercase font-medium">Saldo disponible</span>
-          <p className="font-mono text-2xl font-bold text-primary mt-0.5">{money(c.saldo)}</p>
+          <span className="text-[10px] text-slate-600 dark:text-slate-300 block uppercase font-bold tracking-wider">Saldo disponible</span>
+          <p className="font-mono text-2xl font-extrabold mt-0.5 text-slate-800 dark:text-white">{money(c.saldo)}</p>
         </div>
-        <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-surface-container-lowest/80 text-on-surface-variant border border-surface-container-high/50 font-mono">
+        <span className="text-xs font-bold px-2 py-0.5 rounded-md bg-black/5 dark:bg-white/10 text-slate-800 dark:text-white border border-black/10 dark:border-white/15 font-mono">
           {c.codigo_moneda}
         </span>
       </div>
@@ -978,10 +1090,174 @@ function AccountCardItem({ c, index, tipoLabel }: { c: Cuenta; index: number; ti
   );
 }
 
+function ModalPersonalizarColores({
+  cuentas,
+  selectedAccountId,
+  onSelectAccount,
+  themeMap,
+  onSelectTheme,
+  onClose,
+}: {
+  cuentas: Cuenta[];
+  selectedAccountId: string;
+  onSelectAccount: (id: string) => void;
+  themeMap: Record<string, string>;
+  onSelectTheme: (cuentaId: string, themeId: string) => void;
+  onClose: () => void;
+}) {
+  const currentAccount = cuentas.find((c) => c.id === selectedAccountId) ?? cuentas[0];
+  const activeThemeId = currentAccount ? (themeMap[currentAccount.id] ?? "turquoise") : "turquoise";
+  const activeTheme = ACCOUNT_CARD_THEMES.find((t) => t.id === activeThemeId) ?? ACCOUNT_CARD_THEMES[0];
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+      <div className="bg-surface-container-lowest border border-surface-container-high/80 rounded-2xl max-w-lg w-full p-5 sm:p-6 shadow-xl space-y-5 max-h-[92vh] overflow-y-auto">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <span className="w-8 h-8 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+              <Palette className="w-4 h-4" />
+            </span>
+            <div>
+              <h2 className="font-heading text-lg font-bold text-on-surface">Personalizar colores de cuentas</h2>
+              <p className="text-xs text-on-surface-variant">Estilos vibrantes y armónicos inspirados en la estética de FinPal.</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-1.5 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors cursor-pointer"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Selector de cuenta si hay más de 1 */}
+        {cuentas.length > 1 && (
+          <div>
+            <label className="block text-xs font-semibold text-on-surface mb-2">Selecciona la cuenta a personalizar:</label>
+            <div className="flex flex-wrap gap-2">
+              {cuentas.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => onSelectAccount(c.id)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
+                    currentAccount?.id === c.id
+                      ? "bg-primary text-on-primary border-primary shadow-xs"
+                      : "bg-surface-container-low hover:bg-surface-container text-on-surface-variant border-outline/15"
+                  }`}
+                >
+                  {c.nombre}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Vista previa en vivo de la tarjeta */}
+        {currentAccount && (
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-semibold text-on-surface-variant">Vista previa en tiempo real:</span>
+              <span className="text-[11px] text-primary font-medium">{activeTheme.name}</span>
+            </div>
+            <div className={`rounded-2xl border p-4 shadow-xs transition-all ${activeTheme.cardCls}`}>
+              <div className="flex items-center justify-between gap-2">
+                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold border uppercase tracking-wider ${activeTheme.badgeCls}`}>
+                  {currentAccount.tipo}
+                </span>
+                <span className="text-xs font-bold px-2 py-0.5 rounded-md bg-black/5 dark:bg-white/10 text-slate-800 dark:text-white border border-black/10 dark:border-white/15 font-mono">
+                  {currentAccount.codigo_moneda}
+                </span>
+              </div>
+              <p className="font-heading text-base font-extrabold text-slate-800 dark:text-white mt-2.5 tracking-tight">{currentAccount.nombre}</p>
+              <div className="mt-3 pt-2.5 border-t border-black/10 dark:border-white/10 flex items-baseline justify-between">
+                <span className="text-[10px] text-slate-600 dark:text-slate-300 uppercase font-bold tracking-wider">Saldo disponible</span>
+                <p className="font-mono text-xl font-extrabold text-slate-800 dark:text-white">{money(currentAccount.saldo)}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Opciones predefinidas vibrantes */}
+        <div>
+          <label className="block text-xs font-semibold text-on-surface mb-2">Elige un estilo predefinido:</label>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            {ACCOUNT_CARD_THEMES.map((t) => {
+              const isSelected = activeThemeId === t.id;
+              return (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => currentAccount && onSelectTheme(currentAccount.id, t.id)}
+                  className={`p-3 rounded-xl border text-left flex items-start gap-3 transition-all cursor-pointer ${
+                    isSelected
+                      ? "border-primary bg-primary/5 ring-2 ring-primary/30 shadow-xs"
+                      : "border-surface-container-high/80 bg-surface-container-lowest hover:bg-surface-container-low"
+                  }`}
+                >
+                  <span
+                    className="w-4 h-4 rounded-full shrink-0 mt-0.5 ring-2 ring-white/80 dark:ring-black/40 shadow-xs"
+                    style={{ backgroundColor: t.dot }}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-1">
+                      <span className="font-semibold text-xs text-on-surface block truncate">{t.name}</span>
+                      {isSelected && <Check className="w-3.5 h-3.5 text-primary shrink-0" />}
+                    </div>
+                    <span className="text-[11px] text-on-surface-variant block mt-0.5 line-clamp-1">{t.description}</span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="pt-2 border-t border-surface-container-high/60 flex justify-end">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-5 py-2.5 rounded-xl bg-primary hover:bg-primary-container text-on-primary text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+          >
+            Listo
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function CuentasView({ cuentas, openModal }: { cuentas: Cuenta[]; openModal: () => void }) {
+  const [modalColoresOpen, setModalColoresOpen] = useState(false);
+  const [selectedAccountId, setSelectedAccountId] = useState<string>(cuentas[0]?.id ?? "");
+  const [themeMap, setThemeMap] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    const map: Record<string, string> = {};
+    cuentas.forEach((c, i) => {
+      const saved = localStorage.getItem(`finpal_account_color_${c.id}`);
+      map[c.id] = saved || ACCOUNT_CARD_THEMES[i % ACCOUNT_CARD_THEMES.length].id;
+    });
+    setThemeMap(map);
+  }, [cuentas]);
+
+  const handleSelectTheme = (accountId: string, themeId: string) => {
+    setThemeMap((prev) => ({ ...prev, [accountId]: themeId }));
+    try {
+      localStorage.setItem(`finpal_account_color_${accountId}`, themeId);
+    } catch {}
+  };
+
+  const handleOpenColorModal = (accountId?: string) => {
+    if (accountId) setSelectedAccountId(accountId);
+    else if (cuentas.length > 0) setSelectedAccountId(cuentas[0].id);
+    setModalColoresOpen(true);
+  };
+
   const TIPO_LABELS: Record<string, string> = {
     efectivo: "Efectivo", banco: "Cuenta bancaria", billetera_movil: "Billetera móvil", ahorro: "Cuenta de ahorro", otra: "Otra",
   };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-surface-container-high/60">
@@ -989,9 +1265,25 @@ function CuentasView({ cuentas, openModal }: { cuentas: Cuenta[]; openModal: () 
           <h1 className="font-heading text-2xl font-extrabold text-on-surface">Cuentas de Dinero</h1>
           <p className="text-xs text-on-surface-variant mt-0.5">Efectivo, bancos, billeteras y personalización de fondo.</p>
         </div>
-        <button className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-primary text-on-primary text-xs font-semibold shadow-xs hover:bg-primary-container flex items-center justify-center gap-2 cursor-pointer" onClick={openModal}>
-          <Plus className="w-4 h-4" /><span>Nueva cuenta</span>
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          {cuentas.length > 0 && (
+            <button
+              type="button"
+              onClick={() => handleOpenColorModal()}
+              className="w-full sm:w-auto px-3.5 py-2.5 rounded-xl border border-surface-container-high/80 bg-surface-container-lowest hover:bg-surface-container text-on-surface text-xs font-semibold shadow-2xs flex items-center justify-center gap-2 cursor-pointer transition-colors"
+            >
+              <Palette className="w-4 h-4 text-primary" />
+              <span>Editar colores</span>
+            </button>
+          )}
+          <button
+            className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-primary text-on-primary text-xs font-semibold shadow-xs hover:bg-primary-container flex items-center justify-center gap-2 cursor-pointer transition-colors"
+            onClick={openModal}
+          >
+            <Plus className="w-4 h-4" />
+            <span>Nueva cuenta</span>
+          </button>
+        </div>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {cuentas.length === 0 && (
@@ -1003,9 +1295,21 @@ function CuentasView({ cuentas, openModal }: { cuentas: Cuenta[]; openModal: () 
             c={c}
             index={i}
             tipoLabel={TIPO_LABELS[c.tipo] ?? c.tipo}
+            themeId={themeMap[c.id] ?? ACCOUNT_CARD_THEMES[i % ACCOUNT_CARD_THEMES.length].id}
           />
         ))}
       </div>
+
+      {modalColoresOpen && (
+        <ModalPersonalizarColores
+          cuentas={cuentas}
+          selectedAccountId={selectedAccountId}
+          onSelectAccount={setSelectedAccountId}
+          themeMap={themeMap}
+          onSelectTheme={handleSelectTheme}
+          onClose={() => setModalColoresOpen(false)}
+        />
+      )}
     </div>
   );
 }
@@ -1050,7 +1354,7 @@ function MovimientosView({ movimientos, openModal }: { movimientos: Movimiento[]
                   <p className="text-[11px] text-on-surface-variant truncate">{formatDateEs(m.ocurrido_en)} · {cuentaNombre}</p>
                 </div>
                 <div className="text-right shrink-0">
-                  <span className={`font-mono text-xs font-bold block ${isPositive ? "text-primary" : "text-error"}`}>
+                  <span className={`font-mono text-xs font-bold block ${isPositive ? "text-primary" : "text-rose-600 dark:text-rose-400"}`}>
                     {isPositive ? "+" : "-"}{money(Number(m.monto))}
                   </span>
                 </div>
@@ -1095,7 +1399,7 @@ function MovimientosView({ movimientos, openModal }: { movimientos: Movimiento[]
                       ? (m.cuentas_dinero[0] as unknown as { nombre?: string })?.nombre
                       : (m.cuentas_dinero as unknown as { nombre?: string })?.nombre) ?? "—"}
                   </td>
-                  <td className={`py-3.5 px-4 text-right font-mono font-bold text-sm ${isPositive ? "text-primary" : "text-error"}`}>
+                  <td className={`py-3.5 px-4 text-right font-mono font-bold text-sm ${isPositive ? "text-primary" : "text-rose-600 dark:text-rose-400"}`}>
                     {isPositive ? "+" : "-"}{money(Number(m.monto))}
                   </td>
                 </tr>
@@ -1117,21 +1421,19 @@ function ConfiguracionView({
   guardarPreferencias: (colorAcento: string, modoOscuro: boolean, tasaInteresPredeterminada: number) => Promise<string | null>;
 }) {
   const [color, setColor] = useState(preferencias.colorAcento);
-  const [oscuro, setOscuro] = useState(preferencias.modoOscuro);
   const [tasa, setTasa] = useState(preferencias.tasaInteresPredeterminada);
   const [guardando, setGuardando] = useState(false);
   const [mensaje, setMensaje] = useState<string | null>(null);
 
   useEffect(() => {
     setColor(preferencias.colorAcento);
-    setOscuro(preferencias.modoOscuro);
     setTasa(preferencias.tasaInteresPredeterminada);
-  }, [preferencias.colorAcento, preferencias.modoOscuro, preferencias.tasaInteresPredeterminada]);
+  }, [preferencias.colorAcento, preferencias.tasaInteresPredeterminada]);
 
   async function guardar() {
     setGuardando(true);
     setMensaje(null);
-    const error = await guardarPreferencias(color, oscuro, tasa);
+    const error = await guardarPreferencias(color, preferencias.modoOscuro, tasa);
     setGuardando(false);
     setMensaje(error ?? "Preferencias guardadas.");
   }
@@ -1174,32 +1476,6 @@ function ConfiguracionView({
               ))}
             </div>
           </div>
-          <label className="flex items-center justify-between gap-4 rounded-xl border border-surface-container-high p-3 text-sm font-semibold text-on-surface cursor-pointer">
-            <span>
-              Modo oscuro
-              <span className="block text-xs font-normal text-on-surface-variant mt-0.5">Reduce el brillo de la interfaz.</span>
-            </span>
-            <input
-              type="checkbox"
-              checked={oscuro}
-              onChange={(event) => {
-                const val = event.target.checked;
-                setOscuro(val);
-                document.documentElement.setAttribute("data-theme", val ? "dark" : "light");
-                document.documentElement.style.colorScheme = val ? "dark" : "light";
-                if (val) {
-                  document.documentElement.classList.add("dark");
-                } else {
-                  document.documentElement.classList.remove("dark");
-                }
-                try {
-                  localStorage.setItem("finpal-dark-mode", val ? "true" : "false");
-                } catch {}
-                void guardarPreferencias(color, val, tasa);
-              }}
-              className="w-5 h-5 accent-primary cursor-pointer"
-            />
-          </label>
           <div>
             <label className="block text-xs font-semibold text-on-surface mb-1">
               Interés predeterminado para nuevos préstamos (% mensual)
@@ -1211,7 +1487,7 @@ function ConfiguracionView({
               step="0.01"
               value={tasa}
               onChange={(event) => setTasa(Number(event.target.value))}
-              className="w-40 h-10 px-3 rounded-xl bg-surface-container-lowest border border-surface-container-high/80 text-sm"
+              className="w-40 h-10 px-3 rounded-xl bg-surface-container-lowest border border-surface-container-high/80 text-base sm:text-sm text-on-surface focus:outline-none focus:border-primary"
             />
             <p className="text-[11px] text-on-surface-variant mt-1">
               Sólo rellena nuevos formularios; no cambia préstamos existentes.
