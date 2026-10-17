@@ -24,8 +24,6 @@ import {
   Calendar,
   FileBarChart2,
   Menu,
-  Sun,
-  Moon,
   Check,
   ChevronRight,
 } from "lucide-react";
@@ -38,6 +36,9 @@ import { formatDateEs } from "@/lib/format-date";
 import { InactivityMonitor } from "@/components/inactivity-monitor";
 import { DeudorPrestamoPicker } from "@/components/deudor-prestamo-picker";
 import { NotificationToast } from "@/components/notification-toast";
+import { ACCENT_PALETTES, type AccentColorKey, applyCustomAccent, resetGlobalThemeColors, clearSessionAccent, getSessionAccent } from "@/lib/theme-utils";
+import { ThemeToggle } from "@/components/theme-toggle";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 
 const navItems = [
   { label: "Inicio", path: "/inicio", key: "inicio", icon: LayoutDashboard },
@@ -53,15 +54,25 @@ const navItems = [
 function SlideToConfirm({
   onConfirm,
   submitting,
+  resetTrigger,
   label = "Desliza para registrar",
 }: {
-  onConfirm: () => void;
+  onConfirm: () => boolean | void;
   submitting: boolean;
+  resetTrigger?: unknown;
   label?: string;
 }) {
   const [sliderPosition, setSliderPosition] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const trackRef = useRef<HTMLDivElement>(null);
+
+  // Cada vez que termina el envío o cambia la condición de reseteo, devolver la barra al inicio
+  useEffect(() => {
+    if (!submitting) {
+      setSliderPosition(0);
+      setIsDragging(false);
+    }
+  }, [submitting, resetTrigger]);
 
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (submitting) return;
@@ -72,7 +83,7 @@ function SlideToConfirm({
   const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!isDragging || submitting || !trackRef.current) return;
     const rect = trackRef.current.getBoundingClientRect();
-    const maxOffset = rect.width - 48;
+    const maxOffset = Math.max(0, rect.width - 48);
     const currentX = e.clientX - rect.left - 24;
     const clamped = Math.max(0, Math.min(currentX, maxOffset));
     setSliderPosition(clamped);
@@ -80,7 +91,20 @@ function SlideToConfirm({
     if (clamped >= maxOffset * 0.85) {
       setIsDragging(false);
       setSliderPosition(maxOffset);
-      onConfirm();
+      const isOk = onConfirm();
+      if (isOk === false) {
+        // Validación fallida (campos obligatorios vacíos o con formato inválido)
+        setTimeout(() => {
+          setSliderPosition(0);
+        }, 220);
+      } else {
+        // En caso de que el navegador detenga la sumisión sin emitir evento onSubmit
+        setTimeout(() => {
+          setSliderPosition((current) => {
+            return submitting ? current : 0;
+          });
+        }, 600);
+      }
     }
   };
 
@@ -101,7 +125,9 @@ function SlideToConfirm({
       className="relative w-full h-12 bg-surface-container-high/60 border border-surface-container-high rounded-2xl overflow-hidden select-none flex items-center px-1 shadow-inner touch-none"
     >
       <div
-        className="absolute left-0 top-0 bottom-0 bg-primary/20 transition-all duration-75"
+        className={`absolute left-0 top-0 bottom-0 bg-primary/20 ${
+          isDragging ? "transition-none" : "transition-all duration-300 ease-out"
+        }`}
         style={{ width: `${sliderPosition + 48}px` }}
       />
       <div className="absolute inset-0 flex items-center justify-center text-xs font-bold text-on-surface-variant pointer-events-none gap-1.5 px-12 text-center">
@@ -117,8 +143,10 @@ function SlideToConfirm({
       <div
         onPointerDown={handlePointerDown}
         style={{ transform: `translateX(${sliderPosition}px)` }}
-        className={`relative z-10 w-10 h-10 rounded-xl bg-primary text-on-primary flex items-center justify-center shadow-md transition-shadow cursor-grab active:cursor-grabbing ${
-          isDragging ? "scale-105 shadow-lg" : ""
+        className={`relative z-10 w-10 h-10 rounded-xl bg-primary text-on-primary flex items-center justify-center shadow-md cursor-grab active:cursor-grabbing ${
+          isDragging
+            ? "scale-105 shadow-lg transition-none"
+            : "transition-transform duration-300 ease-out"
         }`}
         title="Arrastra hasta el final para confirmar el registro"
       >
@@ -186,28 +214,25 @@ export function DashboardShell({
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [modal, isFormDirty]);
 
+  const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
+
   const handleSafeCloseModal = () => {
     if (isFormDirty) {
-      const confirmLeave = window.confirm("Tienes datos ingresados en el formulario. ¿Estás seguro de que deseas salir sin guardar?");
-      if (!confirmLeave) return;
+      setShowDiscardConfirm(true);
+      return;
     }
     setIsFormDirty(false);
     closeModal();
   };
 
-  const handleToggleGlobalTheme = async () => {
-    const nextDark = !preferencias.modoOscuro;
-    document.documentElement.setAttribute("data-theme", nextDark ? "dark" : "light");
-    document.documentElement.style.colorScheme = nextDark ? "dark" : "light";
-    if (nextDark) {
-      document.documentElement.classList.add("dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-    }
-    try {
-      localStorage.setItem("finpal-dark-mode", nextDark ? "true" : "false");
-    } catch {}
-    await guardarPreferencias(preferencias.colorAcento, nextDark, preferencias.tasaInteresPredeterminada);
+  const handleConfirmDiscard = () => {
+    setShowDiscardConfirm(false);
+    setIsFormDirty(false);
+    closeModal();
+  };
+
+  const handleCancelDiscard = () => {
+    setShowDiscardConfirm(false);
   };
 
   // Cerrar menú móvil automáticamente al navegar
@@ -219,55 +244,47 @@ export function DashboardShell({
   const activePath = isRouteLoading ? optimisticPath : pathname;
   const avatarLetters = userEmail ? userEmail.slice(0, 2).toUpperCase() : "FP";
 
-  const accent = {
-    verde: { primary: "#006948", container: "#00855d", dark: "#005137" },
-    azul: { primary: "#2563eb", container: "#1d4ed8", dark: "#1e40af" },
-    violeta: { primary: "#7c3aed", container: "#6d28d9", dark: "#5b21b6" },
-    naranja: { primary: "#c2410c", container: "#ea580c", dark: "#9a3412" },
-    rosa: { primary: "#e11d48", container: "#be123c", dark: "#9f1239" },
-  }[preferencias.colorAcento];
-  const themeStyle = {
-    "--color-primary": accent.primary,
-    "--color-primary-container": accent.container,
-    "--primary": accent.primary,
-    "--primary-dark": accent.dark,
-  } as CSSProperties;
+  const isCustomAccent = preferencias.colorAcento && preferencias.colorAcento !== "verde";
+  const customAccent = isCustomAccent && preferencias.colorAcento in ACCENT_PALETTES
+    ? ACCENT_PALETTES[preferencias.colorAcento as AccentColorKey]
+    : null;
 
-  // Sincronizar tema oscuro con documentElement para evitar cortes en el fondo y overscroll
-  useEffect(() => {
-    const isDark = Boolean(preferencias.modoOscuro);
-    document.documentElement.setAttribute("data-theme", isDark ? "dark" : "light");
-    document.documentElement.style.colorScheme = isDark ? "dark" : "light";
-    if (isDark) {
-      document.documentElement.classList.add("dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-    }
-    try {
-      localStorage.setItem("finpal-dark-mode", isDark ? "true" : "false");
-    } catch {}
-
-    const metaTheme = document.querySelector('meta[name="theme-color"]');
-    if (metaTheme) {
-      metaTheme.setAttribute("content", isDark ? "#111827" : "#faf8ff");
-    }
-  }, [preferencias.modoOscuro]);
+  const themeStyle = customAccent
+    ? ({
+        "--color-primary": customAccent.primary,
+        "--color-primary-container": customAccent.container,
+        "--primary": customAccent.primary,
+        "--primary-dark": customAccent.dark,
+      } as CSSProperties)
+    : undefined;
 
   useEffect(() => {
-    if (!accent) return;
-    document.documentElement.style.setProperty("--color-primary", accent.primary);
-    document.documentElement.style.setProperty("--color-primary-container", accent.container);
-    document.documentElement.style.setProperty("--primary", accent.primary);
-    document.documentElement.style.setProperty("--primary-dark", accent.dark);
-  }, [accent]);
+    if (!customAccent) {
+      const cached = getSessionAccent();
+      if (!cached || cached === "verde") {
+        resetGlobalThemeColors();
+      }
+      return;
+    }
+
+    applyCustomAccent(preferencias.colorAcento);
+
+    const observer = new MutationObserver(() => {
+      applyCustomAccent(preferencias.colorAcento);
+    });
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class", "data-theme"] });
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [customAccent, preferencias.colorAcento]);
 
   // Si estamos en la selección de espacios, no mostramos el shell del dashboard
   if (pathname === "/espacios") {
     return (
       <div
-        data-theme={preferencias.modoOscuro ? "dark" : "light"}
         style={themeStyle}
-        className="min-h-screen w-full bg-surface text-on-surface antialiased flex flex-col selection:bg-primary-fixed selection:text-on-primary-fixed"
+        className="min-h-screen w-full max-w-full overflow-x-hidden bg-surface text-on-surface antialiased flex flex-col selection:bg-primary-fixed selection:text-on-primary-fixed"
       >
         {children}
         <InactivityMonitor />
@@ -277,9 +294,8 @@ export function DashboardShell({
 
   return (
     <div
-      data-theme={preferencias.modoOscuro ? "dark" : "light"}
       style={themeStyle}
-      className="min-h-screen bg-surface text-on-surface antialiased flex selection:bg-primary-fixed selection:text-on-primary-fixed"
+      className="min-h-screen w-full max-w-full overflow-x-hidden bg-surface text-on-surface antialiased flex selection:bg-primary-fixed selection:text-on-primary-fixed"
     >
       {/* Barra de progreso de carga superior */}
       {(isPending || optimisticPath !== null) && (
@@ -408,9 +424,17 @@ export function DashboardShell({
 
         {/* Cerrar Sesión Móvil */}
         <div className="p-3 border-t border-surface-container-low">
-          <form action={signOut}>
+          <form
+            action={signOut}
+            onSubmit={() => {
+              clearSessionAccent();
+            }}
+          >
             <button
               type="submit"
+              onClick={() => {
+                clearSessionAccent();
+              }}
               className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl bg-surface-container-low hover:bg-error-container/40 hover:text-error text-on-surface transition-colors border border-surface-container-high/40 text-xs font-medium cursor-pointer"
             >
               <LogOut className="w-4 h-4" />
@@ -511,9 +535,17 @@ export function DashboardShell({
 
         {/* Cerrar Sesión */}
         <div className="p-3 border-t border-surface-container-low">
-          <form action={signOut}>
+          <form
+            action={signOut}
+            onSubmit={() => {
+              clearSessionAccent();
+            }}
+          >
             <button
               type="submit"
+              onClick={() => {
+                clearSessionAccent();
+              }}
               className="w-full flex items-center gap-2 px-3 py-2 rounded-xl bg-surface-container-low hover:bg-error-container/40 hover:text-error text-on-surface transition-colors border border-surface-container-high/40 text-xs font-medium cursor-pointer"
             >
               <LogOut className="w-4 h-4" />
@@ -524,29 +556,29 @@ export function DashboardShell({
       </aside>
 
       {/* Contenido Principal con Header Persistente */}
-      <div className="pl-0 md:pl-60 flex-1 flex flex-col min-w-0">
-        <header className="fixed top-0 left-0 md:left-60 right-0 h-16 bg-surface-container-lowest/90 backdrop-blur-md shadow-[0_1px_4px_rgba(0,0,0,0.03)] border-b border-surface-container-high/60 z-30 flex items-center justify-between px-4 sm:px-8">
-          <div className="flex items-center gap-2.5 sm:gap-3">
+      <div className="pl-0 md:pl-60 flex-1 flex flex-col min-w-0 max-w-full overflow-x-hidden">
+        <header className="fixed top-0 left-0 md:left-60 right-0 h-16 bg-surface-container-lowest/90 backdrop-blur-md shadow-[0_1px_4px_rgba(0,0,0,0.03)] border-b border-surface-container-high/60 z-30 flex items-center justify-between px-3 sm:px-8 max-w-full overflow-hidden">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             {/* Botón menú móvil */}
             <button
               type="button"
               onClick={() => setMobileNavOpen(true)}
-              className="md:hidden p-2 -ml-1 text-on-surface hover:bg-surface-container rounded-xl transition-colors cursor-pointer"
+              className="md:hidden p-2 -ml-1 text-on-surface hover:bg-surface-container rounded-xl transition-colors cursor-pointer shrink-0"
               aria-label="Abrir menú"
             >
               <Menu className="w-5 h-5 text-on-surface" />
             </button>
 
             {/* Logo en versión móvil */}
-            <div className="flex items-center gap-2.5 md:hidden">
-              <FinPalLogo size={34} className="w-[34px] h-[34px]" colorAcento={preferencias.colorAcento} priority />
-              <span className="font-heading font-extrabold text-lg tracking-tight text-on-surface">Fin<span className="text-primary">Pal</span></span>
+            <div className="flex items-center gap-2 md:hidden min-w-0">
+              <FinPalLogo size={32} className="w-8 h-8 shrink-0" colorAcento={preferencias.colorAcento} priority />
+              <span className="font-heading font-extrabold text-base tracking-tight text-on-surface truncate">Fin<span className="text-primary">Pal</span></span>
             </div>
 
             {/* Fecha en versión desktop / tablet */}
-            <div className="hidden lg:flex items-center gap-2 text-xs font-semibold text-on-surface-variant bg-surface-container-low px-3 py-1.5 rounded-lg border border-surface-container-high/40">
+            <div suppressHydrationWarning className="hidden lg:flex items-center gap-2 text-xs font-semibold text-on-surface-variant bg-surface-container-low px-3 py-1.5 rounded-lg border border-surface-container-high/40">
               <Calendar className="w-4 h-4 text-primary" />
-              <span className="capitalize">
+              <span className="capitalize" suppressHydrationWarning>
                 {new Date().toLocaleDateString("es-BO", {
                   weekday: "short",
                   year: "numeric",
@@ -557,32 +589,20 @@ export function DashboardShell({
             </div>
           </div>
 
-          <div className="flex items-center gap-2 sm:gap-4">
-            <button
-              type="button"
-              onClick={handleToggleGlobalTheme}
-              className="p-2 rounded-xl text-on-surface hover:bg-surface-container transition-colors cursor-pointer"
-              title={preferencias.modoOscuro ? "Cambiar a modo claro" : "Cambiar a modo oscuro"}
-              aria-label={preferencias.modoOscuro ? "Cambiar a modo claro" : "Cambiar a modo oscuro"}
-            >
-              {preferencias.modoOscuro ? (
-                <Sun className="w-4 h-4 text-amber-400 hover:rotate-45 transition-transform" />
-              ) : (
-                <Moon className="w-4 h-4 text-primary hover:-rotate-12 transition-transform" />
-              )}
-            </button>
+          <div className="flex items-center gap-1.5 sm:gap-4 shrink-0">
+            <ThemeToggle />
             <button
               type="button"
               onClick={() => setShowImportModal(true)}
-              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-semibold rounded-lg bg-surface-container-low hover:bg-surface-container border border-surface-container-high/40 text-on-surface transition-colors cursor-pointer"
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-semibold rounded-lg bg-surface-container-low hover:bg-surface-container border border-surface-container-high/40 text-on-surface transition-colors cursor-pointer shrink-0"
               title="Importar Excel o CSV"
             >
               <FileSpreadsheet className="w-4 h-4 text-primary shrink-0" />
               <span className="hidden sm:inline">Importar Excel / CSV</span>
               <span className="sm:hidden text-[11px]">Importar</span>
             </button>
-            <div className="flex items-center gap-2 sm:gap-2.5 pl-2 border-l border-surface-container-low">
-              <div className="w-8 h-8 rounded-full bg-on-surface text-surface-container-lowest flex items-center justify-center font-bold text-xs ring-2 ring-primary/20 shrink-0">
+            <div className="flex items-center gap-1.5 sm:gap-2.5 pl-1.5 sm:pl-2 border-l border-surface-container-low shrink-0">
+              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-on-surface text-surface-container-lowest flex items-center justify-center font-bold text-[11px] sm:text-xs ring-2 ring-primary/20 shrink-0">
                 {avatarLetters}
               </div>
               <div className="hidden md:flex flex-col text-left max-w-[140px] lg:max-w-[180px]">
@@ -594,7 +614,7 @@ export function DashboardShell({
         </header>
 
         {/* Children Rendered Instantly */}
-        <main className="w-full pt-20 px-3.5 sm:px-8 pb-12 min-h-[calc(100dvh-4rem)]">
+        <main className="w-full max-w-full min-w-0 pt-20 px-3 sm:px-8 pb-12 min-h-[calc(100dvh-4rem)] overflow-x-hidden">
           {isRouteLoading ? <DashboardRouteSkeleton path={optimisticPath} /> : children}
         </main>
       </div>
@@ -648,8 +668,17 @@ export function DashboardShell({
               <div className="pt-2 space-y-2.5">
                 <SlideToConfirm
                   submitting={submitting}
+                  resetTrigger={`${modal}-${formError ?? ""}`}
                   onConfirm={() => {
-                    formRef.current?.requestSubmit();
+                    if (formRef.current) {
+                      if (!formRef.current.checkValidity()) {
+                        formRef.current.reportValidity();
+                        return false;
+                      }
+                      formRef.current.requestSubmit();
+                      return true;
+                    }
+                    return false;
                   }}
                   label={
                     modal === "loan"
@@ -687,6 +716,18 @@ export function DashboardShell({
           loadData();
         }}
         cuentasDisponibles={cuentas.map((c) => ({ id: c.id, nombre: c.nombre }))}
+      />
+
+      {/* Diálogo nativo del sistema para confirmar descarte de cambios */}
+      <ConfirmDialog
+        isOpen={showDiscardConfirm}
+        title="¿Descartar cambios?"
+        description="Tienes información ingresada en el formulario. Si sales ahora, los datos no guardados se perderán."
+        confirmText="Descartar cambios"
+        cancelText="Continuar editando"
+        variant="danger"
+        onConfirm={handleConfirmDiscard}
+        onCancel={handleCancelDiscard}
       />
 
       {/* Monitor de inactividad de sesión (alerta a 15m, cierre automático a 20m) */}
@@ -887,7 +928,7 @@ function DateField({
 }
 
 const inputCls =
-  "w-full h-10 px-3.5 rounded-xl bg-surface-container-lowest border border-surface-container-high/80 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20";
+  "w-full h-10 px-3.5 rounded-xl bg-surface-container-lowest border border-surface-container-high/80 text-base sm:text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20";
 const selectCls = `${inputCls} cursor-pointer`;
 
 function ContactoForm() {
@@ -1227,7 +1268,7 @@ function PagoForm({ prestamos, cuentas }: { prestamos: Prestamo[]; cuentas: Cuen
               <button
                 type="button"
                 onClick={handleFillOnlyInterest}
-                className="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20 hover:bg-amber-500/20 transition-colors cursor-pointer"
+                className="px-2 py-0.5 rounded-md text-[11px] font-semibold badge-amber hover:opacity-90 transition-opacity cursor-pointer"
               >
                 Solo interés ({money(interesEstimado)})
               </button>
@@ -1235,7 +1276,7 @@ function PagoForm({ prestamos, cuentas }: { prestamos: Prestamo[]; cuentas: Cuen
             <button
               type="button"
               onClick={handleFillOnlyCapital}
-              className="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20 transition-colors cursor-pointer"
+              className="px-2 py-0.5 rounded-md text-[11px] font-semibold badge-emerald hover:opacity-90 transition-opacity cursor-pointer"
             >
               Liquidar capital ({money(capitalPendiente)})
             </button>
@@ -1243,7 +1284,7 @@ function PagoForm({ prestamos, cuentas }: { prestamos: Prestamo[]; cuentas: Cuen
               <button
                 type="button"
                 onClick={handleFillFullBalance}
-                className="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-surface-container text-on-surface border border-surface-container-high hover:bg-surface-container-high transition-colors cursor-pointer"
+                className="px-2 py-0.5 rounded-md text-[11px] font-semibold badge-neutral hover:opacity-90 transition-opacity cursor-pointer"
               >
                 Capital + interés ({money(capitalPendiente + interesEstimado)})
               </button>
