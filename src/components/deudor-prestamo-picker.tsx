@@ -174,6 +174,11 @@ export function DeudorPrestamoPicker({
                     · Desde {formatDateEs(selectedPrestamo.fecha_inicio)}
                   </span>
                 )}
+                {selectedPrestamo.ultimo_mes_cubierto && (
+                  <span className="text-[11px] font-semibold text-primary">
+                    · Cubrió: {selectedPrestamo.ultimo_mes_cubierto}
+                  </span>
+                )}
               </div>
 
               {/* Notas de desambiguación si existen */}
@@ -373,6 +378,11 @@ export function DeudorPrestamoPicker({
                             · Inicio {formatDateEs(p.fecha_inicio)}
                           </span>
                         )}
+                        {p.ultimo_mes_cubierto && (
+                          <span className="text-primary font-semibold hidden sm:inline">
+                            · Cubrió: {p.ultimo_mes_cubierto}
+                          </span>
+                        )}
                       </div>
 
                       {/* Línea 3: Notas o apodo de contacto (crucial para diferenciar homónimos) */}
@@ -394,7 +404,8 @@ export function DeudorPrestamoPicker({
                     </span>
                     {isAtrasado ? (
                       <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold badge-atrasado mt-0.5">
-                        <AlertOctagon className="w-2.5 h-2.5 shrink-0" /> Atrasado
+                        <AlertOctagon className="w-2.5 h-2.5 shrink-0" />
+                        {p.dias_atraso > 0 ? `${p.dias_atraso}d atraso` : "Atrasado"}
                       </span>
                     ) : (
                       <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-bold badge-al-dia mt-0.5">

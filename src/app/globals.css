@@ -149,24 +149,38 @@ body {
   position: relative;
 }
 
-/* ─── Transición suave ("soft animation") al alternar modos claro / oscuro ─── */
+/* ─── Transición suave y limpia al alternar modos claro / oscuro (GPU Cross-fade) ─── */
 ::view-transition-old(root),
 ::view-transition-new(root) {
-  animation-duration: 380ms;
+  animation-duration: 200ms;
   animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  mix-blend-mode: normal;
 }
 
-html.theme-transitioning,
-html.theme-transitioning *,
-html.theme-transitioning *::before,
-html.theme-transitioning *::after {
-  transition: background-color 380ms cubic-bezier(0.4, 0, 0.2, 1),
-              border-color 380ms cubic-bezier(0.4, 0, 0.2, 1),
-              color 380ms cubic-bezier(0.4, 0, 0.2, 1),
-              fill 380ms cubic-bezier(0.4, 0, 0.2, 1),
-              stroke 380ms cubic-bezier(0.4, 0, 0.2, 1),
-              box-shadow 380ms cubic-bezier(0.4, 0, 0.2, 1) !important;
-  transition-delay: 0s !important;
+::view-transition-old(root) {
+  animation-name: theme-fade-out;
+}
+
+::view-transition-new(root) {
+  animation-name: theme-fade-in;
+}
+
+@keyframes theme-fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes theme-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -174,11 +188,8 @@ html.theme-transitioning *::after {
   ::view-transition-new(root) {
     animation: none !important;
   }
-  html.theme-transitioning,
-  html.theme-transitioning * {
-    transition: none !important;
-  }
 }
+
 
 [data-theme="dark"],
 html.dark {
@@ -236,7 +247,30 @@ html.dark {
   --input-border: #475569;
 }
 
+/* ─── Menús Desplegables / Selects con Espaciado Seguro y Chevron Elegante ─── */
+select {
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  -moz-appearance: none !important;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E") !important;
+  background-repeat: no-repeat !important;
+  background-position: calc(100% - 1rem) center !important;
+  background-size: 1rem 1rem !important;
+  padding-right: 2.75rem !important;
+}
+
+:is([data-theme="dark"], .dark) select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E") !important;
+}
+
+/* Excepción para select con flecha React personalizada superpuesta */
+select.no-bg-chevron,
+.has-custom-chevron select {
+  background-image: none !important;
+}
+
 /* ─── Globos de Texto / Badges Normalizados Globalmente ─────────────────────── */
+
 .badge-al-dia,
 .badge-emerald,
 .badge-ingreso {

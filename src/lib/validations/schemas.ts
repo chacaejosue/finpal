@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { getLocalDateString } from "@/lib/format-date";
 
 // ── Contactos ──────────────────────────────────────────────────────────────
 
@@ -155,7 +156,7 @@ export const importPrestamoSchema = z.object({
   }, z.boolean().default(false)),
   fecha_inicio: z.preprocess(
     (val) => {
-      if (!val) return new Date().toISOString().slice(0, 10);
+      if (!val) return getLocalDateString();
       return String(val).trim();
     },
     z.string().min(1, "Fecha de inicio no válida")
@@ -180,9 +181,10 @@ export type ImportPrestamoRow = z.infer<typeof importPrestamoSchema>;
 
 export const importMovimientoSchema = z.object({
   fecha: z.preprocess(
-    (val) => (val ? String(val).trim() : new Date().toISOString().slice(0, 10)),
+    (val) => (val ? String(val).trim() : getLocalDateString()),
     z.string().min(1, "Fecha de movimiento requerida")
   ),
+
   tipo: z.preprocess((val) => {
     const s = String(val || "").toLowerCase().trim();
     if (s.includes("ingreso") || s === "in") return "ingreso";

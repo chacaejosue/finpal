@@ -66,3 +66,23 @@ export async function eliminarEspacio(espacioId: string) {
   revalidatePath("/espacios");
   return { success: true };
 }
+
+// ── Actualizar zona horaria del espacio de trabajo ────────────────────────
+export async function actualizarZonaHorariaEspacio(espacioId: string, zonaHoraria: string) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/iniciar-sesion");
+
+  const { error } = await supabase
+    .from("espacios_trabajo")
+    .update({ zona_horaria: zonaHoraria })
+    .eq("id", espacioId);
+
+  if (error) return { error: error.message };
+
+  revalidatePath("/configuracion");
+  revalidatePath("/inicio");
+  revalidatePath("/espacios");
+  return { success: true };
+}
+
