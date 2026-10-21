@@ -271,10 +271,20 @@ export function DashboardProvider({
         "Error al guardar. Revisa los campos obligatorios.";
       setFormError(firstError);
     } else {
-      setSuccessNotice(
-        modal === "account" ? "Cuenta creada correctamente" : "Guardado correctamente",
-      );
-      window.setTimeout(() => setSuccessNotice(null), 2800);
+      const msg =
+        modal === "account"
+          ? "¡Cuenta creada correctamente!"
+          : modal === "contact"
+          ? "¡Contacto guardado correctamente!"
+          : modal === "loan"
+          ? "¡Préstamo registrado correctamente!"
+          : modal === "payment"
+          ? "¡Cobro registrado correctamente!"
+          : modal === "movement"
+          ? "¡Movimiento registrado correctamente!"
+          : "¡Guardado correctamente!";
+      setSuccessNotice(msg);
+      window.setTimeout(() => setSuccessNotice(null), 3500);
       closeModal();
       await loadData();
     }

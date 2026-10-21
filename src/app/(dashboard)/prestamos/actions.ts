@@ -5,7 +5,8 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { prestamoSchema } from "@/lib/validations/schemas";
 
-import { isValidUuid, sanitizeText } from "@/lib/security";
+import { isValidUuid } from "@/lib/security";
+import { getLocalDateString, formatMonthYear, formatDateEs } from "@/lib/format-date";
 
 function isoDate(date: Date) {
   return date.toISOString().slice(0, 10);
@@ -29,7 +30,7 @@ export async function getPrestamos(espacioId: string) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return [];
 
-  const [{ data, error }, { data: pagos, error: pagosError }] = await Promise.all([
+  const [{ data, error }, { data: pagos, error: pagosError }, { data: espacioData }] = await Promise.all([
     supabase
     .from("prestamos")
     .select(`
@@ -43,42 +44,128 @@ export async function getPrestamos(espacioId: string) {
     .order("created_at", { ascending: false }),
     supabase
       .from("pagos_prestamos")
-      .select("prestamo_id, fecha_esperada, monto_total, monto_interes")
+      .select("id, prestamo_id, fecha_esperada, recibido_en, monto_total, monto_principal, monto_interes, created_at")
       .eq("espacio_id", espacioId)
-      .not("fecha_esperada", "is", null),
+      .order("recibido_en", { ascending: false }),
+    supabase
+      .from("espacios_trabajo")
+      .select("zona_horaria")
+      .eq("id", espacioId)
+      .maybeSingle(),
   ]);
 
   if (error) throw new Error(error.message);
   if (pagosError) throw new Error(pagosError.message);
 
-  const pagosPorPrestamo = new Map<string, Map<string, number>>();
+  type PagoItem = {
+    id: string;
+    fecha_esperada: string | null;
+    recibido_en: string;
+    monto_total: number;
+    monto_principal: number;
+    monto_interes: number;
+  };
+
+  const pagosPorPrestamo = new Map<string, PagoItem[]>();
+  const setFechasPagadas = new Map<string, Set<string>>();
+  const setMesesPagados = new Map<string, Set<string>>();
   const interesPorPrestamo = new Map<string, number>();
+
   for (const pago of pagos ?? []) {
-    const periodos = pagosPorPrestamo.get(pago.prestamo_id) ?? new Map<string, number>();
-    periodos.set(
-      pago.fecha_esperada,
-      (periodos.get(pago.fecha_esperada) ?? 0) + Number(pago.monto_total),
-    );
-    pagosPorPrestamo.set(pago.prestamo_id, periodos);
+    const list = pagosPorPrestamo.get(pago.prestamo_id) ?? [];
+    list.push({
+      id: pago.id,
+      fecha_esperada: pago.fecha_esperada,
+      recibido_en: pago.recibido_en,
+      monto_total: Number(pago.monto_total),
+      monto_principal: Number(pago.monto_principal),
+      monto_interes: Number(pago.monto_interes),
+    });
+    pagosPorPrestamo.set(pago.prestamo_id, list);
+
+    if (pago.fecha_esperada) {
+      const fechas = setFechasPagadas.get(pago.prestamo_id) ?? new Set<string>();
+      fechas.add(pago.fecha_esperada);
+      setFechasPagadas.set(pago.prestamo_id, fechas);
+
+      const mesKey = pago.fecha_esperada.slice(0, 7);
+      const meses = setMesesPagados.get(pago.prestamo_id) ?? new Set<string>();
+      meses.add(mesKey);
+      setMesesPagados.set(pago.prestamo_id, meses);
+    }
+
     interesPorPrestamo.set(
       pago.prestamo_id,
       (interesPorPrestamo.get(pago.prestamo_id) ?? 0) + Number(pago.monto_interes),
     );
   }
 
-  const hoy = isoDate(new Date());
-  return (data ?? []).map((prestamo) => {
-    const periodosPagados = pagosPorPrestamo.get(prestamo.id) ?? new Map<string, number>();
-    const primerVencimiento = nextMonthDate(prestamo.fecha_inicio, prestamo.dia_pago);
-    const primer = new Date(`${primerVencimiento}T00:00:00Z`);
-    const limite = new Date(`${hoy}T00:00:00Z`);
-    const pendientes: string[] = [];
-    let cursor = primer;
+  const timezone = espacioData?.zona_horaria || "America/La_Paz";
+  const hoy = getLocalDateString(new Date(), timezone);
+  const hoyTime = new Date(`${hoy}T00:00:00Z`).getTime();
 
-    while (cursor <= limite || pendientes.length === 0) {
+  return (data ?? []).map((prestamo) => {
+    const pagosList = pagosPorPrestamo.get(prestamo.id) ?? [];
+    const fechasPagadas = setFechasPagadas.get(prestamo.id) ?? new Set<string>();
+    const mesesPagados = setMesesPagados.get(prestamo.id) ?? new Set<string>();
+
+    const primerVencimiento = nextMonthDate(prestamo.fecha_inicio, prestamo.dia_pago);
+    let cursor = new Date(`${primerVencimiento}T00:00:00Z`);
+    const pendientes: string[] = [];
+
+    type PeriodoSugerido = {
+      fecha: string;
+      mes_nombre: string;
+      estado: "vencido" | "hoy" | "proximo" | "adelantado";
+      dias_diferencia: number;
+      label: string;
+    };
+
+    const periodosSugeridos: PeriodoSugerido[] = [];
+    let futurosCount = 0;
+    const maxFuturos = 6;
+
+    while (futurosCount < maxFuturos) {
       const vencimiento = isoDate(cursor);
-      if (!periodosPagados.has(vencimiento)) pendingPush(pendientes, vencimiento);
-      if (cursor > limite) break;
+      const mesKey = vencimiento.slice(0, 7);
+      const yaPagado = fechasPagadas.has(vencimiento) || mesesPagados.has(mesKey);
+
+      if (!yaPagado) {
+        pendientes.push(vencimiento);
+
+        const vTime = cursor.getTime();
+        const diffDias = Math.round((hoyTime - vTime) / (1000 * 60 * 60 * 24));
+        let estadoPeriodo: "vencido" | "hoy" | "proximo" | "adelantado" = "proximo";
+        let labelEstado = "";
+
+        if (vencimiento < hoy) {
+          estadoPeriodo = "vencido";
+          labelEstado = `Atrasada por ${diffDias} día${diffDias === 1 ? "" : "s"}`;
+        } else if (vencimiento === hoy) {
+          estadoPeriodo = "hoy";
+          labelEstado = "Vence hoy";
+        } else if (futurosCount === 0 && pendientes.length === 1) {
+          estadoPeriodo = "proximo";
+          labelEstado = `Próximo vencimiento (en ${Math.abs(diffDias)} días)`;
+        } else {
+          estadoPeriodo = "adelantado";
+          labelEstado = "Pago adelantado";
+        }
+
+        const mesNombre = formatMonthYear(vencimiento);
+        periodosSugeridos.push({
+          fecha: vencimiento,
+          mes_nombre: mesNombre,
+          estado: estadoPeriodo,
+          dias_diferencia: diffDias,
+          label: `${formatDateEs(vencimiento)} · Cuota de ${mesNombre} (${labelEstado})`,
+        });
+      }
+
+      if (cursor.getTime() >= hoyTime) {
+        futurosCount++;
+      }
+
       cursor = new Date(`${nextMonthDate(vencimiento, prestamo.dia_pago)}T00:00:00Z`);
     }
 
@@ -88,6 +175,14 @@ export async function getPrestamos(espacioId: string) {
         ? prestamo.estado
         : atrasados.length > 0 ? "atrasado" : "activo";
 
+    const oldestAtrasado = atrasados[0];
+    const diasAtraso = oldestAtrasado
+      ? Math.max(0, Math.round((hoyTime - new Date(`${oldestAtrasado}T00:00:00Z`).getTime()) / (1000 * 60 * 60 * 24)))
+      : 0;
+
+    const ultimoPago = pagosList.length > 0 ? pagosList[0] : null;
+    const ultimoMesCubierto = ultimoPago?.fecha_esperada ? formatMonthYear(ultimoPago.fecha_esperada) : null;
+
     return {
       ...prestamo,
       total_pagado: Number(prestamo.monto_capital_pagado),
@@ -95,13 +190,22 @@ export async function getPrestamos(espacioId: string) {
       estado: estadoCalculado,
       fecha_proximo_pago: pendientes[0] ?? null,
       meses_atrasados: atrasados.length,
+      dias_atraso: diasAtraso,
       vence_hoy: pendientes[0] === hoy,
+      periodos_sugeridos: periodosSugeridos,
+      ultimo_mes_cubierto: ultimoMesCubierto,
+      ultimo_pago: ultimoPago
+        ? {
+            recibido_en: ultimoPago.recibido_en,
+            fecha_esperada: ultimoPago.fecha_esperada,
+            mes_cubierto: ultimoMesCubierto,
+            monto_total: ultimoPago.monto_total,
+            monto_interes: ultimoPago.monto_interes,
+            monto_principal: ultimoPago.monto_principal,
+          }
+        : null,
     };
   });
-}
-
-function pendingPush(periodos: string[], vencimiento: string) {
-  periodos.push(vencimiento);
 }
 
 // ── Crear préstamo + transacción de entrega ────────────────────────────────

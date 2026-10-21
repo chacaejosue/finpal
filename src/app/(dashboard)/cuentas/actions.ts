@@ -124,24 +124,41 @@ export async function crearCuenta(espacioId: string, formData: FormData) {
   return { success: true };
 }
 
-// ── Actualizar cuenta ─────────────────────────────────────────────────────
+// ── Actualizar cuenta (corrección de tipeo, nombre, tipo con auditoría) ──────
 export async function actualizarCuenta(cuentaId: string, espacioId: string, formData: FormData) {
   if (!isValidUuid(cuentaId) || !isValidUuid(espacioId)) {
     return { error: { _global: ["Identificadores no válidos"] } };
   }
 
-  const parsed = cuentaDineroSchema.safeParse({
-    nombre: sanitizeText(formData.get("nombre")),
-    tipo: formData.get("tipo"),
-    saldo_inicial: formData.get("saldo_inicial"),
-    codigo_moneda: formData.get("codigo_moneda") ?? "BOB",
-  });
-
-  if (!parsed.success) return { error: parsed.error.flatten().fieldErrors };
-
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/iniciar-sesion");
+
+  const { data: anterior } = await supabase
+    .from("cuentas_dinero")
+    .select("nombre, tipo, saldo_inicial, codigo_moneda")
+    .eq("id", cuentaId)
+    .eq("espacio_id", espacioId)
+    .single();
+
+  if (!anterior) return { error: { _global: ["La cuenta no existe"] } };
+
+  const rawNombre = sanitizeText(formData.get("nombre"));
+  const rawTipo = formData.get("tipo") || anterior.tipo;
+  const rawSaldoInicial =
+    formData.get("saldo_inicial") !== null && formData.get("saldo_inicial") !== ""
+      ? formData.get("saldo_inicial")
+      : anterior.saldo_inicial;
+  const rawMoneda = formData.get("codigo_moneda") || anterior.codigo_moneda || "BOB";
+
+  const parsed = cuentaDineroSchema.safeParse({
+    nombre: rawNombre,
+    tipo: rawTipo,
+    saldo_inicial: rawSaldoInicial,
+    codigo_moneda: rawMoneda,
+  });
+
+  if (!parsed.success) return { error: parsed.error.flatten().fieldErrors };
 
   const { error } = await supabase
     .from("cuentas_dinero")
@@ -156,9 +173,59 @@ export async function actualizarCuenta(cuentaId: string, espacioId: string, form
 
   if (error) return { error: { _global: [error.message] } };
 
+  // Registrar en tabla de auditoría si hubo cambio en el nombre o tipo
+  if (anterior.nombre !== parsed.data.nombre || anterior.tipo !== parsed.data.tipo) {
+    try {
+      const campo = anterior.nombre !== parsed.data.nombre ? "nombre" : "tipo";
+      const valAnt = anterior.nombre !== parsed.data.nombre ? anterior.nombre : anterior.tipo;
+      const valNue = anterior.nombre !== parsed.data.nombre ? parsed.data.nombre : parsed.data.tipo;
+      await supabase.from("auditoria_cambios").insert({
+        espacio_id: espacioId,
+        entidad: "cuentas_dinero",
+        entidad_id: cuentaId,
+        campo_modificado: campo,
+        valor_anterior: valAnt,
+        valor_nuevo: valNue,
+        motivo: sanitizeText(formData.get("motivo")) || "Corrección de tipeo / nombre",
+        usuario_id: user.id,
+      });
+    } catch {
+      // Ignorar si la tabla de auditoría aún no se ha creado
+    }
+  }
+
   revalidatePath("/cuentas");
   return { success: true };
 }
+
+// ── Consultar historial de auditoría de una entidad ────────────────────────
+export async function getAuditoriaEntidad(espacioId: string, entidad: string, entidadId?: string) {
+  if (!isValidUuid(espacioId)) return [];
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return [];
+
+  try {
+    let query = supabase
+      .from("auditoria_cambios")
+      .select("id, campo_modificado, valor_anterior, valor_nuevo, motivo, created_at, entidad_id")
+      .eq("espacio_id", espacioId)
+      .eq("entidad", entidad)
+      .order("created_at", { ascending: false });
+
+    if (entidadId && isValidUuid(entidadId)) {
+      query = query.eq("entidad_id", entidadId);
+    }
+
+    const { data, error } = await query.limit(30);
+    if (error) return [];
+    return data ?? [];
+  } catch {
+    return [];
+  }
+}
+
 
 // ── Desactivar (borrado lógico) cuenta ────────────────────────────────────
 export async function desactivarCuenta(cuentaId: string, espacioId: string) {
