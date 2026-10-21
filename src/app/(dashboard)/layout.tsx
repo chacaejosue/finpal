@@ -14,11 +14,30 @@ export default async function DashboardLayout({ children }: { children: ReactNod
     redirect("/iniciar-sesion");
   }
 
+  let espaciosDisponibles: { id: string; nombre: string; zona_horaria?: string }[] = [];
+  try {
+    const { data: rawEspacios } = await supabase
+      .from("espacios_trabajo")
+      .select("id, nombre, zona_horaria")
+      .order("created_at", { ascending: true });
+
+    if (rawEspacios) {
+      espaciosDisponibles = rawEspacios.map((e) => ({
+        id: e.id,
+        nombre: e.nombre,
+        zona_horaria: e.zona_horaria ?? "America/La_Paz",
+      }));
+    }
+  } catch {
+    // Si falla la consulta, mantenemos array vacío
+  }
+
   return (
     <DashboardProvider userEmail={user.email ?? ""}>
-      <DashboardShell userEmail={user.email ?? ""}>
+      <DashboardShell userEmail={user.email ?? ""} espaciosDisponibles={espaciosDisponibles}>
         {children}
       </DashboardShell>
     </DashboardProvider>
   );
 }
+

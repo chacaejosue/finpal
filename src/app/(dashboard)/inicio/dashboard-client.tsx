@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { motion } from "motion/react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   ArrowRight,
   BadgeCheck,
@@ -23,6 +23,19 @@ import {
   Check,
   X,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Pencil,
+  FileText,
+  Copy,
+  Search,
+  Sliders,
+  History,
+  Sparkles,
+  ChevronUp,
+  Globe,
+  Clock,
+  LayoutGrid,
 } from "lucide-react";
 import {
   useDashboard,
@@ -40,8 +53,12 @@ import { fixSpanishEncoding } from "@/lib/clean-text";
 import { ContactAvatar } from "@/components/contact-avatar";
 import { useEspacio } from "@/lib/espacio-context";
 import { actualizarEstadoPrestamo } from "@/app/(dashboard)/prestamos/actions";
-import { formatDateEs } from "@/lib/format-date";
+import { formatDateEs, formatMonthYear } from "@/lib/format-date";
 import { ReportesBiDashboard } from "@/features/reportes/reportes-bi-dashboard";
+import { SlideToConfirm, DashboardRouteSkeleton } from "@/components/dashboard-shell";
+import { actualizarCuenta, getAuditoriaEntidad } from "@/app/(dashboard)/cuentas/actions";
+import { actualizarZonaHorariaEspacio } from "@/app/(dashboard)/espacios/actions";
+
 
 export type PageName =
   | "inicio"
@@ -76,13 +93,19 @@ export default function DashboardClient({
     guardarPreferencias,
     setSuccessNotice,
   } = useDashboard();
-  const { espacioId } = useEspacio();
+  const { espacioId, zonaHoraria, setZonaHoraria } = useEspacio();
+  const [notaModal, setNotaModal] = useState<{ titulo: string; subtitulo?: string; texto: string } | null>(null);
+
+  const handleVerNota = (titulo: string, subtitulo?: string, texto?: string | null) => {
+    if (texto && texto.trim()) {
+      setNotaModal({ titulo, subtitulo, texto: texto.trim() });
+    }
+  };
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center h-64 gap-3">
-        <Loader2 className="w-8 h-8 text-primary animate-spin" />
-        <span className="text-xs font-semibold text-on-surface-variant">Cargando tus datos financieros...</span>
+      <div className="max-w-7xl mx-auto w-full flex flex-col gap-6">
+        <DashboardRouteSkeleton path={`/${page}`} />
       </div>
     );
   }
@@ -97,79 +120,107 @@ export default function DashboardClient({
   }
 
   return (
-    <motion.div
-      key={page}
-      initial={{ opacity: 0, y: 6 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.15 }}
-      className="max-w-7xl mx-auto w-full flex flex-col gap-6"
-    >
-      {page === "inicio" && (
-        <DashboardView
-          cuentas={cuentas}
-          prestamos={prestamos}
-          movimientos={movimientos}
-          totals={totals}
-          openModal={(m) => openModal(m)}
+    <>
+      <motion.div
+        key={page}
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+        className="max-w-7xl mx-auto w-full flex flex-col gap-6"
+      >
+        {page === "inicio" && (
+          <DashboardView
+            cuentas={cuentas}
+            prestamos={prestamos}
+            movimientos={movimientos}
+            totals={totals}
+            openModal={(m) => openModal(m)}
+            onVerNota={handleVerNota}
+          />
+        )}
+        {page === "contactos" && (
+          <ContactosView
+            contactos={contactos}
+            prestamos={prestamos}
+            openModal={() => openModal("contact")}
+            onVerNota={handleVerNota}
+          />
+        )}
+        {page === "prestamos" && (
+          <PrestamosView
+            prestamos={prestamos}
+            openModal={() => openModal("loan")}
+            onVerNota={handleVerNota}
+            onStatusChange={async (prestamoId, estado) => {
+              if (!espacioId) return;
+              const result = await actualizarEstadoPrestamo(prestamoId, espacioId, estado);
+              if (result.error) {
+                setSuccessNotice(result.error);
+                return;
+              }
+              await loadData();
+            }}
+          />
+        )}
+        {page === "pagos" && (
+          <PagosView
+            pagos={pagos}
+            openModal={() => openModal("payment")}
+            onVerNota={handleVerNota}
+          />
+        )}
+        {page === "cuentas" && (
+          <CuentasView
+            cuentas={cuentas}
+            espacioId={espacioId ?? ""}
+            openModal={() => openModal("account")}
+            loadData={loadData}
+            setSuccessNotice={setSuccessNotice}
+          />
+        )}
+        {page === "movimientos" && (
+          <MovimientosView
+            movimientos={movimientos}
+            openModal={() => openModal("movement")}
+            onVerNota={handleVerNota}
+          />
+        )}
+        {page === "reportes" && (
+          <ReportesBiDashboard
+            totals={totals}
+            prestamos={prestamos}
+            pagos={pagos}
+            cuentas={cuentas}
+            movimientos={movimientos}
+            contactos={contactos}
+            preferencias={preferencias}
+          />
+        )}
+        {page === "configuracion" && (
+          <ConfiguracionView
+            key={`${preferencias.colorAcento}-${preferencias.tasaInteresPredeterminada}-${zonaHoraria}`}
+            preferencias={preferencias}
+            guardarPreferencias={guardarPreferencias}
+            espacioId={espacioId ?? ""}
+            zonaHoraria={zonaHoraria}
+            setZonaHoraria={setZonaHoraria}
+            setSuccessNotice={setSuccessNotice}
+          />
+        )}
+      </motion.div>
+
+      {notaModal && (
+        <ModalDetalleNota
+          titulo={notaModal.titulo}
+          subtitulo={notaModal.subtitulo}
+          texto={notaModal.texto}
+          onClose={() => setNotaModal(null)}
         />
       )}
-      {page === "contactos" && (
-        <ContactosView
-          contactos={contactos}
-          prestamos={prestamos}
-          openModal={() => openModal("contact")}
-        />
-      )}
-      {page === "prestamos" && (
-        <PrestamosView
-          prestamos={prestamos}
-          openModal={() => openModal("loan")}
-          onStatusChange={async (prestamoId, estado) => {
-            if (!espacioId) return;
-            const result = await actualizarEstadoPrestamo(prestamoId, espacioId, estado);
-            if (result.error) {
-              setSuccessNotice(result.error);
-              return;
-            }
-            await loadData();
-          }}
-        />
-      )}
-      {page === "pagos" && (
-        <PagosView
-          pagos={pagos}
-          openModal={() => openModal("payment")}
-        />
-      )}
-      {page === "cuentas" && (
-        <CuentasView
-          cuentas={cuentas}
-          openModal={() => openModal("account")}
-        />
-      )}
-      {page === "movimientos" && (
-        <MovimientosView
-          movimientos={movimientos}
-          openModal={() => openModal("movement")}
-        />
-      )}
-      {page === "reportes" && (
-        <ReportesBiDashboard
-          totals={totals}
-          prestamos={prestamos}
-          pagos={pagos}
-          cuentas={cuentas}
-          movimientos={movimientos}
-          contactos={contactos}
-          preferencias={preferencias}
-        />
-      )}
-      {page === "configuracion" && (
-        <ConfiguracionView preferencias={preferencias} guardarPreferencias={guardarPreferencias} />
-      )}
-    </motion.div>
+    </>
   );
 }
+
 
 // ─── Configuración de Globos/Badges para Tipos de Movimiento ─────────────────
 
@@ -232,20 +283,299 @@ function getTipoMovimientoBadge(tipo: string, ajusteSentido?: string | null): Ti
   }
 }
 
+// ─── Modal para Detalle de Notas Flotante ──────────────────────────────────
+
+export function ModalDetalleNota({
+  titulo,
+  subtitulo,
+  texto,
+  onClose,
+}: {
+  titulo: string;
+  subtitulo?: string;
+  texto: string;
+  onClose: () => void;
+}) {
+  const [copiado, setCopiado] = useState(false);
+
+  const handleCopiar = async () => {
+    try {
+      await navigator.clipboard.writeText(texto);
+      setCopiado(true);
+      setTimeout(() => setCopiado(false), 2000);
+    } catch {}
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150"
+      onClick={onClose}
+    >
+      <div
+        className="bg-surface-container-lowest border border-surface-container-high/80 rounded-2xl max-w-lg w-full p-5 sm:p-6 shadow-2xl space-y-4 max-h-[85vh] flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-3 pb-3 border-b border-surface-container-low">
+          <div className="flex items-center gap-2.5">
+            <span className="w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+              <FileText className="w-5 h-5" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <h2 className="font-heading text-lg font-bold text-on-surface truncate">{titulo}</h2>
+              {subtitulo && (
+                <p className="text-xs text-on-surface-variant truncate">{subtitulo}</p>
+              )}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-1.5 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors cursor-pointer"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="overflow-y-auto pr-1 flex-1 max-h-[50vh]">
+          <div className="p-4 rounded-xl bg-surface-container-low/60 border border-surface-container-high/50 text-sm text-on-surface whitespace-pre-wrap break-words leading-relaxed font-sans select-text">
+            {texto}
+          </div>
+        </div>
+
+        <div className="pt-2 border-t border-surface-container-low flex items-center justify-between gap-2">
+          <button
+            type="button"
+            onClick={handleCopiar}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-surface-container-high bg-surface-container-lowest hover:bg-surface-container text-xs font-semibold text-on-surface transition-colors cursor-pointer"
+          >
+            {copiado ? (
+              <>
+                <Check className="w-4 h-4 text-emerald-500" />
+                <span className="text-emerald-500 font-semibold">¡Copiado!</span>
+              </>
+            ) : (
+              <>
+                <Copy className="w-4 h-4 text-on-surface-variant" />
+                <span>Copiar nota</span>
+              </>
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-5 py-2 rounded-xl bg-primary hover:bg-primary-container text-on-primary text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+          >
+            Cerrar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Modal de Personalización del Dashboard ──────────────────────────────────
+
+type WidgetKey = "kpis" | "prestamos" | "movimientos" | "cuentas";
+
+interface WidgetItem {
+  id: WidgetKey;
+  label: string;
+  description: string;
+  visible: boolean;
+}
+
+const DEFAULT_WIDGETS: WidgetItem[] = [
+  { id: "kpis", label: "Métricas generales (KPIs)", description: "Total en cuentas, Por cobrar, Saldado e Intereses", visible: true },
+  { id: "prestamos", label: "Deudores y préstamos recientes", description: "Tabla y tarjetas con estado de abonos y vencimientos", visible: true },
+  { id: "movimientos", label: "Movimientos recientes", description: "Últimas transacciones registradas en el espacio", visible: true },
+  { id: "cuentas", label: "Resumen de cuentas de dinero", description: "Visualización rápida de tus cuentas y fondos", visible: false },
+];
+
+function ModalPersonalizarDashboard({
+  widgets,
+  onSave,
+  onClose,
+}: {
+  widgets: WidgetItem[];
+  onSave: (newWidgets: WidgetItem[]) => void;
+  onClose: () => void;
+}) {
+  const [items, setItems] = useState<WidgetItem[]>(widgets);
+
+  const toggleVisible = (id: WidgetKey) => {
+    setItems((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, visible: !item.visible } : item))
+    );
+  };
+
+  const move = (index: number, direction: "up" | "down") => {
+    const target = direction === "up" ? index - 1 : index + 1;
+    if (target < 0 || target >= items.length) return;
+    const copy = [...items];
+    const [removed] = copy.splice(index, 1);
+    copy.splice(target, 0, removed);
+    setItems(copy);
+  };
+
+  const handleApply = () => {
+    onSave(items);
+    onClose();
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150"
+      onClick={onClose}
+    >
+      <div
+        className="bg-surface-container-lowest border border-surface-container-high/80 rounded-2xl max-w-md w-full p-5 sm:p-6 shadow-2xl space-y-4 max-h-[90vh] flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-3 pb-3 border-b border-surface-container-low">
+          <div className="flex items-center gap-2.5">
+            <span className="w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+              <Sliders className="w-5 h-5" />
+            </span>
+            <div>
+              <h2 className="font-heading text-lg font-bold text-on-surface">Personalizar panel</h2>
+              <p className="text-xs text-on-surface-variant">Elige qué tarjetas ver y su orden en tu inicio.</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-1.5 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors cursor-pointer"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="space-y-2 overflow-y-auto pr-1 flex-1">
+          {items.map((item, index) => (
+            <div
+              key={item.id}
+              className={`p-3 rounded-xl border transition-all flex items-center justify-between gap-3 ${
+                item.visible
+                  ? "bg-surface-container-lowest border-surface-container-high/80 shadow-2xs"
+                  : "bg-surface-container-low/40 border-dashed border-surface-container-high/50 opacity-60"
+              }`}
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <input
+                  type="checkbox"
+                  id={`widget-${item.id}`}
+                  checked={item.visible}
+                  onChange={() => toggleVisible(item.id)}
+                  className="w-4 h-4 rounded text-primary border-surface-container-high focus:ring-primary cursor-pointer"
+                />
+                <label htmlFor={`widget-${item.id}`} className="cursor-pointer min-w-0">
+                  <span className="font-semibold text-xs text-on-surface block truncate">{item.label}</span>
+                  <span className="text-[11px] text-on-surface-variant block truncate">{item.description}</span>
+                </label>
+              </div>
+
+              <div className="flex items-center gap-1 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => move(index, "up")}
+                  disabled={index === 0}
+                  className="p-1 rounded-md text-on-surface-variant hover:text-on-surface hover:bg-surface-container disabled:opacity-20 cursor-pointer disabled:cursor-not-allowed"
+                  title="Mover arriba"
+                >
+                  <ChevronUp className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => move(index, "down")}
+                  disabled={index === items.length - 1}
+                  className="p-1 rounded-md text-on-surface-variant hover:text-on-surface hover:bg-surface-container disabled:opacity-20 cursor-pointer disabled:cursor-not-allowed"
+                  title="Mover abajo"
+                >
+                  <ChevronDown className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="pt-2 border-t border-surface-container-low flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => setItems((prev) => prev.map((w) => ({ ...w, visible: true })))}
+              className="text-[11px] text-primary hover:underline font-medium cursor-pointer"
+            >
+              Mostrar todos
+            </button>
+            <span className="text-on-surface-variant/40">·</span>
+            <button
+              type="button"
+              onClick={() => setItems((prev) => prev.map((w) => ({ ...w, visible: false })))}
+              className="text-[11px] text-on-surface-variant hover:text-on-surface font-medium cursor-pointer"
+            >
+              Limpiar panel
+            </button>
+            <span className="text-on-surface-variant/40">·</span>
+            <button
+              type="button"
+              onClick={() => setItems(DEFAULT_WIDGETS)}
+              className="text-[11px] text-on-surface-variant hover:text-on-surface font-medium cursor-pointer"
+            >
+              Por defecto
+            </button>
+          </div>
+          <button
+            type="button"
+            onClick={handleApply}
+            className="px-4 py-2 rounded-xl bg-primary hover:bg-primary-container text-on-primary text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+          >
+            Guardar cambios
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Componentes de Vistas por Página ─────────────────────────────────────────
 
 function DashboardView({
-  cuentas, prestamos, movimientos, totals, openModal,
+  cuentas,
+  prestamos,
+  movimientos,
+  totals,
+  openModal,
+  onVerNota,
 }: {
   cuentas: Cuenta[];
   prestamos: Prestamo[];
   movimientos: Movimiento[];
   totals: ReturnType<typeof Object.assign>;
   openModal: (m: "loan" | "payment") => void;
+  onVerNota: (titulo: string, subtitulo?: string, texto?: string | null) => void;
 }) {
+  const [widgets, setWidgets] = useState<WidgetItem[]>(() => {
+    try {
+      const saved = localStorage.getItem("finpal_dashboard_widgets_v1");
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return DEFAULT_WIDGETS;
+  });
+  const [modalPersonalizar, setModalPersonalizar] = useState(false);
+
+  const saveWidgets = (newWidgets: WidgetItem[]) => {
+    setWidgets(newWidgets);
+    try {
+      localStorage.setItem("finpal_dashboard_widgets_v1", JSON.stringify(newWidgets));
+    } catch {}
+  };
+
   const upcoming = prestamos.filter((p) => p.estado !== "pagado").slice(0, 5);
+  const visibleWidgets = widgets.filter((w) => w.visible);
+
   return (
     <div className="space-y-6">
+      {/* Cabecera del Dashboard */}
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 pb-4 border-b border-surface-container-high/60">
         <div>
           <div className="flex items-center gap-2 text-xs font-semibold text-on-surface-variant mb-1">
@@ -257,6 +587,15 @@ function DashboardView({
           <p className="text-xs sm:text-sm text-on-surface-variant mt-1">Resumen consolidado de tus finanzas y cartera de préstamos.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+          <button
+            type="button"
+            onClick={() => setModalPersonalizar(true)}
+            className="inline-flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl border border-surface-container-high/80 bg-surface-container-lowest hover:bg-surface-container text-on-surface font-semibold text-xs transition-all shadow-2xs cursor-pointer"
+            title="Personalizar tarjetas que se muestran en el panel"
+          >
+            <Sliders className="w-4 h-4 text-primary" />
+            <span>Personalizar panel</span>
+          </button>
           <button
             className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 px-3.5 sm:px-4 py-2.5 rounded-xl border border-surface-container-high/80 bg-surface-container-lowest hover:bg-surface-container text-on-surface font-semibold text-xs transition-all shadow-2xs cursor-pointer"
             type="button"
@@ -276,247 +615,359 @@ function DashboardView({
         </div>
       </div>
 
-      {/* KPI Cards (2x2 en móviles, 4 cols en desktop) */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
-        {[
-          { label: "Total en cuentas", value: totals.available, icon: WalletCards, colorClass: "kpi-icon-emerald", sub: "Saldo disponible" },
-          { label: "Por cobrar", value: totals.pending, icon: HandCoins, colorClass: "kpi-icon-amber", sub: `${totals.activeLoansCount} pré${totals.activeLoansCount === 1 ? 'stamo activo' : 'stamos activos'}` },
-          { label: "Ya cobrado", value: totals.collected, icon: BadgeCheck, colorClass: "kpi-icon-teal", sub: `${totals.paidLoansCount} saldado${totals.paidLoansCount !== 1 ? 's' : ''}` },
-          { label: "Interés cobrado", value: totals.interestPaid, icon: Percent, colorClass: "kpi-icon-blue", sub: "Acumulado real" },
-        ].map((kpi, i) => {
-          const Ic = kpi.icon;
-          return (
-            <motion.div
-              className="bg-surface-container-lowest rounded-2xl p-3.5 sm:p-5 border border-surface-container-high/70 shadow-2xs flex flex-col justify-between hover:shadow-md transition-shadow"
-              key={kpi.label}
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.05 }}
-            >
-              <div className="flex items-center justify-between gap-1">
-                <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-on-surface-variant font-mono truncate">{kpi.label}</span>
-                <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-xl ${kpi.colorClass} flex items-center justify-center shrink-0`}><Ic className="w-3.5 h-3.5 sm:w-4 sm:h-4" /></div>
-              </div>
-              <div className="mt-2 sm:mt-3">
-                <div className="font-heading text-lg sm:text-2xl font-extrabold text-on-surface tracking-tight truncate">{money(kpi.value)}</div>
-                <div className="mt-1.5 sm:mt-2 pt-1.5 sm:pt-2 border-t border-surface-container-low text-[10px] sm:text-[11px] text-on-surface-variant font-medium truncate">{kpi.sub}</div>
-              </div>
-            </motion.div>
-          );
-        })}
-      </div>
-
-      {/* Deudores y Préstamos Recientes (Estilo Landing / Bento Table) */}
-      <div className="bg-surface-container-lowest border border-surface-container-high/70 rounded-2xl p-4 sm:p-6 shadow-2xs">
-        <div className="flex items-center justify-between pb-4 border-b border-surface-container-low mb-4">
-          <div className="flex items-center gap-2.5">
-            <WalletCards className="w-5 h-5 text-primary" />
-            <h2 className="font-heading text-base sm:text-lg font-bold text-on-surface">
-              Deudores y Préstamos Recientes
-            </h2>
+      {/* Si el usuario desactivó todas las tarjetas, mostrar canvas limpio con opción de agregar */}
+      {visibleWidgets.length === 0 ? (
+        <div className="bg-surface-container-lowest border-2 border-dashed border-surface-container-high/80 rounded-3xl p-8 sm:p-14 text-center max-w-xl mx-auto my-6 space-y-4 shadow-2xs">
+          <div className="w-14 h-14 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mx-auto shadow-2xs">
+            <Sparkles className="w-7 h-7" />
           </div>
-          <Link
-            href="/prestamos"
-            className="px-3 py-1 rounded-full bg-surface-container text-on-surface-variant font-mono text-xs font-semibold border border-surface-container-high/40 hover:bg-surface-container-high transition-colors"
+          <div className="space-y-1.5">
+            <h3 className="font-heading text-lg sm:text-xl font-bold text-on-surface">Tu panel está despejado</h3>
+            <p className="text-xs sm:text-sm text-on-surface-variant max-w-sm mx-auto leading-relaxed">
+              Diseña tu propio inicio agregando únicamente las tarjetas y reportes que desees ver día a día.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setModalPersonalizar(true)}
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary hover:bg-primary-container text-on-primary text-xs font-semibold shadow-xs transition-all cursor-pointer"
           >
-            Ver todos ({prestamos.length})
-          </Link>
+            <Sliders className="w-4 h-4" />
+            <span>Añadir tarjetas al panel</span>
+          </button>
         </div>
+      ) : (
+        /* Renderizado dinámico de widgets según el orden y visibilidad configurados */
+        widgets.filter((w) => w.visible).map((w) => {
+          if (w.id === "kpis") {
+            return (
+              <div key={w.id} className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
+                {[
+                  { label: "Total en cuentas", value: totals.available, icon: WalletCards, colorClass: "kpi-icon-emerald", sub: "Saldo disponible" },
+                  { label: "Por cobrar", value: totals.pending, icon: HandCoins, colorClass: "kpi-icon-amber", sub: `${totals.activeLoansCount} pré${totals.activeLoansCount === 1 ? 'stamo activo' : 'stamos activos'}` },
+                  { label: "Ya cobrado", value: totals.collected, icon: BadgeCheck, colorClass: "kpi-icon-teal", sub: `${totals.paidLoansCount} saldado${totals.paidLoansCount !== 1 ? 's' : ''}` },
+                  { label: "Interés cobrado", value: totals.interestPaid, icon: Percent, colorClass: "kpi-icon-blue", sub: "Acumulado real" },
+                ].map((kpi, i) => {
+                  const Ic = kpi.icon;
+                  return (
+                    <motion.div
+                      className="bg-surface-container-lowest rounded-2xl p-3.5 sm:p-5 border border-surface-container-high/70 shadow-2xs flex flex-col justify-between hover:shadow-md transition-shadow"
+                      key={kpi.label}
+                      initial={{ opacity: 0, y: 12 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: i * 0.04 }}
+                    >
+                      <div className="flex items-center justify-between gap-1">
+                        <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-on-surface-variant font-mono truncate">{kpi.label}</span>
+                        <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-xl ${kpi.colorClass} flex items-center justify-center shrink-0`}><Ic className="w-3.5 h-3.5 sm:w-4 sm:h-4" /></div>
+                      </div>
+                      <div className="mt-2 sm:mt-3">
+                        <div className="font-heading text-lg sm:text-2xl font-extrabold text-on-surface tracking-tight truncate">{money(kpi.value)}</div>
+                        <div className="mt-1.5 sm:mt-2 pt-1.5 sm:pt-2 border-t border-surface-container-low text-[10px] sm:text-[11px] text-on-surface-variant font-medium truncate">{kpi.sub}</div>
+                      </div>
+                    </motion.div>
+                  );
+                })}
+              </div>
+            );
+          }
 
-        {prestamos.length === 0 ? (
-          <p className="text-xs text-on-surface-variant text-center py-6">No hay préstamos registrados aún.</p>
-        ) : (
-          <>
-            {/* Vista Móvil (Tarjetas táctiles sin scroll horizontal forzado) */}
-            <div className="sm:hidden space-y-3">
-              {(upcoming.length > 0 ? upcoming : prestamos.slice(0, 5)).map((p) => {
-                const contactoNombre = rel(p.contactos)?.nombre ?? "—";
-                const balance = loanBalance(p);
-                const isLate = p.estado === "atrasado";
-                const isPaid = p.estado === "pagado";
-                return (
-                  <div
-                    key={p.id}
-                    className="bg-surface-container-low/50 border border-surface-container-high/60 rounded-xl p-3.5 space-y-2.5"
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <ContactAvatar
-                          name={contactoNombre}
-                          size={34}
-                          className="rounded-full shadow-2xs shrink-0"
-                        />
-                        <div className="min-w-0">
-                          <p className="font-bold text-xs sm:text-sm text-on-surface truncate leading-tight">{contactoNombre}</p>
-                          <p className="text-[11px] text-on-surface-variant truncate">{p.nombre}</p>
-                        </div>
-                      </div>
-                      <span className="shrink-0">
-                        {isLate ? (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold badge-atrasado">
-                            Con atraso
-                          </span>
-                        ) : isPaid ? (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold badge-saldado">
-                            Saldado
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold badge-al-dia">
-                            Al día
-                          </span>
-                        )}
-                      </span>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2 pt-2 border-t border-surface-container-high/50 text-[11px]">
-                      <div>
-                        <span className="text-on-surface-variant text-[10px] block uppercase font-medium">Por cobrar</span>
-                        <span className="font-mono font-bold text-on-surface text-xs">
-                          {money(balance > 0 ? balance : Number(p.monto_principal))}
-                        </span>
-                      </div>
-                      <div className="text-right">
-                        <span className="text-on-surface-variant text-[10px] block uppercase font-medium">Vencimiento</span>
-                        <span className={`font-medium ${isLate ? "text-error font-bold" : "text-on-surface"}`}>
-                          {p.vence_hoy
-                            ? "Hoy"
-                            : p.fecha_proximo_pago
-                            ? formatDateEs(p.fecha_proximo_pago)
-                            : `Día ${p.dia_pago}`}
-                        </span>
-                      </div>
-                    </div>
+          if (w.id === "prestamos") {
+            return (
+              <div key={w.id} className="bg-surface-container-lowest border border-surface-container-high/70 rounded-2xl p-4 sm:p-6 shadow-2xs">
+                <div className="flex items-center justify-between pb-4 border-b border-surface-container-low mb-4">
+                  <div className="flex items-center gap-2.5">
+                    <WalletCards className="w-5 h-5 text-primary" />
+                    <h2 className="font-heading text-base sm:text-lg font-bold text-on-surface">
+                      Deudores y Préstamos Recientes
+                    </h2>
                   </div>
-                );
-              })}
-            </div>
+                  <Link
+                    href="/prestamos"
+                    className="px-3 py-1 rounded-full bg-surface-container text-on-surface-variant font-mono text-xs font-semibold border border-surface-container-high/40 hover:bg-surface-container-high transition-colors"
+                  >
+                    Ver todos ({prestamos.length})
+                  </Link>
+                </div>
 
-            {/* Vista Desktop / Tablet (Tabla) */}
-            <div className="hidden sm:block overflow-x-auto">
-              <table className="w-full text-left text-sm min-w-[580px]">
-                <thead>
-                  <tr className="bg-surface-container-low/70 text-on-surface-variant text-xs font-semibold uppercase tracking-wider">
-                    <th className="py-3 px-3.5 rounded-l-lg">Contacto</th>
-                    <th className="py-3 px-3.5">Capital</th>
-                    <th className="py-3 px-3.5">Interés</th>
-                    <th className="py-3 px-3.5">Próximo Pago</th>
-                    <th className="py-3 px-3.5 rounded-r-lg text-right">Estado</th>
-                  </tr>
-                </thead>
-                <tbody className="text-on-surface divide-y divide-surface-container-low">
-                  {(upcoming.length > 0 ? upcoming : prestamos.slice(0, 5)).map((p) => {
-                    const contactoNombre = rel(p.contactos)?.nombre ?? "—";
-                    const balance = loanBalance(p);
-                    const isLate = p.estado === "atrasado";
-                    const isPaid = p.estado === "pagado";
-                    return (
-                      <tr
-                        key={p.id}
-                        className="hover:bg-surface-container-low/40 transition-colors"
-                      >
-                        <td className="py-3.5 px-3.5 flex items-center gap-3">
-                          <ContactAvatar
-                            name={contactoNombre}
-                            size={36}
-                            className="rounded-full shadow-2xs shrink-0"
-                          />
-                          <div className="min-w-0">
-                            <p className="font-semibold text-sm leading-snug truncate">{contactoNombre}</p>
-                            <p className="text-xs text-on-surface-variant truncate">{p.nombre}</p>
+                {prestamos.length === 0 ? (
+                  <p className="text-xs text-on-surface-variant text-center py-6">No hay préstamos registrados aún.</p>
+                ) : (
+                  <>
+                    {/* Vista Móvil */}
+                    <div className="sm:hidden space-y-3">
+                      {(upcoming.length > 0 ? upcoming : prestamos.slice(0, 5)).map((p) => {
+                        const contactoNombre = rel(p.contactos)?.nombre ?? "—";
+                        const balance = loanBalance(p);
+                        const isLate = p.estado === "atrasado";
+                        const isPaid = p.estado === "pagado";
+                        return (
+                          <div
+                            key={p.id}
+                            className="bg-surface-container-low/50 border border-surface-container-high/60 rounded-xl p-3.5 space-y-2.5"
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                                <ContactAvatar
+                                  name={contactoNombre}
+                                  size={34}
+                                  className="rounded-full shadow-2xs shrink-0"
+                                />
+                                <div className="min-w-0">
+                                  <p className="font-bold text-xs sm:text-sm text-on-surface truncate leading-tight">{contactoNombre}</p>
+                                  <p className="text-[11px] text-on-surface-variant truncate">{p.nombre}</p>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                {p.notas && (
+                                  <button
+                                    type="button"
+                                    onClick={() => onVerNota("Notas del préstamo", `${contactoNombre} · ${p.nombre}`, p.notas)}
+                                    className="p-1 rounded-md text-on-surface-variant hover:text-primary hover:bg-surface-container transition-colors cursor-pointer"
+                                    title="Ver nota completa"
+                                  >
+                                    <FileText className="w-3.5 h-3.5 text-primary" />
+                                  </button>
+                                )}
+                                {isLate ? (
+                                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold badge-atrasado">
+                                    Con atraso
+                                  </span>
+                                ) : isPaid ? (
+                                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold badge-saldado">
+                                    Saldado
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold badge-al-dia">
+                                    Al día
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-2 pt-2 border-t border-surface-container-high/50 text-[11px]">
+                              <div>
+                                <span className="text-on-surface-variant text-[10px] block uppercase font-medium">Por cobrar</span>
+                                <span className="font-mono font-bold text-on-surface text-xs whitespace-nowrap">
+                                  {money(balance > 0 ? balance : Number(p.monto_principal))}
+                                </span>
+                              </div>
+                              <div className="text-right">
+                                <span className="text-on-surface-variant text-[10px] block uppercase font-medium">Vencimiento</span>
+                                <span className={`font-medium ${isLate ? "text-error font-bold" : "text-on-surface"}`}>
+                                  {p.vence_hoy
+                                    ? "Hoy"
+                                    : p.fecha_proximo_pago
+                                    ? formatDateEs(p.fecha_proximo_pago)
+                                    : `Día ${p.dia_pago}`}
+                                </span>
+                              </div>
+                            </div>
                           </div>
-                        </td>
-                        <td className="py-3.5 px-3.5 font-mono font-semibold text-sm">
-                          {money(balance > 0 ? balance : Number(p.monto_principal))}
-                        </td>
-                        <td className="py-3.5 px-3.5 font-mono text-xs text-primary font-medium">
-                          {p.cobra_interes ? (
-                            <span>+{p.tasa_interes_mensual}% mes ({money(monthlyInterest(p))})</span>
-                          ) : (
-                            <span className="text-on-surface-variant font-sans">Sin interés</span>
-                          )}
-                        </td>
-                        <td
-                          className={`py-3.5 px-3.5 text-xs ${
-                            isLate ? "text-error font-semibold" : "text-on-surface-variant"
-                          }`}
-                        >
-                          {p.vence_hoy
-                            ? "Hoy (Día de cobro)"
-                            : p.fecha_proximo_pago
-                            ? formatDateEs(p.fecha_proximo_pago)
-                            : `Día ${p.dia_pago}`}
-                        </td>
-                        <td className="py-3.5 px-3.5 text-right">
-                          {isLate ? (
-                            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold badge-atrasado">
-                              Con atraso
-                            </span>
-                          ) : isPaid ? (
-                            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold badge-saldado">
-                              Saldado
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold badge-al-dia">
-                              Al día
-                            </span>
-                          )}
-                        </td>
-                      </tr>
+                        );
+                      })}
+                    </div>
+
+                    {/* Vista Desktop / Tablet */}
+                    <div className="hidden sm:block overflow-x-auto">
+                      <table className="w-full text-left text-sm min-w-[580px]">
+                        <thead>
+                          <tr className="bg-surface-container-low/70 text-on-surface-variant text-xs font-semibold uppercase tracking-wider">
+                            <th className="py-3 px-3.5 rounded-l-lg">Contacto</th>
+                            <th className="py-3 px-3.5">Capital</th>
+                            <th className="py-3 px-3.5">Interés</th>
+                            <th className="py-3 px-3.5">Próximo Pago</th>
+                            <th className="py-3 px-3.5 rounded-r-lg text-right">Estado</th>
+                          </tr>
+                        </thead>
+                        <tbody className="text-on-surface divide-y divide-surface-container-low">
+                          {(upcoming.length > 0 ? upcoming : prestamos.slice(0, 5)).map((p) => {
+                            const contactoNombre = rel(p.contactos)?.nombre ?? "—";
+                            const balance = loanBalance(p);
+                            const isLate = p.estado === "atrasado";
+                            const isPaid = p.estado === "pagado";
+                            return (
+                              <tr
+                                key={p.id}
+                                className="hover:bg-surface-container-low/40 transition-colors"
+                              >
+                                <td className="py-3.5 px-3.5 flex items-center gap-3">
+                                  <ContactAvatar
+                                    name={contactoNombre}
+                                    size={36}
+                                    className="rounded-full shadow-2xs shrink-0"
+                                  />
+                                  <div className="min-w-0">
+                                    <div className="flex items-center gap-1.5">
+                                      <p className="font-semibold text-sm leading-snug truncate">{contactoNombre}</p>
+                                      {p.notas && (
+                                        <button
+                                          type="button"
+                                          onClick={() => onVerNota("Notas del préstamo", `${contactoNombre} · ${p.nombre}`, p.notas)}
+                                          className="p-1 rounded-md text-on-surface-variant hover:text-primary hover:bg-surface-container transition-colors cursor-pointer"
+                                          title="Ver nota completa"
+                                        >
+                                          <FileText className="w-3.5 h-3.5 text-primary" />
+                                        </button>
+                                      )}
+                                    </div>
+                                    <p className="text-xs text-on-surface-variant truncate">{p.nombre}</p>
+                                  </div>
+                                </td>
+                                <td className="py-3.5 px-3.5 font-mono font-semibold text-sm whitespace-nowrap">
+                                  {money(balance > 0 ? balance : Number(p.monto_principal))}
+                                </td>
+                                <td className="py-3.5 px-3.5 font-mono text-xs text-primary font-medium whitespace-nowrap">
+                                  {p.cobra_interes ? (
+                                    <span>+{p.tasa_interes_mensual}% mes ({money(monthlyInterest(p))})</span>
+                                  ) : (
+                                    <span className="text-on-surface-variant font-sans">Sin interés</span>
+                                  )}
+                                </td>
+                                <td
+                                  className={`py-3.5 px-3.5 text-xs ${
+                                    isLate ? "text-error font-semibold" : "text-on-surface-variant"
+                                  }`}
+                                >
+                                  {p.vence_hoy
+                                    ? "Hoy (Día de cobro)"
+                                    : p.fecha_proximo_pago
+                                    ? formatDateEs(p.fecha_proximo_pago)
+                                    : `Día ${p.dia_pago}`}
+                                </td>
+                                <td className="py-3.5 px-3.5 text-right">
+                                  {isLate ? (
+                                    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold badge-atrasado">
+                                      Con atraso
+                                    </span>
+                                  ) : isPaid ? (
+                                    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold badge-saldado">
+                                      Saldado
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold badge-al-dia">
+                                      Al día
+                                    </span>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </>
+                )}
+              </div>
+            );
+          }
+
+          if (w.id === "movimientos" && movimientos.length > 0) {
+            return (
+              <div key={w.id} className="bg-surface-container-lowest border border-surface-container-high/70 rounded-2xl p-4 sm:p-6 shadow-2xs">
+                <div className="flex items-center justify-between pb-4 border-b border-surface-container-low mb-4">
+                  <h2 className="font-heading text-base font-bold text-on-surface">Movimientos recientes</h2>
+                  <Link href="/movimientos" className="text-xs font-bold text-primary hover:underline">Ver todos</Link>
+                </div>
+                <div className="space-y-2">
+                  {movimientos.slice(0, 5).map((m) => {
+                    const isPositive = ["ingreso", "pago_prestamo", "transferencia_entrada"].includes(m.tipo)
+                      || (m.tipo === "ajuste" && m.ajuste_sentido === "sumar");
+                    const badge = getTipoMovimientoBadge(m.tipo, m.ajuste_sentido);
+                    const BadgeIcon = badge.Icon;
+                    return (
+                      <div key={m.id} className="flex items-center justify-between gap-3 py-2.5 border-b border-surface-container-low/50 last:border-0">
+                        <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                          <span className={`inline-flex items-center justify-center w-7 h-7 rounded-xl border shrink-0 ${badge.badgeClass}`}>
+                            <BadgeIcon className="w-3.5 h-3.5" />
+                          </span>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <p className="text-xs font-semibold text-on-surface truncate">{fixSpanishEncoding(m.descripcion || badge.label)}</p>
+                              <span className={`inline-flex items-center gap-1 px-1.5 py-0.2 rounded-full text-[9px] font-bold border ${badge.badgeClass}`}>
+                                {badge.label}
+                              </span>
+                              {m.descripcion && m.descripcion.length > 25 && (
+                                <button
+                                  type="button"
+                                  onClick={() => onVerNota("Detalle de movimiento", badge.label, m.descripcion)}
+                                  className="text-[10px] text-primary hover:underline font-semibold cursor-pointer"
+                                >
+                                  Ver más
+                                </button>
+                              )}
+                            </div>
+                            <p className="text-[11px] text-on-surface-variant truncate">{formatDateEs(m.ocurrido_en)} · {rel(m.cuentas_dinero)?.nombre}</p>
+                          </div>
+                        </div>
+                        <span className={`font-mono text-xs font-bold shrink-0 whitespace-nowrap ${isPositive ? "text-primary" : "text-rose-600 dark:text-rose-400"}`}>
+                          {isPositive ? "+" : "−"}{money(Number(m.monto))}
+                        </span>
+                      </div>
                     );
                   })}
-                </tbody>
-              </table>
-            </div>
-          </>
-        )}
-      </div>
-
-      {/* Recent Movements */}
-      {movimientos.length > 0 && (
-        <div className="bg-surface-container-lowest border border-surface-container-high/70 rounded-2xl p-4 sm:p-6 shadow-2xs">
-          <div className="flex items-center justify-between pb-4 border-b border-surface-container-low mb-4">
-            <h2 className="font-heading text-base font-bold text-on-surface">Movimientos recientes</h2>
-            <Link href="/movimientos" className="text-xs font-bold text-primary hover:underline">Ver todos</Link>
-          </div>
-          <div className="space-y-2">
-            {movimientos.slice(0, 5).map((m) => {
-              const isPositive = ["ingreso", "pago_prestamo", "transferencia_entrada"].includes(m.tipo)
-                || (m.tipo === "ajuste" && m.ajuste_sentido === "sumar");
-              const badge = getTipoMovimientoBadge(m.tipo, m.ajuste_sentido);
-              const BadgeIcon = badge.Icon;
-              return (
-                <div key={m.id} className="flex items-center justify-between gap-3 py-2.5 border-b border-surface-container-low/50 last:border-0">
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <span className={`inline-flex items-center justify-center w-7 h-7 rounded-xl border shrink-0 ${badge.badgeClass}`}>
-                      <BadgeIcon className="w-3.5 h-3.5" />
-                    </span>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <p className="text-xs font-semibold text-on-surface truncate">{fixSpanishEncoding(m.descripcion || badge.label)}</p>
-                        <span className={`inline-flex items-center gap-1 px-1.5 py-0.2 rounded-full text-[9px] font-bold border ${badge.badgeClass}`}>
-                          {badge.label}
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-on-surface-variant truncate">{formatDateEs(m.ocurrido_en)} · {rel(m.cuentas_dinero)?.nombre}</p>
-                    </div>
-                  </div>
-                  <span className={`font-mono text-xs font-bold shrink-0 ${isPositive ? "text-primary" : "text-rose-600 dark:text-rose-400"}`}>
-                    {isPositive ? "+" : "-"}{money(Number(m.monto))}
-                  </span>
                 </div>
-              );
-            })}
-          </div>
-        </div>
+              </div>
+            );
+          }
+
+          if (w.id === "cuentas" && cuentas.length > 0) {
+            return (
+              <div key={w.id} className="bg-surface-container-lowest border border-surface-container-high/70 rounded-2xl p-4 sm:p-6 shadow-2xs">
+                <div className="flex items-center justify-between pb-4 border-b border-surface-container-low mb-4">
+                  <h2 className="font-heading text-base font-bold text-on-surface">Cuentas de dinero</h2>
+                  <Link href="/cuentas" className="text-xs font-bold text-primary hover:underline">Ver todas</Link>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {cuentas.slice(0, 3).map((c) => (
+                    <div key={c.id} className="p-3.5 rounded-xl border border-surface-container-high/60 bg-surface-container-low/40 flex items-center justify-between">
+                      <div>
+                        <span className="text-[10px] font-bold uppercase text-on-surface-variant">{c.tipo}</span>
+                        <p className="font-bold text-sm text-on-surface">{c.nombre}</p>
+                      </div>
+                      <p className="font-mono text-sm font-bold text-primary">{money(c.saldo)}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          }
+
+          return null;
+        })
+      )}
+
+      {/* Modal para personalizar el panel */}
+      {modalPersonalizar && (
+        <ModalPersonalizarDashboard
+          widgets={widgets}
+          onSave={saveWidgets}
+          onClose={() => setModalPersonalizar(false)}
+        />
       )}
     </div>
   );
 }
 
-function ContactosView({ contactos, prestamos, openModal }: { contactos: Contacto[]; prestamos: Prestamo[]; openModal: () => void }) {
+function ContactosView({
+  contactos,
+  prestamos,
+  openModal,
+  onVerNota,
+}: {
+  contactos: Contacto[];
+  prestamos: Prestamo[];
+  openModal: () => void;
+  onVerNota: (titulo: string, subtitulo?: string, texto?: string | null) => void;
+}) {
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-surface-container-high/60">
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.24 }}
+        className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-surface-container-high/60"
+      >
         <div>
           <h1 className="font-heading text-2xl font-extrabold text-on-surface">Contactos & Deudores</h1>
           <p className="text-xs text-on-surface-variant mt-0.5">Directorio de personas y seguimiento del estado de deuda.</p>
@@ -524,7 +975,7 @@ function ContactosView({ contactos, prestamos, openModal }: { contactos: Contact
         <button className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-primary text-on-primary text-xs font-semibold shadow-xs hover:bg-primary-container flex items-center justify-center gap-2 cursor-pointer" onClick={openModal}>
           <Plus className="w-4 h-4" /><span>Nuevo contacto</span>
         </button>
-      </div>
+      </motion.div>
       {/* Vista Móvil (Tarjetas de contactos) */}
       <div className="sm:hidden space-y-2.5">
         {contactos.length === 0 ? (
@@ -532,14 +983,20 @@ function ContactosView({ contactos, prestamos, openModal }: { contactos: Contact
             Sin contactos aún. Crea el primero.
           </div>
         ) : (
-          contactos.map((c) => {
+          contactos.map((c, i) => {
             const allLoans = prestamos.filter((l) => rel(l.contactos)?.id === c.id);
             const activeLoans = allLoans.filter((l) => l.estado === "activo" || l.estado === "atrasado");
             const paidLoans = allLoans.filter((l) => l.estado === "pagado");
             const balance = activeLoans.reduce((sum, l) => sum + loanBalance(l), 0);
             const isLate = activeLoans.some((l) => l.estado === "atrasado");
             return (
-              <div key={c.id} className="bg-surface-container-lowest border border-surface-container-high/70 rounded-2xl p-4 shadow-2xs space-y-3">
+              <motion.div
+                key={c.id}
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.26, delay: Math.min(i * 0.03, 0.25) }}
+                className="bg-surface-container-lowest border border-surface-container-high/70 rounded-2xl p-4 shadow-2xs space-y-3"
+              >
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-center gap-3 min-w-0">
                     <ContactAvatar name={c.nombre} size={38} className="rounded-full shadow-xs shrink-0" />
@@ -574,17 +1031,35 @@ function ContactosView({ contactos, prestamos, openModal }: { contactos: Contact
                   </div>
                   <div className="text-right">
                     <span className="text-[10px] text-on-surface-variant block">Total por cobrar</span>
-                    <span className="font-mono font-bold text-sm text-primary">{money(balance)}</span>
+                    <span className="font-mono font-bold text-sm text-primary whitespace-nowrap">{money(balance)}</span>
                   </div>
                 </div>
-              </div>
+
+                {c.notas && (
+                  <div className="pt-2 border-t border-surface-container-low flex justify-start">
+                    <button
+                      type="button"
+                      onClick={() => onVerNota("Notas del contacto", c.nombre, c.notas)}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-surface-container-low hover:bg-surface-container text-on-surface-variant hover:text-on-surface text-[11px] font-medium border border-surface-container-high/60 transition-colors cursor-pointer"
+                    >
+                      <FileText className="w-3.5 h-3.5 text-primary" />
+                      <span>Ver nota completa</span>
+                    </button>
+                  </div>
+                )}
+              </motion.div>
             );
           })
         )}
       </div>
 
       {/* Vista Desktop / Tablet (Tabla) */}
-      <div className="hidden sm:block bg-surface-container-lowest border border-surface-container-high/70 rounded-2xl overflow-x-auto shadow-2xs">
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.28, delay: 0.04 }}
+        className="hidden sm:block bg-surface-container-lowest border border-surface-container-high/70 rounded-2xl overflow-x-auto shadow-2xs"
+      >
         <table className="w-full text-left text-sm min-w-[620px]">
           <thead>
             <tr className="bg-surface-container-low/70 text-on-surface-variant text-xs font-semibold uppercase tracking-wider">
@@ -610,8 +1085,20 @@ function ContactosView({ contactos, prestamos, openModal }: { contactos: Contact
                     <div className="flex items-center gap-3">
                       <ContactAvatar name={c.nombre} size={36} className="rounded-full shadow-xs shrink-0" />
                       <div>
-                        <span className="font-semibold text-sm block leading-tight">{c.nombre}</span>
-                        {c.email && <span className="text-[11px] text-on-surface-variant">{c.email}</span>}
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-semibold text-sm leading-tight">{c.nombre}</span>
+                          {c.notas && (
+                            <button
+                              type="button"
+                              onClick={() => onVerNota("Notas del contacto", c.nombre, c.notas)}
+                              className="p-1 rounded-md text-on-surface-variant hover:text-primary hover:bg-surface-container transition-colors cursor-pointer"
+                              title="Ver notas de este contacto"
+                            >
+                              <FileText className="w-3.5 h-3.5 text-primary" />
+                            </button>
+                          )}
+                        </div>
+                        {c.email && <span className="text-[11px] text-on-surface-variant block">{c.email}</span>}
                       </div>
                     </div>
                   </td>
@@ -622,7 +1109,7 @@ function ContactosView({ contactos, prestamos, openModal }: { contactos: Contact
                       <span className="ml-1.5 text-[10px] text-on-surface-variant">({paidLoans.length} saldados)</span>
                     )}
                   </td>
-                  <td className="py-3 px-4 font-mono font-semibold text-sm">
+                  <td className="py-3 px-4 font-mono font-semibold text-sm whitespace-nowrap">
                     {money(balance)}
                   </td>
                   <td className="py-3 px-4 text-right">
@@ -639,7 +1126,7 @@ function ContactosView({ contactos, prestamos, openModal }: { contactos: Contact
             })}
           </tbody>
         </table>
-      </div>
+      </motion.div>
     </div>
   );
 }
@@ -654,11 +1141,11 @@ function EstadoPrestamoSelect({
   onChange: (nuevoEstado: "activo" | "pagado" | "atrasado" | "cancelado") => void;
 }) {
   return (
-    <div className="relative inline-flex items-center">
+    <div className="has-custom-chevron relative inline-flex items-center">
       <select
         value={estado}
         onChange={(event) => onChange(event.target.value as "activo" | "pagado" | "atrasado" | "cancelado")}
-        className={`appearance-none w-[124px] pl-3.5 pr-8 py-1.5 rounded-full text-xs font-bold border cursor-pointer transition-all focus:outline-none focus:ring-2 focus:ring-primary/20 shadow-2xs ${
+        className={`no-bg-chevron appearance-none w-[128px] pl-3.5 pr-8.5 py-1.5 rounded-full text-xs font-bold border cursor-pointer transition-all focus:outline-none focus:ring-2 focus:ring-primary/20 shadow-2xs ${
           estado === "atrasado" ? "badge-atrasado" :
           estado === "pagado" ? "badge-saldado" :
           estado === "cancelado" ? "badge-neutral" :
@@ -671,7 +1158,7 @@ function EstadoPrestamoSelect({
         <option value="pagado" className="bg-surface text-on-surface">Pagado</option>
         <option value="cancelado" className="bg-surface text-on-surface">Cancelado</option>
       </select>
-      <ChevronDown className="w-3.5 h-3.5 absolute right-3 pointer-events-none text-current opacity-70" />
+      <ChevronDown className="w-3.5 h-3.5 absolute right-3.5 pointer-events-none text-current opacity-70" />
     </div>
   );
 }
@@ -680,10 +1167,12 @@ function PrestamosView({
   prestamos,
   openModal,
   onStatusChange,
+  onVerNota,
 }: {
   prestamos: Prestamo[];
   openModal: () => void;
   onStatusChange: (prestamoId: string, estado: "activo" | "pagado" | "atrasado" | "cancelado") => Promise<void>;
+  onVerNota: (titulo: string, subtitulo?: string, texto?: string | null) => void;
 }) {
   const [tab, setTab] = useState<"activos" | "pagados">("activos");
   const activos = prestamos.filter((p) => p.estado === "activo" || p.estado === "atrasado");
@@ -693,7 +1182,12 @@ function PrestamosView({
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-surface-container-high/60">
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.24 }}
+        className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-surface-container-high/60"
+      >
         <div>
           <h1 className="font-heading text-2xl font-extrabold text-on-surface">Préstamos</h1>
           <p className="text-xs text-on-surface-variant mt-0.5">Registro de préstamos con cálculo mensual de intereses.</p>
@@ -701,10 +1195,15 @@ function PrestamosView({
         <button className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-primary text-on-primary text-xs font-semibold shadow-xs hover:bg-primary-container flex items-center justify-center gap-2 cursor-pointer" onClick={openModal}>
           <Plus className="w-4 h-4" /><span>Nuevo préstamo</span>
         </button>
-      </div>
+      </motion.div>
 
       {/* Tabs activos / saldados */}
-      <div className="grid grid-cols-2 sm:flex sm:items-center gap-1 bg-surface-container-low p-1 rounded-xl w-full sm:w-fit">
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.24, delay: 0.03 }}
+        className="grid grid-cols-2 sm:flex sm:items-center gap-1 bg-surface-container-low p-1 rounded-xl w-full sm:w-fit"
+      >
         <button
           type="button"
           onClick={() => setTab("activos")}
@@ -733,15 +1232,20 @@ function PrestamosView({
             }`}>{pagados.length}</span>
           )}
         </button>
-      </div>
+      </motion.div>
       {vencenHoy.length > 0 && (
-        <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-900">
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.26, delay: 0.05 }}
+          className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-900"
+        >
           <Calendar className="w-4 h-4 mt-0.5 shrink-0" />
           <p className="text-xs">
             <strong>{vencenHoy.length} {vencenHoy.length === 1 ? "préstamo vence" : "préstamos vencen"} hoy.</strong>{" "}
             Es el día de abono esperado; si no registras un cobro, mañana aparecerá automáticamente como atrasado.
           </p>
-        </div>
+        </motion.div>
       )}
 
       {/* Vista Móvil (Tarjetas táctiles sin scroll horizontal forzado) */}
@@ -751,12 +1255,15 @@ function PrestamosView({
             {tab === "activos" ? "No hay préstamos activos pendientes." : "No hay préstamos saldados aún."}
           </div>
         ) : (
-          displayed.map((l) => {
+          displayed.map((l, i) => {
             const nombre = rel(l.contactos)?.nombre ?? "—";
             const isPaid = l.estado === "pagado" || l.estado === "cancelado";
             return (
-              <div
+              <motion.div
                 key={l.id}
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.26, delay: Math.min(i * 0.03, 0.25) }}
                 className={`bg-surface-container-lowest border border-surface-container-high/70 rounded-2xl p-4 shadow-2xs space-y-3 ${
                   isPaid ? "opacity-75" : ""
                 }`}
@@ -773,7 +1280,7 @@ function PrestamosView({
                     <span className="text-[10px] text-on-surface-variant font-medium block">
                       {tab === "activos" ? "Por cobrar" : "Capital pagado"}
                     </span>
-                    <span className="font-mono text-base font-bold text-primary">
+                    <span className="font-mono text-base font-bold text-primary whitespace-nowrap">
                       {isPaid ? money(Number(l.monto_capital_pagado)) : money(loanBalance(l))}
                     </span>
                   </div>
@@ -782,7 +1289,7 @@ function PrestamosView({
                 <div className="grid grid-cols-2 gap-2 pt-2 border-t border-surface-container-low text-xs">
                   <div>
                     <span className="text-[10px] text-on-surface-variant block">Capital inicial</span>
-                    <span className="font-mono font-medium text-on-surface">{money(Number(l.monto_principal))}</span>
+                    <span className="font-mono font-medium text-on-surface whitespace-nowrap">{money(Number(l.monto_principal))}</span>
                   </div>
                   <div>
                     <span className="text-[10px] text-on-surface-variant block">Interés mensual</span>
@@ -791,21 +1298,45 @@ function PrestamosView({
                     </span>
                   </div>
                   <div>
-                    <span className="text-[10px] text-on-surface-variant block">Cobro</span>
-                    <span className="font-medium text-on-surface">Día {l.dia_pago} de cada mes</span>
+                    <span className="text-[10px] text-on-surface-variant block">Último mes cubierto</span>
+                    <span className="font-semibold text-on-surface text-xs">
+                      {l.ultimo_mes_cubierto ? (
+                        <span className="text-primary font-bold">{l.ultimo_mes_cubierto}</span>
+                      ) : (
+                        <span className="text-on-surface-variant italic">Sin cobros previos</span>
+                      )}
+                    </span>
+                    {l.ultimo_pago && (
+                      <span className="text-[10px] text-on-surface-variant block">
+                        Cobrado el {formatDateEs(l.ultimo_pago.recibido_en)}
+                      </span>
+                    )}
                   </div>
                   <div>
-                    <span className="text-[10px] text-on-surface-variant block">Próximo abono</span>
-                    <span className={`font-medium ${l.vence_hoy ? "text-amber-600 font-bold" : "text-on-surface"}`}>
-                      {l.vence_hoy ? "Hoy" : l.fecha_proximo_pago ? formatDateEs(l.fecha_proximo_pago) : "Al día"}
+                    <span className="text-[10px] text-on-surface-variant block">Próximo vencimiento</span>
+                    <span className={`font-semibold ${l.vence_hoy ? "text-amber-600 font-bold" : l.meses_atrasados > 0 ? "text-error font-bold" : "text-on-surface"}`}>
+                      {l.vence_hoy ? "¡Vence Hoy!" : l.fecha_proximo_pago ? formatDateEs(l.fecha_proximo_pago) : "Al día"}
                     </span>
                     {l.meses_atrasados > 0 && (
-                      <span className="text-[10px] text-error font-semibold block">
-                        {l.meses_atrasados} periodo{l.meses_atrasados > 1 ? "s" : ""} atrasado
+                      <span className="text-[10px] text-error font-bold block">
+                        ⚠️ {l.meses_atrasados} cuota{l.meses_atrasados > 1 ? "s" : ""} atrasada{l.meses_atrasados > 1 ? "s" : ""}{l.dias_atraso > 0 ? ` (${l.dias_atraso} días)` : ""}
                       </span>
                     )}
                   </div>
                 </div>
+
+                {l.notas && (
+                  <div className="pt-2 border-t border-surface-container-low flex justify-start">
+                    <button
+                      type="button"
+                      onClick={() => onVerNota("Notas del préstamo", `${nombre} · ${l.nombre}`, l.notas)}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-surface-container-low hover:bg-surface-container text-on-surface-variant hover:text-on-surface text-[11px] font-medium border border-surface-container-high/60 transition-colors cursor-pointer"
+                    >
+                      <FileText className="w-3.5 h-3.5 text-primary" />
+                      <span>Ver nota completa</span>
+                    </button>
+                  </div>
+                )}
 
                 <div className="pt-2 border-t border-surface-container-low flex items-center justify-between gap-2">
                   <span className="text-[11px] font-semibold text-on-surface-variant">Estado:</span>
@@ -815,14 +1346,19 @@ function PrestamosView({
                     onChange={(nuevoEstado) => onStatusChange(l.id, nuevoEstado)}
                   />
                 </div>
-              </div>
+              </motion.div>
             );
           })
         )}
       </div>
 
       {/* Vista Desktop / Tablet (Tabla) */}
-      <div className="hidden sm:block bg-surface-container-lowest border border-surface-container-high/70 rounded-2xl overflow-x-auto shadow-2xs">
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.28, delay: 0.06 }}
+        className="hidden sm:block bg-surface-container-lowest border border-surface-container-high/70 rounded-2xl overflow-x-auto shadow-2xs"
+      >
         <table className="w-full text-left text-sm min-w-[760px]">
           <thead>
             <tr className="bg-surface-container-low/70 text-on-surface-variant text-xs font-semibold uppercase tracking-wider">
@@ -831,7 +1367,7 @@ function PrestamosView({
               <th className="py-3 px-4">Capital inicial</th>
               <th className="py-3 px-4">{tab === "activos" ? "Por cobrar" : "Capital pagado"}</th>
               <th className="py-3 px-4">Interés mensual</th>
-              <th className="py-3 px-4">Día cobro</th>
+              <th className="py-3 px-4">Último mes cubierto</th>
               <th className="py-3 px-4">Próximo vencimiento</th>
               <th className="py-3 px-4 rounded-r-lg text-left">Estado</th>
             </tr>
@@ -854,24 +1390,53 @@ function PrestamosView({
                       <span className="font-semibold text-sm">{nombre}</span>
                     </div>
                   </td>
-                  <td className="py-3.5 px-4 align-middle text-xs text-on-surface-variant">{l.nombre}</td>
-                  <td className="py-3.5 px-4 align-middle font-mono font-medium text-xs">{money(Number(l.monto_principal))}</td>
-                  <td className="py-3.5 px-4 align-middle font-mono font-semibold text-sm">
+                  <td className="py-3.5 px-4 align-middle text-xs text-on-surface-variant">
+                    <div className="flex items-center gap-1.5">
+                      <span>{l.nombre}</span>
+                      {l.notas && (
+                        <button
+                          type="button"
+                          onClick={() => onVerNota("Notas del préstamo", `${nombre} · ${l.nombre}`, l.notas)}
+                          className="p-1 rounded-md text-on-surface-variant hover:text-primary hover:bg-surface-container transition-colors cursor-pointer"
+                          title="Ver nota completa"
+                        >
+                          <FileText className="w-3.5 h-3.5 text-primary" />
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                  <td className="py-3.5 px-4 align-middle font-mono font-medium text-xs whitespace-nowrap">{money(Number(l.monto_principal))}</td>
+                  <td className="py-3.5 px-4 align-middle font-mono font-semibold text-sm whitespace-nowrap">
                     {isPaid
                       ? <span className="text-emerald-600">{money(Number(l.monto_capital_pagado))}</span>
                       : money(loanBalance(l))}
                   </td>
-                  <td className="py-3.5 px-4 align-middle font-mono text-xs text-primary font-semibold">
+                  <td className="py-3.5 px-4 align-middle font-mono text-xs text-primary font-semibold whitespace-nowrap">
                     {l.cobra_interes
                       ? <span>{l.tasa_interes_mensual}% ({money(monthlyInterest(l))})<span className="block text-[10px] text-on-surface-variant font-normal mt-0.5">Cobrado: {money(l.interes_pagado_total)}</span></span>
                       : <span className="text-on-surface-variant font-sans">Sin interés</span>}
                   </td>
-                  <td className="py-3.5 px-4 align-middle text-xs font-medium text-on-surface-variant">Día {l.dia_pago}</td>
+                  <td className="py-3.5 px-4 align-middle text-xs">
+                    {l.ultimo_mes_cubierto ? (
+                      <div>
+                        <span className="font-bold text-primary">{l.ultimo_mes_cubierto}</span>
+                        {l.ultimo_pago && (
+                          <span className="block text-[10px] text-on-surface-variant mt-0.5">
+                            Cobrado: {formatDateEs(l.ultimo_pago.recibido_en)}
+                          </span>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-on-surface-variant italic">Sin cobros previos</span>
+                    )}
+                  </td>
                   <td className="py-3.5 px-4 align-middle text-xs font-medium text-on-surface-variant">
-                    {l.vence_hoy ? "Hoy · día de abono" : l.fecha_proximo_pago ? formatDateEs(l.fecha_proximo_pago) : "Sin pendientes"}
+                    <span className={l.vence_hoy ? "text-amber-600 font-bold" : l.meses_atrasados > 0 ? "text-error font-bold" : "text-on-surface"}>
+                      {l.vence_hoy ? "Hoy · día de abono" : l.fecha_proximo_pago ? formatDateEs(l.fecha_proximo_pago) : "Sin pendientes"}
+                    </span>
                     {l.meses_atrasados > 0 && (
-                      <span className="block text-[10px] text-error mt-0.5">
-                        {l.meses_atrasados} periodo{l.meses_atrasados === 1 ? "" : "s"} atrasado{l.meses_atrasados === 1 ? "" : "s"}
+                      <span className="block text-[10px] text-error font-bold mt-0.5">
+                        ⚠️ {l.meses_atrasados} periodo{l.meses_atrasados === 1 ? "" : "s"} atrasado{l.meses_atrasados === 1 ? "" : "s"}{l.dias_atraso > 0 ? ` (${l.dias_atraso} días)` : ""}
                       </span>
                     )}
                   </td>
@@ -887,15 +1452,28 @@ function PrestamosView({
             })}
           </tbody>
         </table>
-      </div>
+      </motion.div>
     </div>
   );
 }
 
-function PagosView({ pagos, openModal }: { pagos: Pago[]; openModal: () => void }) {
+function PagosView({
+  pagos,
+  openModal,
+  onVerNota,
+}: {
+  pagos: Pago[];
+  openModal: () => void;
+  onVerNota: (titulo: string, subtitulo?: string, texto?: string | null) => void;
+}) {
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-surface-container-high/60">
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.24 }}
+        className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-surface-container-high/60"
+      >
         <div>
           <h1 className="font-heading text-2xl font-extrabold text-on-surface">Cobros recibidos</h1>
           <p className="text-xs text-on-surface-variant mt-0.5">Registro del dinero que realmente recibiste de tus préstamos.</p>
@@ -903,7 +1481,7 @@ function PagosView({ pagos, openModal }: { pagos: Pago[]; openModal: () => void 
         <button className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-primary text-on-primary text-xs font-semibold shadow-xs hover:bg-primary-container flex items-center justify-center gap-2 cursor-pointer" onClick={openModal}>
           <Plus className="w-4 h-4" /><span>Registrar cobro</span>
         </button>
-      </div>
+      </motion.div>
       {/* Vista Móvil (Tarjetas de cobros) */}
       <div className="sm:hidden space-y-2.5">
         {pagos.length === 0 ? (
@@ -911,39 +1489,78 @@ function PagosView({ pagos, openModal }: { pagos: Pago[]; openModal: () => void 
             Sin cobros registrados aún.
           </div>
         ) : (
-          pagos.map((p) => {
+          pagos.map((p, i) => {
             const prestamo = rel(p.prestamos);
             const contacto = rel(prestamo?.contactos);
             return (
-              <div key={p.id} className="bg-surface-container-lowest border border-surface-container-high/70 rounded-2xl p-4 shadow-2xs space-y-2.5">
+              <motion.div
+                key={p.id}
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.26, delay: Math.min(i * 0.03, 0.25) }}
+                className="bg-surface-container-lowest border border-surface-container-high/70 rounded-2xl p-4 shadow-2xs space-y-2.5"
+              >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <h4 className="font-bold text-sm text-on-surface truncate">{contacto?.nombre ?? "—"}</h4>
                     <p className="text-xs text-on-surface-variant truncate">{prestamo?.nombre ?? "—"}</p>
+                    <div className="mt-1 flex items-center gap-1.5 flex-wrap">
+                      <span className="text-[11px] font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-md">
+                        Cuota: {p.fecha_esperada ? formatMonthYear(p.fecha_esperada) : "—"}
+                      </span>
+                      {p.fecha_esperada && p.recibido_en > p.fecha_esperada && (
+                        <span className="text-[10px] font-semibold text-amber-700 bg-amber-100 dark:bg-amber-950/50 dark:text-amber-300 px-1.5 py-0.5 rounded">
+                          Cobrado con retraso
+                        </span>
+                      )}
+                      {p.fecha_esperada && p.recibido_en < p.fecha_esperada && (
+                        <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-100 dark:bg-emerald-950/50 dark:text-emerald-300 px-1.5 py-0.5 rounded">
+                          Cobrado anticipado
+                        </span>
+                      )}
+                    </div>
                   </div>
                   <div className="text-right shrink-0">
-                    <span className="font-mono text-base font-bold text-primary block">+{money(Number(p.monto_total))}</span>
-                    <span className="text-[10px] text-on-surface-variant">{formatDateEs(p.recibido_en)}</span>
+                    <span className="font-mono text-base font-bold text-primary block whitespace-nowrap">+{money(Number(p.monto_total))}</span>
+                    <span className="text-[10px] text-on-surface-variant">Cobrado: {formatDateEs(p.recibido_en)}</span>
                   </div>
                 </div>
 
                 <div className="flex items-center justify-between pt-2 border-t border-surface-container-low text-[11px] text-on-surface-variant">
-                  <span>Capital: <strong className="text-on-surface font-mono">{money(Number(p.monto_principal))}</strong> · Interés: <strong className="text-on-surface font-mono">{money(Number(p.monto_interes))}</strong></span>
+                  <span>Capital: <strong className="text-on-surface font-mono whitespace-nowrap">{money(Number(p.monto_principal))}</strong> · Interés: <strong className="text-on-surface font-mono whitespace-nowrap">{money(Number(p.monto_interes))}</strong></span>
                   <span className="font-medium text-on-surface bg-surface-container-low px-2 py-0.5 rounded-md border border-surface-container-high/40">{rel(p.cuentas_dinero)?.nombre ?? "—"}</span>
                 </div>
-              </div>
+
+                {p.notas && (
+                  <div className="pt-2 border-t border-surface-container-low flex justify-start">
+                    <button
+                      type="button"
+                      onClick={() => onVerNota("Notas del cobro", `${contacto?.nombre ?? "—"} · ${formatDateEs(p.recibido_en)}`, p.notas)}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-surface-container-low hover:bg-surface-container text-on-surface-variant hover:text-on-surface text-[11px] font-medium border border-surface-container-high/60 transition-colors cursor-pointer"
+                    >
+                      <FileText className="w-3.5 h-3.5 text-primary" />
+                      <span>Ver nota completa</span>
+                    </button>
+                  </div>
+                )}
+              </motion.div>
             );
           })
         )}
       </div>
 
       {/* Vista Desktop / Tablet (Tabla) */}
-      <div className="hidden sm:block bg-surface-container-lowest border border-surface-container-high/70 rounded-2xl overflow-x-auto shadow-2xs">
-        <table className="w-full text-left text-sm min-w-[680px]">
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.28, delay: 0.06 }}
+        className="hidden sm:block bg-surface-container-lowest border border-surface-container-high/70 rounded-2xl overflow-x-auto shadow-2xs"
+      >
+        <table className="w-full text-left text-sm min-w-[720px]">
           <thead>
             <tr className="bg-surface-container-low/70 text-on-surface-variant text-xs font-semibold uppercase tracking-wider">
-              <th className="py-3 px-4 rounded-l-lg">Vencimiento</th>
-              <th className="py-3 px-4">Cobrado</th>
+              <th className="py-3 px-4 rounded-l-lg">Cuota / Período</th>
+              <th className="py-3 px-4">Fecha de cobro</th>
               <th className="py-3 px-4">Contacto</th>
               <th className="py-3 px-4">Préstamo</th>
               <th className="py-3 px-4">Total</th>
@@ -960,22 +1577,49 @@ function PagosView({ pagos, openModal }: { pagos: Pago[]; openModal: () => void 
               const contacto = rel(prestamo?.contactos);
               return (
                 <tr key={p.id} className="hover:bg-surface-container-low/40 transition-colors">
-                  <td className="py-3.5 px-4 text-xs text-on-surface-variant">
-                    {formatDateEs(p.fecha_esperada)}{p.fecha_esperada && p.recibido_en > p.fecha_esperada ? " · atrasado" : ""}
+                  <td className="py-3.5 px-4 text-xs font-semibold text-on-surface">
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-bold text-primary">{p.fecha_esperada ? formatMonthYear(p.fecha_esperada) : "—"}</span>
+                      <span className="text-[10px] text-on-surface-variant font-normal">({formatDateEs(p.fecha_esperada)})</span>
+                    </div>
+                    {p.fecha_esperada && p.recibido_en > p.fecha_esperada && (
+                      <span className="inline-block text-[10px] font-semibold text-amber-700 bg-amber-100 dark:bg-amber-950/50 dark:text-amber-300 px-1.5 py-0.2 rounded mt-0.5">
+                        Cobrado con retraso
+                      </span>
+                    )}
+                    {p.fecha_esperada && p.recibido_en < p.fecha_esperada && (
+                      <span className="inline-block text-[10px] font-semibold text-emerald-700 bg-emerald-100 dark:bg-emerald-950/50 dark:text-emerald-300 px-1.5 py-0.2 rounded mt-0.5">
+                        Cobrado anticipado
+                      </span>
+                    )}
                   </td>
-                  <td className="py-3.5 px-4 text-xs text-on-surface-variant">{formatDateEs(p.recibido_en)}</td>
+                  <td className="py-3.5 px-4 text-xs text-on-surface font-medium">{formatDateEs(p.recibido_en)}</td>
                   <td className="py-3.5 px-4 font-semibold text-sm">{contacto?.nombre ?? "—"}</td>
-                  <td className="py-3.5 px-4 text-xs text-on-surface-variant">{prestamo?.nombre ?? "—"}</td>
-                  <td className="py-3.5 px-4 font-mono font-bold text-sm text-primary">{money(Number(p.monto_total))}</td>
-                  <td className="py-3.5 px-4 font-mono text-xs">{money(Number(p.monto_principal))}</td>
-                  <td className="py-3.5 px-4 font-mono text-xs">{money(Number(p.monto_interes))}</td>
+                  <td className="py-3.5 px-4 text-xs text-on-surface-variant">
+                    <div className="flex items-center gap-1.5">
+                      <span>{prestamo?.nombre ?? "—"}</span>
+                      {p.notas && (
+                        <button
+                          type="button"
+                          onClick={() => onVerNota("Notas del cobro", `${contacto?.nombre ?? "—"} · ${formatDateEs(p.recibido_en)}`, p.notas)}
+                          className="p-1 rounded-md text-on-surface-variant hover:text-primary hover:bg-surface-container transition-colors cursor-pointer"
+                          title="Ver nota completa"
+                        >
+                          <FileText className="w-3.5 h-3.5 text-primary" />
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                  <td className="py-3.5 px-4 font-mono font-bold text-sm text-primary whitespace-nowrap">{money(Number(p.monto_total))}</td>
+                  <td className="py-3.5 px-4 font-mono text-xs whitespace-nowrap">{money(Number(p.monto_principal))}</td>
+                  <td className="py-3.5 px-4 font-mono text-xs whitespace-nowrap">{money(Number(p.monto_interes))}</td>
                   <td className="py-3.5 px-4 text-xs text-on-surface-variant">{rel(p.cuentas_dinero)?.nombre ?? "—"}</td>
                 </tr>
               );
             })}
           </tbody>
         </table>
-      </div>
+      </motion.div>
     </div>
   );
 }
@@ -1052,11 +1696,13 @@ function AccountCardItem({
   index,
   tipoLabel,
   themeId,
+  onEdit,
 }: {
   c: Cuenta;
   index: number;
   tipoLabel: string;
   themeId: string;
+  onEdit: (cuenta: Cuenta) => void;
 }) {
   const normalizedId = themeId === "blue" ? "ocean" : themeId;
   const currentTheme = ACCOUNT_CARD_THEMES.find((t) => t.id === normalizedId) ?? ACCOUNT_CARD_THEMES[index % ACCOUNT_CARD_THEMES.length];
@@ -1073,6 +1719,17 @@ function AccountCardItem({
           <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold border uppercase tracking-wider ${currentTheme.badgeCls}`}>
             {tipoLabel}
           </span>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onEdit(c);
+            }}
+            className="p-1.5 rounded-lg text-slate-700 hover:text-slate-900 dark:text-slate-200 dark:hover:text-white hover:bg-black/10 dark:hover:bg-white/10 transition-colors cursor-pointer"
+            title="Editar nombre o categoría de la cuenta"
+          >
+            <Pencil className="w-3.5 h-3.5" />
+          </button>
         </div>
         <p className="font-heading text-lg font-extrabold text-slate-800 dark:text-white mt-3 tracking-tight">{c.nombre}</p>
       </div>
@@ -1087,6 +1744,238 @@ function AccountCardItem({
         </span>
       </div>
     </motion.div>
+  );
+}
+
+// ─── Modal para Editar Cuenta con Auditoría ─────────────────────────────────
+
+function ModalEditarCuenta({
+  cuenta,
+  espacioId,
+  onClose,
+  onSuccess,
+}: {
+  cuenta: Cuenta;
+  espacioId: string;
+  onClose: () => void;
+  onSuccess: () => Promise<void>;
+}) {
+  const [tab, setTab] = useState<"editar" | "historial">("editar");
+  const [nombre, setNombre] = useState(cuenta.nombre);
+  const [tipo, setTipo] = useState(cuenta.tipo);
+  const [motivo, setMotivo] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [historial, setHistorial] = useState<Array<{
+    id: string;
+    campo_modificado: string;
+    valor_anterior: string | null;
+    valor_nuevo: string | null;
+    motivo: string | null;
+    created_at: string;
+  }>>([]);
+  const [cargandoHistorial, setCargandoHistorial] = useState(false);
+
+  useEffect(() => {
+    if (tab === "historial") {
+      let cancel = false;
+      getAuditoriaEntidad(espacioId, "cuentas_dinero", cuenta.id)
+        .then((data) => {
+          if (!cancel) {
+            setHistorial(data as unknown as typeof historial);
+            setCargandoHistorial(false);
+          }
+        })
+        .catch(() => {
+          if (!cancel) setCargandoHistorial(false);
+        });
+      return () => {
+        cancel = true;
+      };
+    }
+  }, [tab, espacioId, cuenta.id]);
+
+  const handleConfirmEdit = async () => {
+    if (!nombre.trim()) {
+      setError("El nombre de la cuenta no puede estar vacío.");
+      return false;
+    }
+    setSubmitting(true);
+    setError(null);
+    const fd = new FormData();
+    fd.append("nombre", nombre.trim());
+    fd.append("tipo", tipo);
+    if (motivo.trim()) fd.append("motivo", motivo.trim());
+
+    const result = await actualizarCuenta(cuenta.id, espacioId, fd);
+    setSubmitting(false);
+
+    if (result.error) {
+      const errs = result.error as Record<string, string[]>;
+      setError(errs._global?.[0] ?? Object.values(errs).flat()[0] ?? "Error al actualizar la cuenta");
+      return false;
+    }
+
+    await onSuccess();
+    onClose();
+    return true;
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150"
+      onClick={onClose}
+    >
+      <div
+        className="bg-surface-container-lowest border border-surface-container-high/80 rounded-2xl max-w-lg w-full p-5 sm:p-6 shadow-2xl space-y-4 max-h-[92vh] flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-3 pb-3 border-b border-surface-container-low">
+          <div className="flex items-center gap-2.5">
+            <span className="w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+              <Pencil className="w-5 h-5" />
+            </span>
+            <div>
+              <h2 className="font-heading text-lg font-bold text-on-surface">Editar Cuenta</h2>
+              <p className="text-xs text-on-surface-variant">Modifica nombre o categoría con auditoría completa.</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-1.5 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors cursor-pointer"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Tabs de edición y auditoría */}
+        <div className="flex items-center gap-1 p-1 bg-surface-container-low rounded-xl">
+          <button
+            type="button"
+            onClick={() => setTab("editar")}
+            className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+              tab === "editar" ? "bg-surface-container-lowest text-on-surface shadow-xs" : "text-on-surface-variant hover:text-on-surface"
+            }`}
+          >
+            Editar detalles
+          </button>
+          <button
+            type="button"
+            onClick={() => { setCargandoHistorial(true); setTab("historial"); }}
+            className={`flex-1 py-1.5 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+              tab === "historial" ? "bg-surface-container-lowest text-on-surface shadow-xs" : "text-on-surface-variant hover:text-on-surface"
+            }`}
+          >
+            <History className="w-3.5 h-3.5" />
+            <span>Historial de cambios</span>
+          </button>
+        </div>
+
+        {tab === "editar" ? (
+          <div className="space-y-4 overflow-y-auto pr-1">
+            <div className="p-3 rounded-xl bg-surface-container-low/50 border border-surface-container-high/60 text-xs text-on-surface-variant space-y-1">
+              <p className="font-semibold text-on-surface flex items-center gap-1.5">
+                <CheckCircle2 className="w-3.5 h-3.5 text-primary" />
+                Seguridad financiera garantizada
+              </p>
+              <p>
+                Editar el nombre o categoría no altera tus saldos ni tus transacciones pasadas. Tu libro contable permanece 100% íntegro.
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-on-surface mb-1">Nombre de la cuenta *</label>
+              <input
+                type="text"
+                value={nombre}
+                onChange={(e) => setNombre(e.target.value)}
+                className="w-full h-10 px-3.5 rounded-xl bg-surface-container-lowest border border-surface-container-high/80 text-sm text-on-surface focus:outline-none focus:border-primary"
+                placeholder="Ej. Banco Nacional de Bolivia"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-on-surface mb-1">Tipo de cuenta *</label>
+              <select
+                value={tipo}
+                onChange={(e) => setTipo(e.target.value)}
+                className="w-full h-10 pl-3.5 pr-10 rounded-xl bg-surface-container-lowest border border-surface-container-high/80 text-sm text-on-surface focus:outline-none focus:border-primary cursor-pointer"
+              >
+                <option value="efectivo">Efectivo</option>
+                <option value="banco">Cuenta bancaria</option>
+                <option value="billetera_movil">Billetera móvil</option>
+                <option value="ahorro">Cuenta de ahorro</option>
+                <option value="otra">Otra</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-on-surface mb-1">Motivo del cambio (opcional, para el registro de auditoría)</label>
+              <input
+                type="text"
+                value={motivo}
+                onChange={(e) => setMotivo(e.target.value)}
+                className="w-full h-10 px-3.5 rounded-xl bg-surface-container-lowest border border-surface-container-high/80 text-sm text-on-surface focus:outline-none focus:border-primary"
+                placeholder="Ej. Corregí error tipográfico en el nombre"
+              />
+            </div>
+
+            {error && (
+              <p className="text-xs text-error flex items-center gap-1">
+                <AlertCircle className="w-3.5 h-3.5" /> {error}
+              </p>
+            )}
+
+            <div className="pt-2">
+              <SlideToConfirm
+                submitting={submitting}
+                label="Desliza para guardar cambios"
+                resetTrigger={cuenta.id}
+                onConfirm={handleConfirmEdit}
+              />
+            </div>
+          </div>
+        ) : (
+          <div className="overflow-y-auto pr-1 flex-1 max-h-[50vh] space-y-2.5">
+            {cargandoHistorial ? (
+              <div className="py-8 text-center text-xs text-on-surface-variant flex items-center justify-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                <span>Cargando auditoría...</span>
+              </div>
+            ) : historial.length === 0 ? (
+              <div className="py-8 text-center text-xs text-on-surface-variant space-y-1">
+                <Clock className="w-8 h-8 mx-auto text-on-surface-variant/40" />
+                <p className="font-semibold text-on-surface">Sin modificaciones registradas</p>
+                <p>Todos los cambios futuros de nombre o categoría quedarán auditados aquí con fecha y hora.</p>
+              </div>
+            ) : (
+              historial.map((item) => (
+                <div
+                  key={item.id}
+                  className="p-3 rounded-xl bg-surface-container-low/60 border border-surface-container-high/50 text-xs space-y-1.5"
+                >
+                  <div className="flex items-center justify-between text-[11px] text-on-surface-variant">
+                    <span className="font-semibold uppercase tracking-wider text-primary">Campo: {item.campo_modificado}</span>
+                    <span>{formatDateEs(item.created_at)}</span>
+                  </div>
+                  <div className="text-on-surface">
+                    <span className="line-through text-on-surface-variant opacity-75">{item.valor_anterior || "(vacío)"}</span>
+                    <span className="mx-2 text-primary font-bold">→</span>
+                    <span className="font-semibold text-emerald-600 dark:text-emerald-400">{item.valor_nuevo}</span>
+                  </div>
+                  {item.motivo && (
+                    <p className="text-[11px] text-on-surface-variant italic pt-1 border-t border-surface-container-low">
+                      Motivo: {item.motivo}
+                    </p>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -1227,19 +2116,33 @@ function ModalPersonalizarColores({
   );
 }
 
-function CuentasView({ cuentas, openModal }: { cuentas: Cuenta[]; openModal: () => void }) {
+function CuentasView({
+  cuentas,
+  espacioId,
+  openModal,
+  loadData,
+  setSuccessNotice,
+}: {
+  cuentas: Cuenta[];
+  espacioId: string;
+  openModal: () => void;
+  loadData: () => Promise<void>;
+  setSuccessNotice: (msg: string | null) => void;
+}) {
   const [modalColoresOpen, setModalColoresOpen] = useState(false);
+  const [cuentaAEditar, setCuentaAEditar] = useState<Cuenta | null>(null);
   const [selectedAccountId, setSelectedAccountId] = useState<string>(cuentas[0]?.id ?? "");
-  const [themeMap, setThemeMap] = useState<Record<string, string>>({});
-
-  useEffect(() => {
+  const [themeMap, setThemeMap] = useState<Record<string, string>>(() => {
+    if (typeof window === "undefined") return {};
     const map: Record<string, string> = {};
-    cuentas.forEach((c, i) => {
-      const saved = localStorage.getItem(`finpal_account_color_${c.id}`);
-      map[c.id] = saved || ACCOUNT_CARD_THEMES[i % ACCOUNT_CARD_THEMES.length].id;
+    cuentas.forEach((c) => {
+      try {
+        const saved = localStorage.getItem(`finpal_account_color_${c.id}`);
+        if (saved) map[c.id] = saved;
+      } catch {}
     });
-    setThemeMap(map);
-  }, [cuentas]);
+    return map;
+  });
 
   const handleSelectTheme = (accountId: string, themeId: string) => {
     setThemeMap((prev) => ({ ...prev, [accountId]: themeId }));
@@ -1260,7 +2163,12 @@ function CuentasView({ cuentas, openModal }: { cuentas: Cuenta[]; openModal: () 
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-surface-container-high/60">
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.24 }}
+        className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-surface-container-high/60"
+      >
         <div>
           <h1 className="font-heading text-2xl font-extrabold text-on-surface">Cuentas de Dinero</h1>
           <p className="text-xs text-on-surface-variant mt-0.5">Efectivo, bancos, billeteras y personalización de fondo.</p>
@@ -1284,7 +2192,7 @@ function CuentasView({ cuentas, openModal }: { cuentas: Cuenta[]; openModal: () 
             <span>Nueva cuenta</span>
           </button>
         </div>
-      </div>
+      </motion.div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {cuentas.length === 0 && (
           <p className="text-xs text-on-surface-variant col-span-3 text-center py-8">Sin cuentas registradas aún.</p>
@@ -1296,6 +2204,7 @@ function CuentasView({ cuentas, openModal }: { cuentas: Cuenta[]; openModal: () 
             index={i}
             tipoLabel={TIPO_LABELS[c.tipo] ?? c.tipo}
             themeId={themeMap[c.id] ?? ACCOUNT_CARD_THEMES[i % ACCOUNT_CARD_THEMES.length].id}
+            onEdit={(cuenta) => setCuentaAEditar(cuenta)}
           />
         ))}
       </div>
@@ -1310,14 +2219,82 @@ function CuentasView({ cuentas, openModal }: { cuentas: Cuenta[]; openModal: () 
           onClose={() => setModalColoresOpen(false)}
         />
       )}
+
+      {cuentaAEditar && (
+        <ModalEditarCuenta
+          cuenta={cuentaAEditar}
+          espacioId={espacioId}
+          onClose={() => setCuentaAEditar(null)}
+          onSuccess={async () => {
+            setSuccessNotice("¡Cuenta actualizada correctamente!");
+            await loadData();
+          }}
+        />
+      )}
     </div>
   );
 }
 
-function MovimientosView({ movimientos, openModal }: { movimientos: Movimiento[]; openModal: () => void }) {
+function MovimientosView({
+  movimientos,
+  openModal,
+  onVerNota,
+}: {
+  movimientos: Movimiento[];
+  openModal: () => void;
+  onVerNota: (titulo: string, subtitulo?: string, texto?: string | null) => void;
+}) {
+  const [busqueda, setBusqueda] = useState("");
+  const [filtroTipo, setFiltroTipo] = useState<"todos" | "ingreso" | "gasto" | "cobro" | "transferencia" | "ajuste">("todos");
+  const [pagina, setPagina] = useState(1);
+  const [porPagina, setPorPagina] = useState(5);
+
+  const filtrados = useMemo(() => {
+    return movimientos.filter((m) => {
+      if (filtroTipo === "ingreso" && m.tipo !== "ingreso") return false;
+      if (filtroTipo === "gasto" && m.tipo !== "gasto") return false;
+      if (filtroTipo === "cobro" && m.tipo !== "pago_prestamo" && m.tipo !== "entrega_prestamo") return false;
+      if (filtroTipo === "transferencia" && !m.tipo.startsWith("transferencia")) return false;
+      if (filtroTipo === "ajuste" && m.tipo !== "ajuste") return false;
+
+      if (busqueda.trim()) {
+        const q = busqueda.toLowerCase().trim();
+        const cuentaNombre = (Array.isArray(m.cuentas_dinero)
+          ? (m.cuentas_dinero[0] as unknown as { nombre?: string })?.nombre
+          : (m.cuentas_dinero as unknown as { nombre?: string })?.nombre) ?? "";
+        const desc = (m.descripcion ?? "").toLowerCase();
+        const montoStr = String(m.monto);
+        if (!desc.includes(q) && !cuentaNombre.toLowerCase().includes(q) && !montoStr.includes(q)) {
+          return false;
+        }
+      }
+      return true;
+    });
+  }, [movimientos, filtroTipo, busqueda]);
+
+  const totalPaginas = Math.max(1, Math.ceil(filtrados.length / porPagina));
+  const paginaClamped = Math.min(pagina, totalPaginas);
+  const inicio = (paginaClamped - 1) * porPagina;
+  const paginados = filtrados.slice(inicio, inicio + porPagina);
+
+  const cambiarFiltro = (nuevoTipo: typeof filtroTipo) => {
+    setFiltroTipo(nuevoTipo);
+    setPagina(1);
+  };
+
+  const cambiarBusqueda = (texto: string) => {
+    setBusqueda(texto);
+    setPagina(1);
+  };
+
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-surface-container-high/60">
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.24 }}
+        className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-surface-container-high/60"
+      >
         <div>
           <h1 className="font-heading text-2xl font-extrabold text-on-surface">Movimientos</h1>
           <p className="text-xs text-on-surface-variant mt-0.5">Todos los flujos de dinero del espacio.</p>
@@ -1325,15 +2302,70 @@ function MovimientosView({ movimientos, openModal }: { movimientos: Movimiento[]
         <button className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-primary text-on-primary text-xs font-semibold shadow-xs hover:bg-primary-container flex items-center justify-center gap-2 cursor-pointer" onClick={openModal}>
           <Plus className="w-4 h-4" /><span>Registrar movimiento</span>
         </button>
-      </div>
+      </motion.div>
+
+      {/* Barra de Filtros y Búsqueda */}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.26, delay: 0.04 }}
+        className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3"
+      >
+        {/* Pestañas de tipo */}
+        <div className="flex items-center gap-1 bg-surface-container-low p-1 rounded-xl overflow-x-auto">
+          {[
+            { id: "todos", label: "Todos" },
+            { id: "ingreso", label: "Ingresos" },
+            { id: "gasto", label: "Gastos" },
+            { id: "cobro", label: "Préstamos / Cobros" },
+            { id: "transferencia", label: "Transferencias" },
+            { id: "ajuste", label: "Ajustes" },
+          ].map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => cambiarFiltro(t.id as typeof filtroTipo)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
+                filtroTipo === t.id
+                  ? "bg-primary text-on-primary shadow-xs"
+                  : "text-on-surface-variant hover:text-on-surface"
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Buscador */}
+        <div className="relative min-w-[200px] sm:w-64">
+          <Search className="w-4 h-4 text-on-surface-variant absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+          <input
+            type="text"
+            value={busqueda}
+            onChange={(e) => cambiarBusqueda(e.target.value)}
+            placeholder="Buscar por concepto o cuenta..."
+            className="w-full h-9 pl-9 pr-3 rounded-xl bg-surface-container-lowest border border-surface-container-high/80 text-xs text-on-surface focus:outline-none focus:border-primary"
+          />
+          {busqueda && (
+            <button
+              type="button"
+              onClick={() => cambiarBusqueda("")}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface p-0.5 cursor-pointer"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+      </motion.div>
+
       {/* Vista Móvil (Tarjetas de movimientos) */}
       <div className="sm:hidden space-y-2.5">
-        {movimientos.length === 0 ? (
+        {paginados.length === 0 ? (
           <div className="bg-surface-container-lowest border border-surface-container-high/70 rounded-2xl p-6 text-center text-xs text-on-surface-variant">
-            Sin movimientos registrados aún.
+            No se encontraron movimientos con los filtros aplicados.
           </div>
         ) : (
-          movimientos.map((m) => {
+          paginados.map((m, i) => {
             const isPositive = ["ingreso", "pago_prestamo", "transferencia_entrada"].includes(m.tipo)
               || (m.tipo === "ajuste" && m.ajuste_sentido === "sumar");
             const badge = getTipoMovimientoBadge(m.tipo, m.ajuste_sentido);
@@ -1342,7 +2374,13 @@ function MovimientosView({ movimientos, openModal }: { movimientos: Movimiento[]
               ? (m.cuentas_dinero[0] as unknown as { nombre?: string })?.nombre
               : (m.cuentas_dinero as unknown as { nombre?: string })?.nombre) ?? "—";
             return (
-              <div key={m.id} className="bg-surface-container-lowest border border-surface-container-high/70 rounded-xl p-3.5 shadow-2xs flex items-center justify-between gap-3">
+              <motion.div
+                key={m.id}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.24, delay: Math.min(i * 0.03, 0.25) }}
+                className="bg-surface-container-lowest border border-surface-container-high/70 rounded-xl p-3.5 shadow-2xs flex items-center justify-between gap-3"
+              >
                 <div className="min-w-0">
                   <div className="mb-1">
                     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border shadow-2xs ${badge.badgeClass}`}>
@@ -1350,22 +2388,38 @@ function MovimientosView({ movimientos, openModal }: { movimientos: Movimiento[]
                       <span>{badge.label}</span>
                     </span>
                   </div>
-                  <p className="text-xs font-semibold text-on-surface truncate">{m.descripcion ? fixSpanishEncoding(m.descripcion) : badge.label}</p>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <p className="text-xs font-semibold text-on-surface truncate">{m.descripcion ? fixSpanishEncoding(m.descripcion) : badge.label}</p>
+                    {m.descripcion && m.descripcion.length > 20 && (
+                      <button
+                        type="button"
+                        onClick={() => onVerNota("Detalle del movimiento", badge.label, m.descripcion)}
+                        className="text-[10px] text-primary hover:underline font-semibold cursor-pointer"
+                      >
+                        Ver más
+                      </button>
+                    )}
+                  </div>
                   <p className="text-[11px] text-on-surface-variant truncate">{formatDateEs(m.ocurrido_en)} · {cuentaNombre}</p>
                 </div>
                 <div className="text-right shrink-0">
-                  <span className={`font-mono text-xs font-bold block ${isPositive ? "text-primary" : "text-rose-600 dark:text-rose-400"}`}>
-                    {isPositive ? "+" : "-"}{money(Number(m.monto))}
+                  <span className={`font-mono text-xs font-bold whitespace-nowrap inline-block ${isPositive ? "text-primary" : "text-rose-600 dark:text-rose-400"}`}>
+                    {isPositive ? "+" : "−"}{money(Number(m.monto))}
                   </span>
                 </div>
-              </div>
+              </motion.div>
             );
           })
         )}
       </div>
 
       {/* Vista Desktop / Tablet (Tabla) */}
-      <div className="hidden sm:block bg-surface-container-lowest border border-surface-container-high/70 rounded-2xl overflow-x-auto shadow-2xs">
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.28, delay: 0.06 }}
+        className="hidden sm:block bg-surface-container-lowest border border-surface-container-high/70 rounded-2xl overflow-x-auto shadow-2xs"
+      >
         <table className="w-full text-left text-sm min-w-[600px]">
           <thead>
             <tr className="bg-surface-container-low text-xs font-semibold uppercase tracking-wider text-on-surface-variant">
@@ -1377,9 +2431,9 @@ function MovimientosView({ movimientos, openModal }: { movimientos: Movimiento[]
             </tr>
           </thead>
           <tbody className="divide-y divide-surface-container-low text-on-surface">
-            {movimientos.length === 0 ? (
-              <tr><td colSpan={5} className="py-8 text-center text-xs text-on-surface-variant">Sin movimientos registrados aún.</td></tr>
-            ) : movimientos.map((m) => {
+            {paginados.length === 0 ? (
+              <tr><td colSpan={5} className="py-8 text-center text-xs text-on-surface-variant">No se encontraron movimientos con los filtros aplicados.</td></tr>
+            ) : paginados.map((m) => {
               const isPositive = ["ingreso", "pago_prestamo", "transferencia_entrada"].includes(m.tipo)
                 || (m.tipo === "ajuste" && m.ajuste_sentido === "sumar");
               const badge = getTipoMovimientoBadge(m.tipo, m.ajuste_sentido);
@@ -1393,42 +2447,128 @@ function MovimientosView({ movimientos, openModal }: { movimientos: Movimiento[]
                       <span>{badge.label}</span>
                     </span>
                   </td>
-                  <td className="py-3.5 px-4 text-sm font-medium text-on-surface">{m.descripcion ? fixSpanishEncoding(m.descripcion) : "—"}</td>
+                  <td className="py-3.5 px-4 text-sm font-medium text-on-surface">
+                    <div className="flex items-center gap-1.5">
+                      <span>{m.descripcion ? fixSpanishEncoding(m.descripcion) : "—"}</span>
+                      {m.descripcion && m.descripcion.length > 25 && (
+                        <button
+                          type="button"
+                          onClick={() => onVerNota("Detalle del movimiento", badge.label, m.descripcion)}
+                          className="p-1 rounded-md text-on-surface-variant hover:text-primary hover:bg-surface-container transition-colors cursor-pointer"
+                          title="Ver detalle completo"
+                        >
+                          <FileText className="w-3.5 h-3.5 text-primary" />
+                        </button>
+                      )}
+                    </div>
+                  </td>
                   <td className="py-3.5 px-4 text-xs text-on-surface-variant">
                     {(Array.isArray(m.cuentas_dinero)
                       ? (m.cuentas_dinero[0] as unknown as { nombre?: string })?.nombre
                       : (m.cuentas_dinero as unknown as { nombre?: string })?.nombre) ?? "—"}
                   </td>
-                  <td className={`py-3.5 px-4 text-right font-mono font-bold text-sm ${isPositive ? "text-primary" : "text-rose-600 dark:text-rose-400"}`}>
-                    {isPositive ? "+" : "-"}{money(Number(m.monto))}
+                  <td className={`py-3.5 px-4 text-right font-mono font-bold text-sm whitespace-nowrap ${isPositive ? "text-primary" : "text-rose-600 dark:text-rose-400"}`}>
+                    {isPositive ? "+" : "−"}{money(Number(m.monto))}
                   </td>
                 </tr>
               );
             })}
           </tbody>
         </table>
-      </div>
+      </motion.div>
+
+      {/* Barra de Paginación Minimalista */}
+      <motion.div
+        initial={{ opacity: 0, y: 6 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.24, delay: 0.08 }}
+        className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2 text-xs text-on-surface-variant"
+      >
+        <div className="flex items-center gap-2">
+          <span>
+            Mostrando <strong className="text-on-surface">{filtrados.length === 0 ? 0 : inicio + 1}</strong>–<strong className="text-on-surface">{Math.min(inicio + porPagina, filtrados.length)}</strong> de <strong className="text-on-surface">{filtrados.length}</strong> movimientos
+          </span>
+          <span className="text-on-surface-variant/40">·</span>
+          <select
+            value={porPagina}
+            onChange={(e) => {
+              setPorPagina(Number(e.target.value));
+              setPagina(1);
+            }}
+            className="bg-surface-container-low border border-surface-container-high/60 rounded-xl pl-2.5 pr-8 py-1.5 text-xs text-on-surface cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20"
+          >
+            <option value={5}>5 por página</option>
+            <option value={10}>10 por página</option>
+            <option value={20}>20 por página</option>
+          </select>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] font-medium">
+            Página {paginaClamped} de {totalPaginas}
+          </span>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setPagina((p) => Math.max(1, p - 1))}
+              disabled={paginaClamped <= 1}
+              className="p-1.5 rounded-lg border border-surface-container-high/70 bg-surface-container-lowest hover:bg-surface-container disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition-colors"
+              title="Página anterior"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setPagina((p) => Math.min(totalPaginas, p + 1))}
+              disabled={paginaClamped >= totalPaginas}
+              className="p-1.5 rounded-lg border border-surface-container-high/70 bg-surface-container-lowest hover:bg-surface-container disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition-colors"
+              title="Página siguiente"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      </motion.div>
     </div>
   );
 }
 
+const POPULAR_TIMEZONES = [
+  { value: "America/La_Paz", label: "La Paz (Bolivia · UTC-4)" },
+  { value: "America/Argentina/Buenos_Aires", label: "Buenos Aires (Argentina · UTC-3)" },
+  { value: "America/Santiago", label: "Santiago (Chile · UTC-3 / UTC-4)" },
+  { value: "America/Lima", label: "Lima (Perú · UTC-5)" },
+  { value: "America/Bogota", label: "Bogotá (Colombia · UTC-5)" },
+  { value: "America/Caracas", label: "Caracas (Venezuela · UTC-4)" },
+  { value: "America/Mexico_City", label: "Ciudad de México (México · UTC-6)" },
+  { value: "America/Sao_Paulo", label: "São Paulo (Brasil · UTC-3)" },
+  { value: "America/Madrid", label: "Madrid (España · UTC+1 / UTC+2)" },
+  { value: "America/New_York", label: "Nueva York (EE.UU. · UTC-5 / UTC-4)" },
+];
 
 function ConfiguracionView({
   preferencias,
   guardarPreferencias,
+  espacioId,
+  zonaHoraria,
+  setZonaHoraria,
+  setSuccessNotice,
 }: {
   preferencias: { colorAcento: string; modoOscuro: boolean; tasaInteresPredeterminada: number };
   guardarPreferencias: (colorAcento: string, modoOscuro: boolean, tasaInteresPredeterminada: number) => Promise<string | null>;
+  espacioId: string;
+  zonaHoraria: string;
+  setZonaHoraria: (zona: string) => void;
+  setSuccessNotice: (msg: string | null) => void;
 }) {
   const [color, setColor] = useState(preferencias.colorAcento);
   const [tasa, setTasa] = useState(preferencias.tasaInteresPredeterminada);
+  const [zona, setZona] = useState(zonaHoraria || "America/La_Paz");
   const [guardando, setGuardando] = useState(false);
+  const [guardandoZona, setGuardandoZona] = useState(false);
   const [mensaje, setMensaje] = useState<string | null>(null);
 
-  useEffect(() => {
-    setColor(preferencias.colorAcento);
-    setTasa(preferencias.tasaInteresPredeterminada);
-  }, [preferencias.colorAcento, preferencias.tasaInteresPredeterminada]);
+
 
   async function guardar() {
     setGuardando(true);
@@ -1438,75 +2578,246 @@ function ConfiguracionView({
     setMensaje(error ?? "Preferencias guardadas.");
   }
 
+  async function guardarZonaHoraria(nuevaZona: string) {
+    setZona(nuevaZona);
+    if (!espacioId) return;
+    setGuardandoZona(true);
+    const res = await actualizarZonaHorariaEspacio(espacioId, nuevaZona);
+    setGuardandoZona(false);
+    if (!res.error) {
+      setZonaHoraria(nuevaZona);
+      setSuccessNotice(`¡Zona horaria actualizada a ${nuevaZona}!`);
+    }
+  }
+
   return (
-    <div className="space-y-6">
-      <div className="pb-4 border-b border-surface-container-high/60">
-        <h1 className="font-heading text-2xl font-extrabold text-on-surface">Configuración</h1>
-        <p className="text-xs text-on-surface-variant mt-0.5">Ajustes del espacio de trabajo.</p>
-      </div>
-      <div className="bg-surface-container-lowest rounded-2xl border border-surface-container-high/70 shadow-2xs p-6">
-        <div className="space-y-5 max-w-xl">
-          <div>
-            <h2 className="font-heading text-base font-bold text-on-surface">Apariencia</h2>
-            <p className="text-xs text-on-surface-variant mt-1">
-              Estas preferencias se guardan en tu perfil y se aplican en todos tus espacios.
-            </p>
-          </div>
-          <div>
-            <label className="block text-xs font-semibold text-on-surface mb-2">Color de resaltado</label>
-            <div className="flex flex-wrap gap-2">
-              {[
-                ["verde", "#006948"],
-                ["azul", "#2563eb"],
-                ["violeta", "#7c3aed"],
-                ["naranja", "#c2410c"],
-                ["rosa", "#e11d48"],
-              ].map(([value, colorValue]) => (
-                <button
-                  key={value}
-                  type="button"
-                  onClick={() => setColor(value)}
-                  className={`inline-flex items-center gap-2 px-3 py-2 rounded-xl border text-xs font-semibold capitalize ${
-                    color === value ? "border-primary ring-2 ring-primary/20" : "border-surface-container-high"
-                  }`}
-                >
-                  <span className="w-4 h-4 rounded-full" style={{ backgroundColor: colorValue }} />
-                  {value}
-                </button>
-              ))}
+    <div className="space-y-6 w-full">
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.24 }}
+        className="pb-4 border-b border-surface-container-high/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+      >
+        <div>
+          <h1 className="font-heading text-2xl sm:text-3xl font-extrabold text-on-surface">Configuración</h1>
+          <p className="text-xs text-on-surface-variant mt-1">Ajustes del espacio de trabajo, región y preferencias visuales.</p>
+        </div>
+      </motion.div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 w-full">
+        {/* Card 1: Zona Horaria del Espacio */}
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.28, delay: 0.04 }}
+          className="bg-surface-container-lowest rounded-2xl border border-surface-container-high/70 shadow-2xs p-6 flex flex-col justify-between"
+        >
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <span className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                <Globe className="w-5 h-5" />
+              </span>
+              <div>
+                <h2 className="font-heading text-base font-bold text-on-surface">Zona horaria del espacio</h2>
+                <p className="text-xs text-on-surface-variant">
+                  Evita desfases de fecha en cobros y vencimientos en horario nocturno.
+                </p>
+              </div>
+            </div>
+
+            <div className="pt-2">
+              <label className="block text-xs font-semibold text-on-surface mb-1.5">
+                Huso horario oficial
+              </label>
+              <select
+                value={zona}
+                onChange={(e) => guardarZonaHoraria(e.target.value)}
+                disabled={guardandoZona}
+                className="w-full h-11 pl-3.5 pr-10 rounded-xl bg-surface-container-low border border-surface-container-high/80 text-sm font-medium text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer disabled:opacity-50"
+              >
+                {POPULAR_TIMEZONES.map((tz) => (
+                  <option key={tz.value} value={tz.value}>
+                    {tz.label}
+                  </option>
+                ))}
+              </select>
+              <div className="flex items-center gap-2 mt-2.5 text-[11px] text-on-surface-variant">
+                <Clock className="w-3.5 h-3.5 text-primary shrink-0" />
+                <span>
+                  Tus registros y vencimientos se calculan en base a esta zona. Los cambios se sincronizan en vivo.
+                </span>
+              </div>
             </div>
           </div>
-          <div>
-            <label className="block text-xs font-semibold text-on-surface mb-1">
-              Interés predeterminado para nuevos préstamos (% mensual)
-            </label>
-            <input
-              type="number"
-              min={0}
-              max={100}
-              step="0.01"
-              value={tasa}
-              onChange={(event) => setTasa(Number(event.target.value))}
-              className="w-40 h-10 px-3 rounded-xl bg-surface-container-lowest border border-surface-container-high/80 text-base sm:text-sm text-on-surface focus:outline-none focus:border-primary"
-            />
-            <p className="text-[11px] text-on-surface-variant mt-1">
-              Sólo rellena nuevos formularios; no cambia préstamos existentes.
-            </p>
+
+          <div className="mt-6 pt-4 border-t border-surface-container-low flex items-center justify-between text-xs text-on-surface-variant">
+            <span>Zona activa: <b className="text-on-surface font-mono">{zona}</b></span>
+            {guardandoZona && <span className="text-primary font-bold animate-pulse">Sincronizando...</span>}
           </div>
-          <button
-            type="button"
-            onClick={guardar}
-            disabled={guardando}
-            className="px-4 py-2.5 rounded-xl bg-primary text-on-primary text-xs font-semibold disabled:opacity-60"
-          >
-            {guardando ? "Guardando..." : "Guardar preferencias"}
-          </button>
-          {mensaje && <p className="text-xs text-on-surface-variant">{mensaje}</p>}
-        </div>
-        <p className="text-sm text-on-surface-variant mt-8">La configuración avanzada del espacio (nombre, moneda, zona horaria) estará disponible pronto.</p>
-        <Link href="/espacios" className="inline-flex items-center gap-2 mt-4 text-xs font-semibold text-primary hover:underline">
-          <ArrowRight className="w-4 h-4" /> Volver a espacios
-        </Link>
+        </motion.div>
+
+        {/* Card 2: Apariencia y Color de Acento */}
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.28, delay: 0.08 }}
+          className="bg-surface-container-lowest rounded-2xl border border-surface-container-high/70 shadow-2xs p-6 flex flex-col justify-between"
+        >
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <span className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                <Palette className="w-5 h-5" />
+              </span>
+              <div>
+                <h2 className="font-heading text-base font-bold text-on-surface">Color de Acento</h2>
+                <p className="text-xs text-on-surface-variant">
+                  Personaliza los tonos principales de botones, badges y gráficos.
+                </p>
+              </div>
+            </div>
+
+            <div className="pt-2">
+              <label className="block text-xs font-semibold text-on-surface mb-2">Paleta disponible</label>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                {[
+                  ["verde", "#006948", "Verde Esmeralda"],
+                  ["azul", "#2563eb", "Azul Océano"],
+                  ["violeta", "#7c3aed", "Violeta Neón"],
+                  ["naranja", "#c2410c", "Naranja Ámbar"],
+                  ["rosa", "#e11d48", "Rosa Carmesí"],
+                ].map(([value, colorValue, label]) => {
+                  const isSelected = color === value;
+                  return (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => setColor(value)}
+                      className={`inline-flex items-center gap-2.5 px-3 py-2.5 rounded-xl border text-xs font-semibold capitalize cursor-pointer transition-all ${
+                        isSelected
+                          ? "border-primary bg-primary/5 ring-2 ring-primary/20 shadow-xs text-on-surface font-bold"
+                          : "border-surface-container-high/80 bg-surface-container-low hover:bg-surface-container text-on-surface-variant hover:text-on-surface"
+                      }`}
+                    >
+                      <span className="w-4 h-4 rounded-full shrink-0 shadow-2xs" style={{ backgroundColor: colorValue }} />
+                      <span className="truncate">{label}</span>
+                      {isSelected && <Check className="w-3.5 h-3.5 text-primary ml-auto shrink-0" />}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-6 pt-4 border-t border-surface-container-low flex items-center justify-between text-xs text-on-surface-variant">
+            <span>Se aplica a todos tus espacios en tu perfil.</span>
+          </div>
+        </motion.div>
+
+        {/* Card 3: Parámetros Financieros (Tasa Predeterminada) */}
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.28, delay: 0.12 }}
+          className="bg-surface-container-lowest rounded-2xl border border-surface-container-high/70 shadow-2xs p-6 flex flex-col justify-between"
+        >
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <span className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                <Percent className="w-5 h-5" />
+              </span>
+              <div>
+                <h2 className="font-heading text-base font-bold text-on-surface">Parámetros de Préstamos</h2>
+                <p className="text-xs text-on-surface-variant">
+                  Configura valores sugeridos automáticamente al registrar préstamos.
+                </p>
+              </div>
+            </div>
+
+            <div className="pt-2">
+              <label className="block text-xs font-semibold text-on-surface mb-1.5">
+                Tasa de interés mensual predeterminada (% mensual)
+              </label>
+              <div className="relative w-full sm:w-48">
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  step="0.01"
+                  value={tasa}
+                  onChange={(event) => setTasa(Number(event.target.value))}
+                  className="w-full h-11 pl-3 pr-10 rounded-xl bg-surface-container-low border border-surface-container-high/80 text-sm font-mono font-bold text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20"
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-on-surface-variant pointer-events-none">
+                  % mes
+                </span>
+              </div>
+              <p className="text-[11px] text-on-surface-variant mt-2 leading-relaxed">
+                Rellena automáticamente los nuevos formularios para ahorrar tiempo; no altera créditos ya otorgados.
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-6 pt-4 border-t border-surface-container-low flex items-center justify-between gap-3">
+            <button
+              type="button"
+              onClick={guardar}
+              disabled={guardando}
+              className="px-5 py-2.5 rounded-xl bg-primary text-on-primary text-xs font-bold shadow-xs hover:bg-primary-container transition-all cursor-pointer active:scale-95 disabled:opacity-60 flex items-center gap-2"
+            >
+              {guardando ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Guardando...</span>
+                </>
+              ) : (
+                <span>Guardar preferencias</span>
+              )}
+            </button>
+            {mensaje && <p className="text-xs text-primary font-semibold truncate">{mensaje}</p>}
+          </div>
+        </motion.div>
+
+        {/* Card 4: Espacios de Trabajo y Navegación */}
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.28, delay: 0.16 }}
+          className="bg-surface-container-lowest rounded-2xl border border-surface-container-high/70 shadow-2xs p-6 flex flex-col justify-between"
+        >
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <span className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                <LayoutGrid className="w-5 h-5" />
+              </span>
+              <div>
+                <h2 className="font-heading text-base font-bold text-on-surface">Gestión de Espacios</h2>
+                <p className="text-xs text-on-surface-variant">
+                  Organiza y separa carteras familiares, préstamos personales o de negocios.
+                </p>
+              </div>
+            </div>
+
+            <div className="pt-2 space-y-2">
+              <p className="text-xs text-on-surface-variant leading-relaxed">
+                Cada espacio cuenta con su propia base de datos, monedas, cuentas y miembros aislados de forma independiente.
+              </p>
+              <div className="p-3 rounded-xl bg-surface-container-low border border-surface-container-high/40 text-xs text-on-surface-variant flex items-center justify-between">
+                <span>Espacio actual ID:</span>
+                <span className="font-mono text-[11px] font-bold text-on-surface truncate max-w-[200px]">{espacioId || "predeterminado"}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-6 pt-4 border-t border-surface-container-low">
+            <Link
+              href="/espacios"
+              className="inline-flex items-center justify-center gap-2 w-full py-2.5 px-4 rounded-xl bg-surface-container-low hover:bg-surface-container border border-surface-container-high/60 text-xs font-semibold text-on-surface transition-colors cursor-pointer"
+            >
+              <span>Ver todos mis espacios de trabajo</span>
+              <ArrowRight className="w-4 h-4 text-primary" />
+            </Link>
+          </div>
+        </motion.div>
       </div>
     </div>
   );
