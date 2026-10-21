@@ -1,24 +1,71 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { Moon, Sun } from "lucide-react";
+
+import { applyCustomAccent, getSessionAccent } from "@/lib/theme-utils";
 
 interface ThemeToggleProps {
   className?: string;
 }
 
+const emptySubscribe = () => () => {};
+const getClientMounted = () => true;
+const getServerMounted = () => false;
+
+/**
+ * Desactiva temporalmente las transiciones CSS en todos los elementos del DOM.
+ * Esto evita que tarjetas, botones o barras con clases Tailwind (como transition-all duration-300/500)
+ * tarden hasta 1 segundo en cambiar de color o queden desfasadas respecto al resto de la interfaz.
+ */
+function disableTransitionsTemporarily(): () => void {
+  if (typeof document === "undefined") return () => {};
+
+  const style = document.createElement("style");
+  style.setAttribute("data-theme-transition-suppress", "true");
+  style.appendChild(
+    document.createTextNode(
+      "*, *::before, *::after { -webkit-transition: none !important; -moz-transition: none !important; -o-transition: none !important; -ms-transition: none !important; transition: none !important; }"
+    )
+  );
+  document.head.appendChild(style);
+
+  // Forzar recálculo síncrono del motor de renderizado
+  void window.getComputedStyle(document.documentElement).opacity;
+
+  return () => {
+    // Forzar recálculo de estilos finales antes de rehabilitar las transiciones normales
+    void window.getComputedStyle(document.documentElement).opacity;
+    requestAnimationFrame(() => {
+      try {
+        if (style.parentNode) {
+          style.parentNode.removeChild(style);
+        }
+      } catch {}
+    });
+  };
+}
+
 export function ThemeToggle({ className = "" }: ThemeToggleProps) {
-  const [isDark, setIsDark] = useState(false);
-  const [mounted, setMounted] = useState(false);
+  const mounted = useSyncExternalStore(emptySubscribe, getClientMounted, getServerMounted);
+  const [isDark, setIsDark] = useState(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("finpal-dark-mode");
+      if (saved !== null) return saved === "true";
+      return (
+        document.documentElement.classList.contains("dark") ||
+        document.documentElement.getAttribute("data-theme") === "dark"
+      );
+    }
+    return false;
+  });
 
   useEffect(() => {
-    setMounted(true);
     const saved = localStorage.getItem("finpal-dark-mode");
     const docDark =
       document.documentElement.classList.contains("dark") ||
       document.documentElement.getAttribute("data-theme") === "dark";
     const activeDark = saved !== null ? saved === "true" : docDark;
-    setIsDark(activeDark);
     if (activeDark) {
       document.documentElement.classList.add("dark");
       document.documentElement.setAttribute("data-theme", "dark");
@@ -44,31 +91,54 @@ export function ThemeToggle({ className = "" }: ThemeToggleProps) {
       const meta = document.querySelector('meta[name="theme-color"]');
       if (meta) meta.setAttribute("content", "#faf8ff");
     }
+
+    // Sincronizar colores dinámicos de acento de inmediato
+    const sessionAccent = getSessionAccent();
+    if (sessionAccent) {
+      applyCustomAccent(sessionAccent);
+    }
   };
 
   const toggleDarkMode = () => {
     const next = !isDark;
     setIsDark(next);
 
-    // Activar clase de transición suave en todo el DOM
-    document.documentElement.classList.add("theme-transitioning");
+    const isViewTransitionSupported =
+      typeof document !== "undefined" &&
+      "startViewTransition" in document &&
+      !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-    if (typeof document !== "undefined" && "startViewTransition" in document) {
-      (document as unknown as { startViewTransition: (cb: () => void) => void }).startViewTransition(() => {
+    if (isViewTransitionSupported) {
+      const restoreTransitions = disableTransitionsTemporarily();
+      try {
+        const transition = (
+          document as unknown as {
+            startViewTransition: (cb: () => void) => { finished: Promise<void> };
+          }
+        ).startViewTransition(() => {
+          applyTheme(next);
+        });
+
+        transition.finished
+          .catch(() => {})
+          .finally(() => {
+            restoreTransitions();
+          });
+      } catch {
         applyTheme(next);
-      });
+        restoreTransitions();
+      }
     } else {
+      const restoreTransitions = disableTransitionsTemporarily();
       applyTheme(next);
+      restoreTransitions();
     }
-
-    window.setTimeout(() => {
-      document.documentElement.classList.remove("theme-transitioning");
-    }, 450);
 
     try {
       localStorage.setItem("finpal-dark-mode", next ? "true" : "false");
     } catch {}
   };
+
 
   if (!mounted) {
     return (
