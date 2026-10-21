@@ -912,7 +912,7 @@ export function ImportModal({
                   <select
                     value={selectedSheet}
                     onChange={(e) => handleSheetChange(e.target.value)}
-                    className="px-2 py-1 rounded bg-surface border border-outline-variant/30 text-on-surface font-semibold text-xs"
+                    className="h-8 pl-2.5 pr-8 rounded-lg bg-surface border border-outline-variant/30 text-on-surface font-semibold text-xs cursor-pointer focus:outline-none focus:border-primary"
                   >
                     {availableSheets.map((s) => (
                       <option key={s} value={s}>
@@ -972,7 +972,7 @@ export function ImportModal({
                         onChange={(e) =>
                           setMapping((prev) => ({ ...prev, [field.key]: e.target.value }))
                         }
-                        className="h-9 px-3 text-xs rounded-xl bg-surface-container text-on-surface border border-outline-variant/30 focus:border-primary outline-none min-w-[240px] font-medium"
+                        className="h-9 pl-3 pr-9 text-xs rounded-xl bg-surface-container text-on-surface border border-outline-variant/30 focus:border-primary outline-none min-w-[240px] font-medium cursor-pointer"
                       >
                         <option value="">— (No incluir / Ninguna) —</option>
                         {fileHeaders.map((header) => (

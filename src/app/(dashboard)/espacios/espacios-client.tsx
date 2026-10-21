@@ -3,10 +3,10 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
+import { motion } from "motion/react";
 import {
   ArrowRight,
   Building2,
-  ChevronRight,
   HandCoins,
   Info,
   LogOut,
@@ -16,7 +16,6 @@ import {
   X,
   Loader2,
   Users,
-  Calendar,
   Sparkles,
 } from "lucide-react";
 import { FinPalLogo } from "@/components/finpal-logo";
@@ -34,6 +33,7 @@ type EspacioRow = {
   nombre: string;
   codigo_moneda: string;
   created_at: string;
+  zona_horaria?: string;
   contactos: { count: number }[];
   prestamos: { count: number }[];
 };
@@ -84,11 +84,16 @@ export default function EspaciosClient({
   };
 
   const avatarLetters = userEmail ? userEmail.slice(0, 2).toUpperCase() : "FP";
+  const [enteringEspacioId, setEnteringEspacioId] = useState<string | null>(null);
 
-  function handleSelectEspacio(id: string, nombre: string) {
-    setEspacio(id, nombre);
+  function handleSelectEspacio(id: string, nombre: string, zona?: string) {
+    if (enteringEspacioId) return;
+    setEnteringEspacioId(id);
+    setEspacio(id, nombre, zona);
     router.push("/inicio");
   }
+
+
 
   async function handleCreate(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -159,7 +164,12 @@ export default function EspaciosClient({
       {/* ─── Main Content (Spacious Laptop/Desktop Centered View) ───────── */}
       <main className="flex-1 w-full max-w-6xl mx-auto px-3.5 sm:px-6 lg:px-8 py-8 sm:py-12 flex flex-col items-center justify-center overflow-x-hidden">
         {/* Centered Hero Section */}
-        <div className="text-center max-w-2xl mx-auto mb-8 sm:mb-10 px-2">
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.28 }}
+          className="text-center max-w-2xl mx-auto mb-8 sm:mb-10 px-2"
+        >
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-primary/10 text-primary border border-primary/20 mb-3">
             <Sparkles className="w-3.5 h-3.5" />
             <span>Espacios de Trabajo</span>
@@ -170,7 +180,14 @@ export default function EspaciosClient({
           <p className="text-xs sm:text-sm text-on-surface-variant mt-2 leading-relaxed">
             Cada espacio mantiene préstamos, cobros, deudores y cuentas financieras completamente aislados y seguros.
           </p>
-        </div>
+        </motion.div>
+
+        {/* Barra de progreso de carga al ingresar a un espacio */}
+        {enteringEspacioId && (
+          <div className="fixed top-0 left-0 right-0 h-[3px] z-50 overflow-hidden bg-primary/20">
+            <div className="h-full bg-primary animate-pulse w-full shadow-[0_0_10px_var(--color-primary)]" />
+          </div>
+        )}
 
         {/* Centered Workspaces Container */}
         <div className="w-full max-w-full flex flex-wrap items-stretch justify-center gap-4 sm:gap-6">
@@ -179,12 +196,18 @@ export default function EspaciosClient({
             const style = ICON_STYLES[i % ICON_STYLES.length];
             const prestamosCount = espacio.prestamos?.[0]?.count ?? 0;
             const contactosCount = espacio.contactos?.[0]?.count ?? 0;
+            const isEntering = enteringEspacioId === espacio.id;
 
             return (
-              <div
+              <motion.div
                 key={espacio.id}
-                onClick={() => handleSelectEspacio(espacio.id, espacio.nombre)}
-                className="group bg-surface-container-lowest rounded-2xl border border-surface-container-high/70 hover:border-primary/50 shadow-2xs hover:shadow-md transition-all duration-200 p-5 sm:p-6 flex flex-col justify-between cursor-pointer text-left relative overflow-hidden w-full max-w-[340px] sm:w-[320px] lg:w-[340px]"
+                initial={{ opacity: 0, y: 14, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                transition={{ duration: 0.28, delay: Math.min(i * 0.05, 0.3) }}
+                onClick={() => handleSelectEspacio(espacio.id, espacio.nombre, espacio.zona_horaria)}
+                className={`group bg-surface-container-lowest rounded-2xl border border-surface-container-high/70 hover:border-primary/50 shadow-2xs hover:shadow-md transition-all duration-200 p-5 sm:p-6 flex flex-col justify-between cursor-pointer text-left relative overflow-hidden w-full max-w-[340px] sm:w-[320px] lg:w-[340px] active:scale-[0.98] ${
+                  isEntering ? "ring-2 ring-primary ring-offset-2 scale-[0.98] opacity-90 shadow-md" : ""
+                }`}
               >
                 {/* Superior: Ícono + Etiqueta de Moneda */}
                 <div>
@@ -222,18 +245,31 @@ export default function EspaciosClient({
                   <span className="text-[11px] text-on-surface-variant">
                     {espacio.created_at ? `Desde ${formatDateEs(espacio.created_at)}` : "Espacio activo"}
                   </span>
-                  <div className="flex items-center gap-1 font-bold text-primary group-hover:translate-x-1 transition-transform">
-                    <span>Ingresar</span>
-                    <ArrowRight className="w-3.5 h-3.5" />
+                  <div className="flex items-center gap-1.5 font-bold text-primary group-hover:translate-x-1 transition-transform">
+                    {isEntering ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        <span>Ingresando...</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>Ingresar</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </>
+                    )}
                   </div>
                 </div>
-              </div>
+              </motion.div>
             );
           })}
 
+
           {/* "+ Crear nuevo espacio" Card */}
-          <button
+          <motion.button
             type="button"
+            initial={{ opacity: 0, y: 14 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.28, delay: Math.min(espacios.length * 0.05, 0.35) }}
             onClick={() => setShowModal(true)}
             className="group bg-surface-container-lowest/60 hover:bg-primary/5 rounded-2xl border-2 border-dashed border-surface-container-high/80 hover:border-primary/50 transition-all duration-200 p-6 flex flex-col items-center justify-center text-center cursor-pointer min-h-[220px] w-full max-w-[340px] sm:w-[320px] lg:w-[340px]"
           >
@@ -246,18 +282,23 @@ export default function EspaciosClient({
             <p className="text-xs text-on-surface-variant mt-1 max-w-xs">
               Separa una nueva cartera de préstamos, proyectos personales o negocios independientes.
             </p>
-          </button>
+          </motion.button>
         </div>
 
         {/* Helpful Info Tip */}
-        <div className="mt-8 sm:mt-10 flex justify-center px-4">
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.3, delay: 0.2 }}
+          className="mt-8 sm:mt-10 flex justify-center px-4"
+        >
           <div className="inline-flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-surface-container-low/60 border border-surface-container-high/60 text-xs text-on-surface-variant max-w-lg shadow-2xs">
             <Info className="w-4 h-4 text-primary shrink-0" />
             <span className="leading-relaxed text-left">
               Puedes alternar libremente entre tus espacios de trabajo en cualquier momento desde el menú superior o lateral.
             </span>
           </div>
-        </div>
+        </motion.div>
       </main>
 
       {/* ─── Modal Crear Espacio ───────────────────────────────────────── */}
@@ -315,7 +356,7 @@ export default function EspaciosClient({
                   <select
                     name="currencyCode"
                     defaultValue="BOB"
-                    className="w-full h-10 px-3 rounded-xl bg-surface-container-low border border-surface-container-high/80 text-base sm:text-sm text-on-surface focus:outline-none focus:border-primary cursor-pointer"
+                    className="w-full h-10 pl-3.5 pr-10 rounded-xl bg-surface-container-low border border-surface-container-high/80 text-base sm:text-sm text-on-surface focus:outline-none focus:border-primary cursor-pointer"
                   >
                     <option className="bg-surface text-on-surface" value="BOB">BOB — Boliviano</option>
                     <option className="bg-surface text-on-surface" value="USD">USD — Dólar</option>
@@ -332,7 +373,7 @@ export default function EspaciosClient({
                   <select
                     name="timezone"
                     defaultValue="America/La_Paz"
-                    className="w-full h-10 px-3 rounded-xl bg-surface-container-low border border-surface-container-high/80 text-base sm:text-sm text-on-surface focus:outline-none focus:border-primary cursor-pointer"
+                    className="w-full h-10 pl-3.5 pr-10 rounded-xl bg-surface-container-low border border-surface-container-high/80 text-base sm:text-sm text-on-surface focus:outline-none focus:border-primary cursor-pointer"
                   >
                     <option className="bg-surface text-on-surface" value="America/La_Paz">La Paz (BOT)</option>
                     <option className="bg-surface text-on-surface" value="America/Lima">Lima (PET)</option>
