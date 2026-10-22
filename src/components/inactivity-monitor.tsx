@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef, useCallback } from "react";
-import { LogOut, ShieldAlert, Clock } from "lucide-react";
+import { LogOut, ShieldAlert, Clock, Loader2 } from "lucide-react";
 import { signOut } from "@/app/(auth)/actions";
 import { INACTIVITY_TIMEOUT_MS, INACTIVITY_WARNING_MS } from "@/lib/security";
 import { clearSessionAccent } from "@/lib/theme-utils";
@@ -20,6 +20,7 @@ export function InactivityMonitor() {
   const [secondsRemaining, setSecondsRemaining] = useState(300); // 5 min de advertencia
   const lastActivityRef = useRef<number>(Date.now());
   const isLoggingOutRef = useRef<boolean>(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const resetActivity = useCallback(() => {
     lastActivityRef.current = Date.now();
@@ -117,15 +118,26 @@ export function InactivityMonitor() {
           </button>
           <button
             type="button"
+            disabled={isLoggingOut}
             onClick={() => {
               isLoggingOutRef.current = true;
+              setIsLoggingOut(true);
               clearSessionAccent();
               signOut();
             }}
-            className="py-2.5 px-4 rounded-xl border border-surface-container-high text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-all text-sm flex items-center justify-center gap-2 cursor-pointer"
+            className="py-2.5 px-4 rounded-xl border border-surface-container-high text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-all text-sm flex items-center justify-center gap-2 cursor-pointer disabled:opacity-75 disabled:cursor-not-allowed"
           >
-            <LogOut className="w-4 h-4" />
-            Cerrar sesión ahora
+            {isLoggingOut ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin text-error" />
+                <span>Cerrando sesión...</span>
+              </>
+            ) : (
+              <>
+                <LogOut className="w-4 h-4" />
+                <span>Cerrar sesión ahora</span>
+              </>
+            )}
           </button>
         </div>
       </div>

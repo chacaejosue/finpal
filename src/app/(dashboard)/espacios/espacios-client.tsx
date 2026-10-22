@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { motion } from "motion/react";
+import { motion, AnimatePresence } from "motion/react";
 import {
   ArrowRight,
   Building2,
@@ -73,6 +73,7 @@ export default function EspaciosClient({
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
   const [isPending, startTransition] = useTransition();
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const handleSafeCloseModal = () => {
     if (isFormDirty) {
@@ -143,18 +144,22 @@ export default function EspaciosClient({
             <form
               action={signOut}
               onSubmit={() => {
+                setIsLoggingOut(true);
                 clearSessionAccent();
               }}
             >
               <button
                 type="submit"
-                onClick={() => {
-                  clearSessionAccent();
-                }}
-                className="p-2 text-on-surface-variant hover:text-error hover:bg-error-container/40 rounded-xl transition-colors flex items-center justify-center cursor-pointer shrink-0"
-                title="Cerrar sesión"
+                disabled={isLoggingOut}
+                className="p-2 text-on-surface-variant hover:text-error hover:bg-error-container/40 rounded-xl transition-colors flex items-center justify-center cursor-pointer shrink-0 disabled:opacity-75 disabled:cursor-not-allowed"
+                title={isLoggingOut ? "Cerrando sesión..." : "Cerrar sesión"}
+                aria-label={isLoggingOut ? "Cerrando sesión..." : "Cerrar sesión"}
               >
-                <LogOut className="w-4 h-4" />
+                {isLoggingOut ? (
+                  <Loader2 className="w-4 h-4 animate-spin text-error" />
+                ) : (
+                  <LogOut className="w-4 h-4" />
+                )}
               </button>
             </form>
           </div>
@@ -439,6 +444,35 @@ export default function EspaciosClient({
           </div>
         </div>
       </footer>
+      {/* Overlay de Cierre de Sesión Seguro */}
+      <AnimatePresence>
+        {isLoggingOut && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            className="fixed inset-0 z-100 flex flex-col items-center justify-center bg-background/80 backdrop-blur-xs select-none p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.94, opacity: 0, y: 8 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              transition={{ duration: 0.2 }}
+              className="flex flex-col items-center gap-3.5 p-6 rounded-2xl bg-surface-container-lowest border border-surface-container-high/80 shadow-2xl text-center max-w-xs w-full"
+            >
+              <div className="w-12 h-12 rounded-2xl bg-error/10 border border-error/20 flex items-center justify-center text-error shadow-2xs">
+                <Loader2 className="w-6 h-6 animate-spin" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-on-surface font-heading">Cerrando sesión...</h3>
+                <p className="text-xs text-on-surface-variant mt-1 leading-relaxed">
+                  Saliendo de tu cuenta y asegurando tus datos de forma protegida.
+                </p>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
