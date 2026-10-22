@@ -1,7 +1,11 @@
 "use client";
 
-export function DashboardRouteSkeleton({ path }: { path: string | null }) {
-  const normalized = (path || "").toLowerCase();
+import { usePathname } from "next/navigation";
+
+export function DashboardRouteSkeleton({ path }: { path?: string | null }) {
+  const currentPath = usePathname();
+  const target = path || currentPath || "";
+  const normalized = target.toLowerCase();
 
   if (normalized.includes("reportes")) {
     return <SkeletonReportes />;
