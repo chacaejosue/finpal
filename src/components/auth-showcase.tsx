@@ -2,8 +2,6 @@
 
 import { useState } from "react";
 import {
-  Code2,
-  ShieldCheck,
   CheckCircle2,
   RotateCcw,
   ReceiptText,
@@ -131,9 +129,7 @@ export function AuthShowcase() {
   const totalExpectedFlow = totalExpectedCapital + totalExpectedInterest;
 
   return (
-    <div className="hidden lg:flex flex-col flex-1 max-w-md select-none relative z-10 shrink-0">
-      {/* ─── Tarjeta interactiva de demostración con bordes y padding simétricos ─── */}
-      <div className="auth-page-enter bg-surface-container-lowest border border-surface-container-high/70 p-5 sm:p-6 rounded-2xl shadow-xl relative flex flex-col justify-between h-full group">
+    <div className="auth-page-enter hidden lg:flex flex-col justify-between flex-1 max-w-md w-full select-none relative z-10 bg-surface-container-lowest border border-surface-container-high/70 p-5 sm:p-6 rounded-2xl shadow-xl group">
         {/* Encabezado sincronizado con la tarjeta de autenticación */}
         <div className="mb-3.5">
           <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-surface-container text-on-surface-variant font-mono text-[10px] font-medium w-fit mb-2 shadow-2xs border border-surface-container-high/40">
@@ -396,20 +392,6 @@ export function AuthShowcase() {
         {/* Subtle backdrop decorative glow */}
         <div className="absolute -right-8 -bottom-8 w-24 h-24 bg-primary/10 rounded-full blur-xl pointer-events-none" />
       </div>
-
-      {/* Trust Badge */}
-      <div className="flex flex-wrap items-center gap-3 mt-2 text-[10px] text-outline font-medium">
-        <div className="flex items-center gap-1">
-          <ShieldCheck className="w-3.5 h-3.5 text-primary" />
-          <span>Cifrado de extremo a extremo</span>
-        </div>
-        <span>•</span>
-        <div className="flex items-center gap-1">
-          <Code2 className="w-3.5 h-3.5 text-primary" />
-          <span>Información centralizada</span>
-        </div>
-      </div>
-    </div>
   );
 }
 

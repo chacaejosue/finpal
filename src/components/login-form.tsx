@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, Eye, EyeOff, Lock, Mail, ShieldCheck } from "lucide-react";
+import { ArrowRight, Eye, EyeOff, Lock, Mail } from "lucide-react";
 import { FormEvent, useState } from "react";
 
 export function LoginForm({ action }: { action: (formData: FormData) => void | Promise<void> }) {
@@ -84,10 +84,7 @@ export function LoginForm({ action }: { action: (formData: FormData) => void | P
         <span>{loading ? "Verificando..." : "Iniciar sesión"}</span>
         <ArrowRight className="h-4 w-4" />
       </button>
-      <div className="mt-5 flex items-center justify-center gap-1.5 border-t border-surface-container-high/40 pt-3 text-center">
-        <ShieldCheck className="h-4 w-4 text-primary shrink-0" />
-        <span className="text-[11px] sm:text-xs font-medium text-outline">Autenticación segura con Supabase Auth</span>
-      </div>
+
     </form>
   );
 }

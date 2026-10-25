@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Code2, ShieldCheck } from "lucide-react";
 import { signIn } from "../actions";
 import { AuthShowcase } from "@/components/auth-showcase";
 import { LoginForm } from "@/components/login-form";
@@ -10,6 +10,12 @@ export default async function SignInPage({ searchParams }: PageProps<"/iniciar-s
   const { error, mensaje } = await searchParams;
   return (
     <div className="min-h-screen lg:h-screen lg:max-h-screen bg-background text-on-surface antialiased flex flex-col justify-between selection:bg-primary-fixed selection:text-on-primary-fixed relative w-full max-w-full overflow-x-hidden overflow-y-auto lg:overflow-hidden">
+      {/* Destellos ambientales suaves a pantalla completa (sin cajas que corten el brillo) */}
+      <div className="fixed inset-0 pointer-events-none -z-10 overflow-hidden">
+        <div className="absolute top-1/4 left-1/2 -translate-x-[460px] w-96 h-96 bg-primary/12 dark:bg-primary/8 rounded-full blur-[100px]" />
+        <div className="absolute bottom-1/4 left-1/2 translate-x-[120px] w-96 h-96 bg-secondary/12 dark:bg-secondary/8 rounded-full blur-[100px]" />
+      </div>
+
       {/* Cabecera superior con botón de regreso al inicio */}
       <header className="w-full max-w-5xl mx-auto px-4 pt-3.5 pb-2 flex items-center justify-between relative z-20 shrink-0">
         <Link
@@ -31,23 +37,17 @@ export default async function SignInPage({ searchParams }: PageProps<"/iniciar-s
         </div>
       </header>
 
-      {/* Área de contenido principal */}
+      {/* Área de contenido principal con tarjetas de igual tamaño */}
       <main className="w-full max-w-full flex-1 flex flex-col items-center justify-center px-4 py-3 sm:py-6 relative z-10 min-h-0 overflow-x-hidden">
         <div className="auth-page-enter relative w-full max-w-5xl mx-auto flex flex-col lg:flex-row items-stretch justify-center gap-6 my-auto">
-          {/* Destellos ambientales de fondo confinados */}
-          <div className="absolute inset-0 overflow-hidden pointer-events-none -z-10">
-            <div className="absolute -top-16 -left-16 w-72 sm:w-80 h-72 sm:h-80 bg-primary-fixed/20 rounded-full blur-3xl pointer-events-none" />
-            <div className="absolute -bottom-16 -right-16 sm:right-10 w-72 sm:w-96 h-72 sm:h-96 bg-secondary-fixed/20 rounded-full blur-3xl pointer-events-none" />
-          </div>
-
-          {/* Vitrina interactiva de marca */}
+          {/* Vitrina interactiva de marca (Tarjeta 1) */}
           <AuthShowcase />
 
-          {/* Tarjeta de autenticación */}
-          <div className="w-full max-w-md mx-auto lg:mx-0 shrink-0">
-            <div className="auth-page-enter auth-page-enter-delayed bg-surface-container-lowest border border-surface-container-high/70 rounded-2xl shadow-xl p-4 sm:p-6 relative">
-              {/* Encabezado */}
-              <div className="mb-3.5">
+          {/* Tarjeta de autenticación (Tarjeta 2 - Hermana directa en items-stretch) */}
+          <div className="auth-page-enter auth-page-enter-delayed flex flex-col justify-between flex-1 max-w-md w-full mx-auto lg:mx-0 relative z-10 bg-surface-container-lowest border border-surface-container-high/70 rounded-2xl shadow-xl p-5 sm:p-6">
+            {/* Encabezado y Formulario */}
+            <div className="flex-1 flex flex-col">
+              <div className="mb-4">
                 <h2 className="font-heading text-xl sm:text-2xl text-on-surface font-extrabold tracking-tight">
                   Iniciar sesión
                 </h2>
@@ -56,7 +56,6 @@ export default async function SignInPage({ searchParams }: PageProps<"/iniciar-s
                 </p>
               </div>
 
-              {/* Formulario de acceso */}
               <LoginForm action={signIn} />
 
               {/* Avisos de error y éxito */}
@@ -70,11 +69,22 @@ export default async function SignInPage({ searchParams }: PageProps<"/iniciar-s
                   {mensaje}
                 </div>
               )}
+            </div>
 
-              {/* Enlace para registrarse */}
-              <div className="mt-4 text-center text-xs text-on-surface-variant font-medium">
+            {/* Pie fijado de la tarjeta */}
+            <div className="mt-auto pt-3.5 border-t border-surface-container-low text-center space-y-2 shrink-0">
+              <div className="flex items-center justify-center gap-1.5 text-center">
+                <ShieldCheck className="w-3.5 h-3.5 text-primary shrink-0" />
+                <span className="text-[11px] font-medium text-outline">
+                  Autenticación segura con Supabase Auth
+                </span>
+              </div>
+              <div className="text-xs text-on-surface-variant font-medium">
                 <span>¿No tienes una cuenta aún?</span>
-                <Link className="ml-1 inline-flex font-bold text-primary transition-[color,transform] duration-200 hover:-translate-y-px hover:text-primary-container" href="/registrarse">
+                <Link
+                  className="ml-1 inline-flex font-bold text-primary transition-[color,transform] duration-200 hover:-translate-y-px hover:text-primary-container"
+                  href="/registrarse"
+                >
                   Regístrate gratis
                 </Link>
               </div>
@@ -84,11 +94,17 @@ export default async function SignInPage({ searchParams }: PageProps<"/iniciar-s
       </main>
 
       {/* Pie de página */}
-      <footer className="w-full py-2 text-center border-t border-surface-container-high/30 shrink-0">
-        <div className="flex items-center justify-center gap-3 text-[11px] text-on-surface-variant font-medium">
-          <span className="font-mono uppercase text-outline text-[10px] tracking-wider">Open Source Ledger</span>
+      <footer className="w-full py-2.5 text-center border-t border-surface-container-high/30 shrink-0">
+        <div className="flex items-center justify-center gap-3 text-[11px] text-outline font-medium">
+          <div className="flex items-center gap-1.5">
+            <ShieldCheck className="w-3.5 h-3.5 text-primary" />
+            <span>Cifrado de extremo a extremo</span>
+          </div>
           <span>•</span>
-          <span>FinPal Protocol</span>
+          <div className="flex items-center gap-1.5">
+            <Code2 className="w-3.5 h-3.5 text-primary" />
+            <span>Información centralizada</span>
+          </div>
         </div>
       </footer>
     </div>
