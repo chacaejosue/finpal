@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="public/finpal-cover.svg" alt="FinPal — control claro de préstamos y finanzas personales" width="100%" style="max-width: 1600px; height: auto;">
+  <img src="public/finpal-cover.png" alt="FinPal — control claro de préstamos y finanzas personales" width="100%" style="max-width: 1600px; height: auto;">
 </p>
 
 <p align="center">
