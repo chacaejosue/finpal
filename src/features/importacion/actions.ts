@@ -11,6 +11,7 @@ import {
   type ImportPrestamoRow,
   type ImportMovimientoRow,
 } from "@/lib/validations/schemas";
+import { encryptFieldSync, decryptFieldSync } from "@/lib/crypto";
 
 export interface ImportResult {
   exitosos: number;
@@ -43,10 +44,10 @@ export async function importarContactos(
   if (filasValidas.length > 0) {
     const records = filasValidas.map((f) => ({
       espacio_id: espacioId,
-      nombre: f.nombre,
-      telefono: f.telefono || null,
-      email: f.email || null,
-      notas: f.notas || null,
+      nombre: encryptFieldSync(f.nombre)!,
+      telefono: encryptFieldSync(f.telefono) || null,
+      email: encryptFieldSync(f.email) || null,
+      notas: encryptFieldSync(f.notas) || null,
     }));
 
     const { error } = await supabase.from("contactos").insert(records);
@@ -87,7 +88,8 @@ export async function importarPrestamos(
 
   const contactoMap = new Map<string, string>();
   (contactosExistentes ?? []).forEach((c) => {
-    contactoMap.set(c.nombre.toLowerCase().trim(), c.id);
+    const decNombre = decryptFieldSync(c.nombre) ?? "";
+    contactoMap.set(decNombre.toLowerCase().trim(), c.id);
   });
 
   const errores: { fila: number; mensaje: string }[] = [];
@@ -118,13 +120,13 @@ export async function importarPrestamos(
     const { data } = res;
     let cId = contactoMap.get(data.contacto_nombre.toLowerCase().trim());
 
-    // Si el contacto no existe, lo creamos automáticamente
+    // Si el contacto no existe, lo creamos automáticamente cifrado
     if (!cId) {
       const { data: nuevoContacto, error: errContacto } = await supabase
         .from("contactos")
         .insert({
           espacio_id: espacioId,
-          nombre: data.contacto_nombre.trim(),
+          nombre: encryptFieldSync(data.contacto_nombre.trim())!,
         })
         .select("id")
         .single();
@@ -156,7 +158,7 @@ export async function importarPrestamos(
       fecha_inicio: data.fecha_inicio,
       dia_pago: Number(data.dia_pago),
       estado: data.estado ?? "activo",
-      notas: data.notas || null,
+      notas: encryptFieldSync(data.notas) || null,
     });
   }
 
@@ -234,7 +236,7 @@ export async function importarMovimientos(
       tipo: data.tipo,
       monto: Number(data.monto),
       ocurrido_en: data.fecha,
-      descripcion: data.descripcion || null,
+      descripcion: encryptFieldSync(data.descripcion) || null,
     });
   });
 
