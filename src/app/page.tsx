@@ -14,11 +14,13 @@ import {
   Banknote,
   CalendarDays,
   Check,
+  ChevronDown,
   CircleDollarSign,
   Code2,
   Copy,
   ExternalLink,
   Handshake,
+  HelpCircle,
   Landmark,
   LogIn,
   Percent,
@@ -96,6 +98,39 @@ const features = [
   },
 ];
 
+const faqs = [
+  {
+    pregunta: "¿Qué es FinPal y para qué sirve?",
+    respuesta:
+      "FinPal es una plataforma web creada para el control inteligente de préstamos personales, cobro programado de intereses mensuales fijos o porcentuales, gestión de amortizaciones a capital y balance centralizado de cuentas de dinero (efectivo, bancos y billeteras móviles).",
+  },
+  {
+    pregunta: "¿Cómo calcula FinPal los intereses mensuales y amortizaciones?",
+    respuesta:
+      "Calcula el interés aplicando el porcentaje pactado sobre el capital vigente. Puedes registrar cobros de interés mensual, abonos parciales o amortizaciones a capital, recalculando automáticamente el saldo deudor y la cuota esperada para el siguiente período sin perder el historial.",
+  },
+  {
+    pregunta: "¿Cómo me ayuda a evitar olvidos y atrasos en los cobros?",
+    respuesta:
+      "Cada préstamo define su fecha de inicio y su día mensual de cobro. FinPal categoriza de forma automática los cobros al día, los próximos a vencer y los atrasados, mostrándote alertas visuales y el número exacto de días transcurridos para un control puntual.",
+  },
+  {
+    pregunta: "¿Mis datos financieros y de mis contactos están protegidos?",
+    respuesta:
+      "Sí. FinPal prioriza la privacidad absoluta: no vende ni comparte tus datos con terceros. Opera sobre Supabase con Row Level Security (RLS) estricto por usuario y cifrado criptográfico AES-256 en servidor para datos sensibles como teléfonos de contacto y notas personales.",
+  },
+  {
+    pregunta: "¿Puedo separar mis finanzas en diferentes espacios de trabajo?",
+    respuesta:
+      "Sí. FinPal te permite crear múltiples espacios de trabajo independientes (por ejemplo: 'Préstamos Personales', 'Proyectos', 'Finanzas del Hogar'), cada uno con sus propias cuentas, saldos, movimientos y configuración de moneda.",
+  },
+  {
+    pregunta: "¿Tiene algún costo o requiere tarjeta de crédito?",
+    respuesta:
+      "FinPal es de libre acceso y de código abierto en GitHub. Puedes registrarte de inmediato con tu correo electrónico y utilizar todas las funciones del sistema sin ingresar tarjetas de crédito ni suscripciones ocultas.",
+  },
+];
+
 function handleLandingNavigation(event: MouseEvent<HTMLElement>) {
   if (
     event.defaultPrevented ||
@@ -124,6 +159,7 @@ export default function Home() {
   const [copied, setCopied] = useState(false);
   const [showBackToTop, setShowBackToTop] = useState(false);
   const [legalModal, setLegalModal] = useState<"terminos" | "privacidad" | null>(null);
+  const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0);
   const [mesActualLanding, setMesActualLanding] = useState("Mes Actual");
 
   useEffect(() => {
@@ -180,6 +216,12 @@ export default function Home() {
               href="#alcance"
             >
               Características
+            </a>
+            <a
+              className="text-on-surface-variant hover:text-primary text-sm font-medium transition-colors"
+              href="#faq"
+            >
+              Preguntas frecuentes
             </a>
             <a
               className="text-on-surface-variant hover:text-primary text-sm font-medium transition-colors"
@@ -249,12 +291,12 @@ export default function Home() {
               >
                 <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full badge-teal text-xs font-semibold">
                   <Handshake className="w-4 h-4 text-teal-600 dark:text-teal-400" />
-                  <span>Hecho para una necesidad real • En desarrollo continuo</span>
+                  <span>Control de Préstamos Personales y Finanzas • FinPal</span>
                 </div>
 
                 {/* Título principal H1 */}
                 <h1 className="font-heading text-3xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight leading-[1.12] text-on-surface text-balance break-words">
-                  Deja de repartir tu información entre varias herramientas:{" "}
+                  Control inteligente de préstamos y cobro de intereses:{" "}
                   <motion.span
                     className="relative inline-block text-primary font-bold"
                     initial="hidden"
@@ -264,7 +306,7 @@ export default function Home() {
                       visible: { opacity: 1, transition: { delay: 0.35, duration: 0.3 } },
                     }}
                   >
-                    ten todo en un solo lugar
+                    todo en un solo lugar
                     <span className="absolute left-0 right-0 -bottom-1 h-1 overflow-hidden rounded-full bg-primary/15">
                       <motion.span
                         className="absolute inset-y-0 w-1/2 rounded-full bg-primary/60"
@@ -279,9 +321,9 @@ export default function Home() {
 
                 {/* Párrafo descriptivo */}
                 <p className="text-sm sm:text-lg text-on-surface-variant max-w-2xl leading-relaxed">
-                  FinPal nace para centralizar tu información financiera y evitar que tengas que consultar varios
-                  lugares. Aquí puedes consultar tus cuentas, registrar movimientos y dar seguimiento a cobros y
-                  préstamos desde el mismo sistema.
+                  FinPal centraliza el registro de préstamos personales, cálculo de intereses mensuales, amortizaciones
+                  a capital, cobros programados y cuentas de dinero. Olvídate de dispersar registros entre hojas de cálculo:
+                  mantén tu balance claro, privado y accesible en tiempo real.
                 </p>
 
                 {/* Botones de acción principales (CTAs) */}
@@ -656,6 +698,83 @@ export default function Home() {
           </div>
         </section>
 
+        {/* SECCIÓN: Preguntas Frecuentes (FAQ) optimizada para SEO y Schema.org */}
+        <section
+          className="w-full py-16 sm:py-20 bg-surface-container-low/60 border-t border-surface-container-high/40 scroll-mt-20"
+          id="faq"
+        >
+          <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="text-center mb-10 sm:mb-12">
+              <span className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full badge-emerald text-xs font-semibold mb-3">
+                <HelpCircle className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                <span>Respuestas y Guía de Uso</span>
+              </span>
+              <h2 className="font-heading text-2xl sm:text-4xl font-extrabold text-on-surface tracking-tight">
+                Preguntas Frecuentes sobre FinPal
+              </h2>
+              <p className="text-sm sm:text-base text-on-surface-variant mt-3 max-w-xl mx-auto leading-relaxed">
+                Todo lo que necesitas saber sobre el control de préstamos personales, cálculo de intereses mensuales y seguridad de tus datos.
+              </p>
+            </div>
+
+            <div className="space-y-3.5">
+              {faqs.map((faq, index) => {
+                const isOpen = openFaqIndex === index;
+                return (
+                  <div
+                    key={faq.pregunta}
+                    className="bg-surface-container-lowest border border-surface-container-high/70 rounded-2xl overflow-hidden transition-all duration-200 shadow-2xs hover:border-primary/40"
+                  >
+                    <button
+                      type="button"
+                      className="w-full px-5 sm:px-6 py-4 sm:py-5 text-left flex items-center justify-between gap-4 cursor-pointer focus:outline-none"
+                      onClick={() => setOpenFaqIndex(isOpen ? null : index)}
+                      aria-expanded={isOpen}
+                    >
+                      <span className="font-heading text-sm sm:text-base font-bold text-on-surface pr-2">
+                        {faq.pregunta}
+                      </span>
+                      <span
+                        className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 transition-transform duration-200 ${
+                          isOpen
+                            ? "bg-primary text-on-primary rotate-180"
+                            : "bg-surface-container text-on-surface-variant"
+                        }`}
+                      >
+                        <ChevronDown className="w-4 h-4" />
+                      </span>
+                    </button>
+                    {isOpen && (
+                      <div className="px-5 sm:px-6 pb-5 pt-1 text-xs sm:text-sm text-on-surface-variant leading-relaxed border-t border-surface-container-low">
+                        {faq.respuesta}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Marcado Schema.org FAQPage para Rich Snippets en Google */}
+            <script
+              type="application/ld+json"
+              dangerouslySetInnerHTML={{
+                __html: JSON.stringify({
+                  "@context": "https://schema.org",
+                  "@type": "FAQPage",
+                  mainEntity: faqs.map((faq) => ({
+                    "@type": "Question",
+                    name: faq.pregunta,
+                    acceptedAnswer: {
+                      "@type": "Answer",
+                      text: faq.respuesta,
+                    },
+                  })),
+                }),
+              }}
+            />
+          </div>
+        </section>
+
         {/* Banner de llamada a la acción del proyecto */}
         <section className="w-full py-20 bg-surface-container relative overflow-hidden">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-12 text-center relative z-10">
@@ -710,6 +829,11 @@ export default function Home() {
                   <li>
                     <a className="hover:text-primary transition-colors" href="#alcance">
                       Características
+                    </a>
+                  </li>
+                  <li>
+                    <a className="hover:text-primary transition-colors" href="#faq">
+                      Preguntas frecuentes
                     </a>
                   </li>
                   <li>
