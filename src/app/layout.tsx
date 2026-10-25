@@ -13,21 +13,24 @@ export const viewport: Viewport = {
   ],
 };
 
-function getMetadataBase(): URL {
-  const raw =
-    process.env.NEXT_PUBLIC_SITE_URL ||
-    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "") ||
-    "https://finpal.app";
+const SITE_URL =
+  process.env.NEXT_PUBLIC_SITE_URL ||
+  (process.env.VERCEL_PROJECT_PRODUCTION_URL
+    ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+    : "") ||
+  (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "") ||
+  "https://finpal-tan.vercel.app";
 
+function getMetadataBase(): URL {
   const urlWithProtocol =
-    raw.startsWith("http://") || raw.startsWith("https://")
-      ? raw
-      : `https://${raw}`;
+    SITE_URL.startsWith("http://") || SITE_URL.startsWith("https://")
+      ? SITE_URL
+      : `https://${SITE_URL}`;
 
   try {
     return new URL(urlWithProtocol);
   } catch {
-    return new URL("https://finpal.app");
+    return new URL("https://finpal-tan.vercel.app");
   }
 }
 
@@ -38,7 +41,7 @@ export const metadata: Metadata = {
     template: "%s | FinPal",
   },
   description:
-    "Plataforma moderna y privada para gestionar préstamos personales, cobro de intereses mensuales, amortizaciones, cuentas de dinero y flujo de caja diario.",
+    "Sistema web integral y privado para control de préstamos personales, cobro mensual de intereses, amortizaciones de capital, registro de gastos y balance de cuentas.",
   applicationName: "FinPal",
   authors: [{ name: "Josué Chacae", url: "https://github.com/chacaejosue" }],
   generator: "Next.js",
@@ -51,6 +54,9 @@ export const metadata: Metadata = {
     "flujo de caja",
     "registro de gastos e ingresos",
     "cuentas de dinero",
+    "calculadora de préstamos",
+    "amortización de préstamos",
+    "control de cobros",
     "finanzas bolivia",
     "préstamos entre amigos",
     "reporte financiero ejecutivo",
@@ -59,6 +65,9 @@ export const metadata: Metadata = {
   ],
   creator: "FinPal",
   publisher: "FinPal",
+  alternates: {
+    canonical: "/",
+  },
   robots: {
     index: true,
     follow: true,
@@ -73,17 +82,18 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     locale: "es_LA",
-    url: "https://finpal.app",
+    url: SITE_URL,
     title: "FinPal | Control Inteligente de Préstamos, Cobros y Finanzas Personales",
     description:
-      "Gestiona préstamos personales, cobros mensuales de intereses, cuentas de dinero y reportes financieros ejecutivos con máxima privacidad.",
+      "Gestiona préstamos personales, cobro mensual de intereses, amortizaciones y cuentas de dinero con total privacidad y reportes ejecutivos.",
     siteName: "FinPal",
     images: [
       {
-        url: "/finpal-cover.svg",
+        url: "/og-image.png",
         width: 1200,
         height: 630,
-        alt: "FinPal Portada y Tablero Financiero",
+        type: "image/png",
+        alt: "FinPal — Control Inteligente de Préstamos y Finanzas Personales",
       },
     ],
   },
@@ -92,7 +102,10 @@ export const metadata: Metadata = {
     title: "FinPal | Control Inteligente de Préstamos y Finanzas",
     description:
       "Gestiona préstamos, cobros, cuentas e intereses con claridad y reportes ejecutivos.",
-    images: ["/finpal-cover.svg"],
+    images: ["/og-image.png"],
+  },
+  verification: {
+    google: process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION,
   },
   icons: {
     icon: [
@@ -165,23 +178,55 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           dangerouslySetInnerHTML={{
             __html: JSON.stringify({
               "@context": "https://schema.org",
-              "@type": "WebApplication",
-              name: "FinPal",
-              url: "https://finpal.app",
-              description:
-                "Software integral de gestión financiera personal, control de préstamos, cálculo de intereses mensuales y cuentas de dinero.",
-              applicationCategory: "FinanceApplication",
-              operatingSystem: "All",
-              offers: {
-                "@type": "Offer",
-                price: "0",
-                priceCurrency: "USD",
-              },
-              author: {
-                "@type": "Person",
-                name: "Josué Chacae",
-                url: "https://github.com/chacaejosue",
-              },
+              "@graph": [
+                {
+                  "@type": "WebApplication",
+                  "@id": `${SITE_URL}/#webapp`,
+                  name: "FinPal",
+                  url: SITE_URL,
+                  description:
+                    "Software integral de gestión financiera personal, control de préstamos personales, cobro de intereses mensuales y cuentas de dinero.",
+                  applicationCategory: "FinanceApplication",
+                  operatingSystem: "All",
+                  inLanguage: "es",
+                  offers: {
+                    "@type": "Offer",
+                    price: "0",
+                    priceCurrency: "USD",
+                  },
+                  author: {
+                    "@type": "Person",
+                    name: "Josué Chacae",
+                    url: "https://github.com/chacaejosue",
+                  },
+                  featureList: [
+                    "Control de préstamos personales con interés mensual",
+                    "Registro de abonos a capital y amortizaciones",
+                    "Calendario y seguimiento de fechas esperadas de cobro",
+                    "Aislamiento por espacios de trabajo con Row Level Security",
+                    "Cuentas de dinero para efectivo, bancos y billeteras",
+                    "Generación de reportes ejecutivos en PDF",
+                  ],
+                },
+                {
+                  "@type": "Organization",
+                  "@id": `${SITE_URL}/#organization`,
+                  name: "FinPal",
+                  url: SITE_URL,
+                  logo: `${SITE_URL}/icon.png`,
+                  sameAs: ["https://github.com/chacaejosue/finpal"],
+                },
+                {
+                  "@type": "WebSite",
+                  "@id": `${SITE_URL}/#website`,
+                  url: SITE_URL,
+                  name: "FinPal",
+                  publisher: {
+                    "@id": `${SITE_URL}/#organization`,
+                  },
+                  inLanguage: "es",
+                },
+              ],
             }),
           }}
         />
