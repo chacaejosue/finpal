@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { transaccionSchema } from "@/lib/validations/schemas";
 
 import { isValidUuid, sanitizeText } from "@/lib/security";
+import { encryptFieldSync, decryptFieldSync, isEncrypted, autoMigrateRow } from "@/lib/crypto";
 
 // ── Listar transacciones del espacio ──────────────────────────────────────
 export async function getMovimientos(espacioId: string, limit = 200) {
@@ -29,7 +30,18 @@ export async function getMovimientos(espacioId: string, limit = 200) {
     .limit(safeLimit);
 
   if (error) throw new Error(error.message);
-  return data ?? [];
+
+  return (data ?? []).map((m) => {
+    // Auto-migración silenciosa y descifrado de la descripción
+    if (m.descripcion && !isEncrypted(m.descripcion)) {
+      autoMigrateRow(supabase, "transacciones", m.id, { descripcion: m.descripcion });
+    }
+
+    return {
+      ...m,
+      descripcion: decryptFieldSync(m.descripcion),
+    };
+  });
 }
 
 // ── Registrar movimiento (ingreso / gasto / ajuste) ───────────────────────
@@ -59,7 +71,7 @@ export async function registrarMovimiento(espacioId: string, formData: FormData)
     ajuste_sentido: parsed.data.ajuste_sentido,
     monto: parsed.data.monto,
     ocurrido_en: parsed.data.ocurrido_en,
-    descripcion: parsed.data.descripcion,
+    descripcion: encryptFieldSync(parsed.data.descripcion) || null,
     categoria_id: parsed.data.categoria_id,
   });
 

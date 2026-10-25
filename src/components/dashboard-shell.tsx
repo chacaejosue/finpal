@@ -55,130 +55,9 @@ const navItems = [
   { label: "Configuración", path: "/configuracion", key: "configuracion", icon: Settings },
 ] as const;
 
-export function SlideToConfirm({
-  onConfirm,
-  submitting,
-  resetTrigger,
-  label = "Desliza para registrar",
-}: {
-  onConfirm: () => boolean | void | Promise<boolean | void>;
-  submitting: boolean;
-  resetTrigger?: unknown;
-  label?: string;
-}) {
-  const [sliderPosition, setSliderPosition] = useState(0);
-  const [isDragging, setIsDragging] = useState(false);
-  const trackRef = useRef<HTMLDivElement>(null);
+import { SlideToConfirm, type SlideToConfirmProps } from "@/components/slide-to-confirm";
+export { SlideToConfirm, type SlideToConfirmProps };
 
-  // Cada vez que termina el envío o cambia la condición de reseteo, devolver la barra al inicio
-  useEffect(() => {
-    if (!submitting) {
-      setSliderPosition(0);
-      setIsDragging(false);
-    }
-  }, [submitting, resetTrigger]);
-
-  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (submitting) return;
-    setIsDragging(true);
-    e.currentTarget.setPointerCapture(e.pointerId);
-  };
-
-  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!isDragging || submitting || !trackRef.current) return;
-    const rect = trackRef.current.getBoundingClientRect();
-    const maxOffset = Math.max(0, rect.width - 48);
-    const currentX = e.clientX - rect.left - 24;
-    const clamped = Math.max(0, Math.min(currentX, maxOffset));
-    setSliderPosition(clamped);
-
-    if (clamped >= maxOffset * 0.85) {
-      setIsDragging(false);
-      setSliderPosition(maxOffset);
-      const res = onConfirm();
-      if (res instanceof Promise) {
-        res.then((isOk) => {
-          if (isOk === false) {
-            setTimeout(() => setSliderPosition(0), 220);
-          } else {
-            setTimeout(() => {
-              setSliderPosition((current) => (submitting ? current : 0));
-            }, 600);
-          }
-        });
-      } else if (res === false) {
-        setTimeout(() => {
-          setSliderPosition(0);
-        }, 220);
-      } else {
-        setTimeout(() => {
-          setSliderPosition((current) => (submitting ? current : 0));
-        }, 600);
-      }
-    }
-  };
-
-  const handlePointerUp = () => {
-    if (!isDragging) return;
-    setIsDragging(false);
-    if (!submitting) {
-      setSliderPosition(0);
-    }
-  };
-
-  // Solo se dibuja relleno cuando el botón ha empezado a deslizarse
-  // Se alinea con el centro del thumb para no desbordar por la izquierda
-  const fillWidth = sliderPosition > 4 ? sliderPosition + 24 : 0;
-
-  return (
-    <div
-      ref={trackRef}
-      onPointerMove={handlePointerMove}
-      onPointerUp={handlePointerUp}
-      onPointerCancel={handlePointerUp}
-      className={`relative w-full h-12 bg-surface-container-high/60 border border-surface-container-high rounded-2xl overflow-hidden select-none flex items-center px-1 shadow-inner touch-none transition-colors duration-200 ${
-        isDragging ? "border-primary/40 shadow-xs" : ""
-      }`}
-    >
-      {fillWidth > 0 && (
-        <div
-          className={`absolute left-0 top-0 bottom-0 bg-gradient-to-r from-primary/20 to-primary/35 rounded-l-2xl ${
-            isDragging ? "transition-none" : "transition-all duration-300 ease-out"
-          }`}
-          style={{ width: `${fillWidth}px` }}
-        />
-      )}
-      <div className="absolute inset-0 flex items-center justify-center text-xs font-bold text-on-surface-variant pointer-events-none gap-1.5 px-12 text-center">
-        {submitting ? (
-          <span className="flex items-center gap-2 text-primary font-bold">
-            <Loader2 className="w-4 h-4 animate-spin" />
-            <span>Procesando información...</span>
-          </span>
-        ) : (
-          <span className="truncate">{label}</span>
-        )}
-      </div>
-      <div
-        onPointerDown={handlePointerDown}
-        style={{ transform: `translateX(${sliderPosition}px)` }}
-        className={`relative z-10 w-10 h-10 rounded-xl bg-primary text-on-primary flex items-center justify-center shadow-md cursor-grab active:cursor-grabbing ${
-          isDragging
-            ? "scale-105 shadow-lg transition-none ring-2 ring-primary/30"
-            : "transition-transform duration-300 ease-out"
-        }`}
-        title="Arrastra hasta el final para confirmar"
-      >
-        {submitting ? (
-          <Loader2 className="w-4 h-4 animate-spin text-on-primary" />
-        ) : sliderPosition > 40 ? (
-          <Check className="w-4 h-4 text-on-primary" />
-        ) : (
-          <ChevronRight className="w-5 h-5 text-on-primary animate-pulse" />
-        )}
-      </div>
-    </div>
-  );
-}
 
 
 export function DashboardShell({
@@ -605,41 +484,61 @@ export function DashboardShell({
         aria-label="Menú de navegación lateral"
       >
         <div className="flex flex-col">
-          {/* Header del Sidebar: Logo de FinPal */}
+          {/* Header del Sidebar: Logo y botón de minimizar/expandir arriba */}
           <div
             className={`h-16 flex items-center border-b border-surface-container-low transition-all duration-300 ${
               sidebarCollapsed ? "px-2 justify-center" : "px-4"
             }`}
           >
             {sidebarCollapsed ? (
-              <Link
-                href="/inicio"
-                prefetch={true}
-                onClick={() => {
-                  setShowWorkspaceDropdown(false);
-                  setOptimisticPath("/inicio");
-                }}
-                className="flex items-center justify-center hover:opacity-90 transition-opacity"
-                title="FinPal - Ir a Inicio"
+              /* En modo minimizado: Logo de FinPal que al pasar el mouse se transforma en botón de maximizar menú (estilo Gemini) */
+              <button
+                type="button"
+                onClick={toggleSidebarCollapse}
+                className="relative w-10 h-10 rounded-xl flex items-center justify-center text-on-surface hover:bg-surface-container transition-all duration-200 cursor-pointer group"
+                title="Expandir barra lateral"
+                aria-label="Expandir barra lateral"
               >
-                <FinPalLogo size={36} className="w-9 h-9 shrink-0" colorAcento={preferencias.colorAcento} priority />
-              </Link>
-            ) : (
-              <Link
-                href="/inicio"
-                prefetch={true}
-                onClick={() => {
-                  setShowWorkspaceDropdown(false);
-                  setOptimisticPath("/inicio");
-                }}
-                className="flex items-center gap-2.5 hover:opacity-90 transition-opacity min-w-0"
-              >
-                <FinPalLogo size={38} className="w-10 h-10 shrink-0" colorAcento={preferencias.colorAcento} priority />
-                <div className="flex items-baseline tracking-tight font-heading text-xl">
-                  <span className="font-extrabold text-on-surface">Fin</span>
-                  <span className="font-extrabold text-primary">Pal</span>
+                {/* Logo visible por defecto, se desvanece y reduce al hover */}
+                <div className="absolute inset-0 flex items-center justify-center transition-all duration-200 group-hover:opacity-0 group-hover:scale-75 pointer-events-none">
+                  <FinPalLogo size={36} className="w-9 h-9 shrink-0" colorAcento={preferencias.colorAcento} priority />
                 </div>
-              </Link>
+
+                {/* Ícono de expandir menú lateral estilo Google Gemini que emerge al hacer hover */}
+                <div className="absolute inset-0 flex items-center justify-center text-primary opacity-0 scale-75 group-hover:opacity-100 group-hover:scale-100 transition-all duration-200 pointer-events-none">
+                  <PanelLeftOpen className="w-5 h-5" />
+                </div>
+              </button>
+            ) : (
+              /* En modo expandido: Logo y marca a la izquierda, botón de minimizar a la derecha */
+              <div className="w-full flex items-center justify-between min-w-0">
+                <Link
+                  href="/inicio"
+                  prefetch={true}
+                  onClick={() => {
+                    setShowWorkspaceDropdown(false);
+                    setOptimisticPath("/inicio");
+                  }}
+                  className="flex items-center gap-2.5 hover:opacity-90 transition-opacity min-w-0"
+                  title="FinPal - Ir a Inicio"
+                >
+                  <FinPalLogo size={38} className="w-10 h-10 shrink-0" colorAcento={preferencias.colorAcento} priority />
+                  <div className="flex items-baseline tracking-tight font-heading text-xl">
+                    <span className="font-extrabold text-on-surface">Fin</span>
+                    <span className="font-extrabold text-primary">Pal</span>
+                  </div>
+                </Link>
+
+                <button
+                  type="button"
+                  onClick={toggleSidebarCollapse}
+                  className="w-8 h-8 rounded-xl flex items-center justify-center text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors cursor-pointer shrink-0"
+                  title="Minimizar barra lateral (solo íconos)"
+                  aria-label="Minimizar barra lateral"
+                >
+                  <PanelLeftClose className="w-4 h-4" />
+                </button>
+              </div>
             )}
           </div>
 
@@ -818,83 +717,60 @@ export function DashboardShell({
           </nav>
         </div>
 
-        {/* Footer del Menú: Botón Minimizar/Expandir y Cerrar Sesión */}
+        {/* Footer del Menú: Cerrar Sesión */}
         <div
           className={`border-t border-surface-container-low ${
-            sidebarCollapsed ? "p-2 space-y-1.5 flex flex-col items-center" : "p-3 space-y-1"
+            sidebarCollapsed ? "p-2 flex flex-col items-center" : "p-3"
           }`}
         >
           {sidebarCollapsed ? (
-            <>
+            <form
+              action={signOut}
+              onSubmit={() => {
+                setIsLoggingOut(true);
+                clearSessionAccent();
+              }}
+            >
               <button
-                type="button"
-                onClick={toggleSidebarCollapse}
-                className="w-10 h-10 rounded-xl flex items-center justify-center text-on-surface-variant hover:bg-surface-container hover:text-primary transition-colors cursor-pointer"
-                title="Expandir barra lateral"
-                aria-label="Expandir barra lateral"
+                type="submit"
+                disabled={isLoggingOut}
+                className="w-10 h-10 rounded-xl flex items-center justify-center bg-surface-container-low hover:bg-error-container/40 hover:text-error text-on-surface transition-colors border border-surface-container-high/40 cursor-pointer disabled:opacity-75 disabled:cursor-not-allowed"
+                title={isLoggingOut ? "Cerrando sesión..." : "Cerrar sesión"}
+                aria-label={isLoggingOut ? "Cerrando sesión..." : "Cerrar sesión"}
               >
-                <PanelLeftOpen className="w-4 h-4" />
+                {isLoggingOut ? (
+                  <Loader2 className="w-4 h-4 animate-spin text-error" />
+                ) : (
+                  <LogOut className="w-4 h-4" />
+                )}
               </button>
-              <form
-                action={signOut}
-                onSubmit={() => {
-                  setIsLoggingOut(true);
-                  clearSessionAccent();
-                }}
-              >
-                <button
-                  type="submit"
-                  disabled={isLoggingOut}
-                  className="w-10 h-10 rounded-xl flex items-center justify-center bg-surface-container-low hover:bg-error-container/40 hover:text-error text-on-surface transition-colors border border-surface-container-high/40 cursor-pointer disabled:opacity-75 disabled:cursor-not-allowed"
-                  title={isLoggingOut ? "Cerrando sesión..." : "Cerrar sesión"}
-                  aria-label={isLoggingOut ? "Cerrando sesión..." : "Cerrar sesión"}
-                >
-                  {isLoggingOut ? (
-                    <Loader2 className="w-4 h-4 animate-spin text-error" />
-                  ) : (
-                    <LogOut className="w-4 h-4" />
-                  )}
-                </button>
-              </form>
-            </>
+            </form>
           ) : (
-            <>
+            <form
+              action={signOut}
+              onSubmit={() => {
+                setIsLoggingOut(true);
+                clearSessionAccent();
+              }}
+            >
               <button
-                type="button"
-                onClick={toggleSidebarCollapse}
-                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors text-xs font-medium cursor-pointer"
-                title="Minimizar barra lateral (dejar solo íconos)"
-                aria-label="Minimizar barra lateral"
+                type="submit"
+                disabled={isLoggingOut}
+                className="w-full flex items-center gap-2 px-3 py-2 rounded-xl bg-surface-container-low hover:bg-error-container/40 hover:text-error text-on-surface transition-colors border border-surface-container-high/40 text-xs font-medium cursor-pointer disabled:opacity-75 disabled:cursor-not-allowed"
               >
-                <PanelLeftClose className="w-4 h-4 shrink-0 text-on-surface-variant" />
-                <span className="truncate">Minimizar menú</span>
+                {isLoggingOut ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin text-error" />
+                    <span className="font-semibold text-error">Cerrando sesión...</span>
+                  </>
+                ) : (
+                  <>
+                    <LogOut className="w-4 h-4" />
+                    <span>Cerrar sesión</span>
+                  </>
+                )}
               </button>
-              <form
-                action={signOut}
-                onSubmit={() => {
-                  setIsLoggingOut(true);
-                  clearSessionAccent();
-                }}
-              >
-                <button
-                  type="submit"
-                  disabled={isLoggingOut}
-                  className="w-full flex items-center gap-2 px-3 py-2 rounded-xl bg-surface-container-low hover:bg-error-container/40 hover:text-error text-on-surface transition-colors border border-surface-container-high/40 text-xs font-medium cursor-pointer disabled:opacity-75 disabled:cursor-not-allowed"
-                >
-                  {isLoggingOut ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin text-error" />
-                      <span className="font-semibold text-error">Cerrando sesión...</span>
-                    </>
-                  ) : (
-                    <>
-                      <LogOut className="w-4 h-4" />
-                      <span>Cerrar sesión</span>
-                    </>
-                  )}
-                </button>
-              </form>
-            </>
+            </form>
           )}
         </div>
       </aside>
@@ -921,20 +797,7 @@ export function DashboardShell({
               <Menu className="w-5 h-5 text-on-surface" />
             </button>
 
-            {/* Botón minimizar / expandir en Desktop */}
-            <button
-              type="button"
-              onClick={toggleSidebarCollapse}
-              className="hidden md:flex items-center justify-center p-2 rounded-xl text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low transition-colors cursor-pointer shrink-0 border border-surface-container-high/40"
-              title={sidebarCollapsed ? "Expandir barra lateral" : "Minimizar barra lateral (solo íconos)"}
-              aria-label={sidebarCollapsed ? "Expandir barra lateral" : "Minimizar barra lateral"}
-            >
-              {sidebarCollapsed ? (
-                <PanelLeftOpen className="w-4 h-4 text-primary" />
-              ) : (
-                <PanelLeftClose className="w-4 h-4" />
-              )}
-            </button>
+
 
             {/* Logo en versión móvil */}
             <div className="flex items-center gap-2 md:hidden min-w-0">
@@ -958,16 +821,7 @@ export function DashboardShell({
 
           <div className="flex items-center gap-1.5 sm:gap-4 shrink-0">
             <ThemeToggle />
-            <button
-              type="button"
-              onClick={() => setShowImportModal(true)}
-              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-semibold rounded-lg bg-surface-container-low hover:bg-surface-container border border-surface-container-high/40 text-on-surface transition-colors cursor-pointer shrink-0"
-              title="Importar Excel o CSV"
-            >
-              <FileSpreadsheet className="w-4 h-4 text-primary shrink-0" />
-              <span className="hidden sm:inline">Importar Excel / CSV</span>
-              <span className="sm:hidden text-[11px]">Importar</span>
-            </button>
+            {/* Oculto temporalmente de la vista: botón de importar/exportar Excel o Sheets */}
             <div className="flex items-center gap-1.5 sm:gap-2.5 pl-1.5 sm:pl-2 border-l border-surface-container-low shrink-0">
               <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-on-surface text-surface-container-lowest flex items-center justify-center font-bold text-[11px] sm:text-xs ring-2 ring-primary/20 shrink-0">
                 {avatarLetters}

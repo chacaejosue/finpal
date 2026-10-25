@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowLeft, ArrowRight, Check, Lock, Mail, ShieldCheck } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Code2, Lock, Mail, ShieldCheck } from "lucide-react";
 import { signUp } from "../actions";
 import { FinPalLogo } from "@/components/finpal-logo";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -91,10 +91,16 @@ export default async function SignUpPage({ searchParams }: PageProps<"/registrar
 
       {/* Pie de página */}
       <footer className="w-full py-2.5 text-center border-t border-surface-container-high/30 shrink-0">
-        <div className="flex items-center justify-center gap-3 text-[11px] text-on-surface-variant font-medium">
-          <span className="font-mono uppercase text-outline text-[10px] tracking-wider">Open Source Ledger</span>
+        <div className="flex items-center justify-center gap-3 text-[11px] text-outline font-medium">
+          <div className="flex items-center gap-1.5">
+            <ShieldCheck className="w-3.5 h-3.5 text-primary" />
+            <span>Cifrado de extremo a extremo</span>
+          </div>
           <span>•</span>
-          <span>FinPal Protocol</span>
+          <div className="flex items-center gap-1.5">
+            <Code2 className="w-3.5 h-3.5 text-primary" />
+            <span>Información centralizada</span>
+          </div>
         </div>
       </footer>
     </div>

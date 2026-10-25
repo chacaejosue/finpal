@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { contactoSchema } from "@/lib/validations/schemas";
 
 import { isValidUuid, sanitizeText } from "@/lib/security";
+import { encryptFieldSync, decryptFieldSync, isEncrypted, autoMigrateRow } from "@/lib/crypto";
 
 // ── Listar contactos del espacio ──────────────────────────────────────────
 export async function getContactos(espacioId: string) {
@@ -22,11 +23,37 @@ export async function getContactos(espacioId: string) {
       prestamos(id, monto_principal, monto_capital_pagado, estado)
     `)
     .eq("espacio_id", espacioId)
-    .is("archivado_en", null)
-    .order("nombre", { ascending: true });
+    .is("archivado_en", null);
 
   if (error) throw new Error(error.message);
-  return data ?? [];
+
+  const decrypted = (data ?? []).map((c) => {
+    const isNombreLegacy = c.nombre && !isEncrypted(c.nombre);
+    const isTelefonoLegacy = c.telefono && !isEncrypted(c.telefono);
+    const isEmailLegacy = c.email && !isEncrypted(c.email);
+    const isNotasLegacy = c.notas && !isEncrypted(c.notas);
+
+    // Auto-migración silenciosa respetando RLS y la sesión del usuario
+    if (isNombreLegacy || isTelefonoLegacy || isEmailLegacy || isNotasLegacy) {
+      autoMigrateRow(supabase, "contactos", c.id, {
+        ...(isNombreLegacy ? { nombre: c.nombre } : {}),
+        ...(isTelefonoLegacy ? { telefono: c.telefono } : {}),
+        ...(isEmailLegacy ? { email: c.email } : {}),
+        ...(isNotasLegacy ? { notas: c.notas } : {}),
+      });
+    }
+
+    return {
+      ...c,
+      nombre: decryptFieldSync(c.nombre) ?? "",
+      telefono: decryptFieldSync(c.telefono) ?? "",
+      email: decryptFieldSync(c.email) ?? "",
+      notas: decryptFieldSync(c.notas) ?? "",
+    };
+  });
+
+  // Ordenar en memoria por nombre alfabéticamente (ya que en BD está cifrado)
+  return decrypted.sort((a, b) => (a.nombre ?? "").localeCompare(b.nombre ?? ""));
 }
 
 // ── Crear contacto ────────────────────────────────────────────────────────
@@ -48,7 +75,10 @@ export async function crearContacto(espacioId: string, formData: FormData) {
 
   const { error } = await supabase.from("contactos").insert({
     espacio_id: espacioId,
-    ...parsed.data,
+    nombre: encryptFieldSync(parsed.data.nombre)!,
+    telefono: encryptFieldSync(parsed.data.telefono),
+    email: encryptFieldSync(parsed.data.email),
+    notas: encryptFieldSync(parsed.data.notas),
   });
 
   if (error) return { error: { _global: [error.message] } };
@@ -78,7 +108,12 @@ export async function actualizarContacto(contactoId: string, espacioId: string, 
 
   const { error } = await supabase
     .from("contactos")
-    .update(parsed.data)
+    .update({
+      nombre: encryptFieldSync(parsed.data.nombre)!,
+      telefono: encryptFieldSync(parsed.data.telefono),
+      email: encryptFieldSync(parsed.data.email),
+      notas: encryptFieldSync(parsed.data.notas),
+    })
     .eq("id", contactoId)
     .eq("espacio_id", espacioId);
 
