@@ -726,6 +726,12 @@ function DashboardView({
                                 <div className="min-w-0">
                                   <p className="font-bold text-xs sm:text-sm text-on-surface truncate leading-tight">{contactoNombre}</p>
                                   <p className="text-[11px] text-on-surface-variant truncate">{p.nombre}</p>
+                                  {(p.fecha_inicio || p.created_at) && (
+                                    <p className="inline-flex items-center gap-1 text-[10px] text-on-surface-variant/80 mt-0.5">
+                                      <Calendar className="w-2.5 h-2.5 text-outline shrink-0" />
+                                      <span>Inició: {formatDateEs(p.fecha_inicio || p.created_at)}</span>
+                                    </p>
+                                  )}
                                 </div>
                               </div>
                               <div className="flex items-center gap-1.5 shrink-0">
@@ -822,6 +828,12 @@ function DashboardView({
                                       )}
                                     </div>
                                     <p className="text-xs text-on-surface-variant truncate">{p.nombre}</p>
+                                    {(p.fecha_inicio || p.created_at) && (
+                                      <span className="inline-flex items-center gap-1 text-[11px] text-on-surface-variant/85 font-normal mt-0.5 whitespace-nowrap">
+                                        <Calendar className="w-3 h-3 text-outline shrink-0" />
+                                        <span>Inició: {formatDateEs(p.fecha_inicio || p.created_at)}</span>
+                                      </span>
+                                    )}
                                   </div>
                                 </td>
                                 <td className="py-3.5 px-3.5 font-mono font-semibold text-sm whitespace-nowrap">
@@ -1283,7 +1295,13 @@ function PrestamosView({
                     <ContactAvatar name={nombre} size={36} className="rounded-full shadow-xs shrink-0" />
                     <div className="min-w-0">
                       <h4 className="font-bold text-sm text-on-surface truncate">{nombre}</h4>
-                      <p className="text-xs text-on-surface-variant truncate">{l.nombre}</p>
+                      <p className="text-xs text-on-surface-variant font-medium truncate">{l.nombre}</p>
+                      {(l.fecha_inicio || l.created_at) && (
+                        <p className="inline-flex items-center gap-1 text-[11px] text-on-surface-variant/85 mt-0.5">
+                          <Calendar className="w-3 h-3 text-outline shrink-0" />
+                          <span>Inició: {formatDateEs(l.fecha_inicio || l.created_at)}</span>
+                        </p>
+                      )}
                     </div>
                   </div>
                   <div className="text-right shrink-0">
@@ -1400,8 +1418,8 @@ function PrestamosView({
                       <span className="font-semibold text-sm">{nombre}</span>
                     </div>
                   </td>
-                  <td className="py-3.5 px-4 align-middle text-xs text-on-surface-variant">
-                    <div className="flex items-center gap-1.5">
+                  <td className="py-3.5 px-4 align-middle text-xs">
+                    <div className="flex items-center gap-1.5 font-semibold text-on-surface">
                       <span>{l.nombre}</span>
                       {l.notas && (
                         <button
@@ -1414,6 +1432,12 @@ function PrestamosView({
                         </button>
                       )}
                     </div>
+                    {(l.fecha_inicio || l.created_at) && (
+                      <span className="inline-flex items-center gap-1 text-[11px] text-on-surface-variant/85 font-normal mt-0.5 whitespace-nowrap">
+                        <Calendar className="w-3 h-3 text-outline shrink-0" />
+                        <span>Inició: {formatDateEs(l.fecha_inicio || l.created_at)}</span>
+                      </span>
+                    )}
                   </td>
                   <td className="py-3.5 px-4 align-middle font-mono font-medium text-xs whitespace-nowrap">{money(Number(l.monto_principal))}</td>
                   <td className="py-3.5 px-4 align-middle font-mono font-semibold text-sm whitespace-nowrap">

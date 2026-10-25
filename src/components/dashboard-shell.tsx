@@ -97,6 +97,7 @@ export function DashboardShell({
   const [optimisticPath, setOptimisticPath] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const [isFormDirty, setIsFormDirty] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
   const workspaceDropdownDesktopRef = useRef<HTMLDivElement>(null);
   const workspaceDropdownMobileRef = useRef<HTMLDivElement>(null);
@@ -450,18 +451,26 @@ export function DashboardShell({
           <form
             action={signOut}
             onSubmit={() => {
+              setIsLoggingOut(true);
               clearSessionAccent();
             }}
           >
             <button
               type="submit"
-              onClick={() => {
-                clearSessionAccent();
-              }}
-              className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl bg-surface-container-low hover:bg-error-container/40 hover:text-error text-on-surface transition-colors border border-surface-container-high/40 text-xs font-medium cursor-pointer"
+              disabled={isLoggingOut}
+              className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl bg-surface-container-low hover:bg-error-container/40 hover:text-error text-on-surface transition-colors border border-surface-container-high/40 text-xs font-medium cursor-pointer disabled:opacity-75 disabled:cursor-not-allowed"
             >
-              <LogOut className="w-4 h-4" />
-              <span>Cerrar sesión</span>
+              {isLoggingOut ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin text-error" />
+                  <span className="font-semibold text-error">Cerrando sesión...</span>
+                </>
+              ) : (
+                <>
+                  <LogOut className="w-4 h-4" />
+                  <span>Cerrar sesión</span>
+                </>
+              )}
             </button>
           </form>
         </div>
@@ -714,37 +723,55 @@ export function DashboardShell({
             sidebarCollapsed ? "p-2 flex flex-col items-center" : "p-3"
           }`}
         >
-          <form
-            action={signOut}
-            onSubmit={() => {
-              clearSessionAccent();
-            }}
-          >
-            {sidebarCollapsed ? (
+          {sidebarCollapsed ? (
+            <form
+              action={signOut}
+              onSubmit={() => {
+                setIsLoggingOut(true);
+                clearSessionAccent();
+              }}
+            >
               <button
                 type="submit"
-                onClick={() => {
-                  clearSessionAccent();
-                }}
-                className="w-10 h-10 rounded-xl flex items-center justify-center bg-surface-container-low hover:bg-error-container/40 hover:text-error text-on-surface transition-colors border border-surface-container-high/40 cursor-pointer"
-                title="Cerrar sesión"
-                aria-label="Cerrar sesión"
+                disabled={isLoggingOut}
+                className="w-10 h-10 rounded-xl flex items-center justify-center bg-surface-container-low hover:bg-error-container/40 hover:text-error text-on-surface transition-colors border border-surface-container-high/40 cursor-pointer disabled:opacity-75 disabled:cursor-not-allowed"
+                title={isLoggingOut ? "Cerrando sesión..." : "Cerrar sesión"}
+                aria-label={isLoggingOut ? "Cerrando sesión..." : "Cerrar sesión"}
               >
-                <LogOut className="w-4 h-4" />
+                {isLoggingOut ? (
+                  <Loader2 className="w-4 h-4 animate-spin text-error" />
+                ) : (
+                  <LogOut className="w-4 h-4" />
+                )}
               </button>
-            ) : (
+            </form>
+          ) : (
+            <form
+              action={signOut}
+              onSubmit={() => {
+                setIsLoggingOut(true);
+                clearSessionAccent();
+              }}
+            >
               <button
                 type="submit"
-                onClick={() => {
-                  clearSessionAccent();
-                }}
-                className="w-full flex items-center gap-2 px-3 py-2 rounded-xl bg-surface-container-low hover:bg-error-container/40 hover:text-error text-on-surface transition-colors border border-surface-container-high/40 text-xs font-medium cursor-pointer"
+                disabled={isLoggingOut}
+                className="w-full flex items-center gap-2 px-3 py-2 rounded-xl bg-surface-container-low hover:bg-error-container/40 hover:text-error text-on-surface transition-colors border border-surface-container-high/40 text-xs font-medium cursor-pointer disabled:opacity-75 disabled:cursor-not-allowed"
               >
-                <LogOut className="w-4 h-4" />
-                <span>Cerrar sesión</span>
+                {isLoggingOut ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin text-error" />
+                    <span className="font-semibold text-error">Cerrando sesión...</span>
+                  </>
+                ) : (
+                  <>
+                    <LogOut className="w-4 h-4" />
+                    <span>Cerrar sesión</span>
+                  </>
+                )}
               </button>
-            )}
-          </form>
+            </form>
+          )}
         </div>
       </aside>
 
@@ -923,6 +950,36 @@ export function DashboardShell({
         onConfirm={handleConfirmDiscard}
         onCancel={handleCancelDiscard}
       />
+
+      {/* Overlay de Cierre de Sesión Seguro */}
+      <AnimatePresence>
+        {isLoggingOut && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            className="fixed inset-0 z-100 flex flex-col items-center justify-center bg-background/80 backdrop-blur-xs select-none p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.94, opacity: 0, y: 8 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              transition={{ duration: 0.2 }}
+              className="flex flex-col items-center gap-3.5 p-6 rounded-2xl bg-surface-container-lowest border border-surface-container-high/80 shadow-2xl text-center max-w-xs w-full"
+            >
+              <div className="w-12 h-12 rounded-2xl bg-error/10 border border-error/20 flex items-center justify-center text-error shadow-2xs">
+                <Loader2 className="w-6 h-6 animate-spin" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-on-surface font-heading">Cerrando sesión...</h3>
+                <p className="text-xs text-on-surface-variant mt-1 leading-relaxed">
+                  Saliendo de tu cuenta y asegurando tus datos de forma protegida.
+                </p>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Monitor de inactividad de sesión (alerta a 15m, cierre automático a 20m) */}
       <InactivityMonitor />

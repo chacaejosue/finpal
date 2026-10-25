@@ -111,6 +111,14 @@
 }
 
 @layer base {
+  /* Ocultar iconos nativos de contraseña del navegador (Edge / IE) para evitar duplicación con el botón de la interfaz */
+  input::-ms-reveal,
+  input::-ms-clear {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+  }
+
   html, body {
     scrollbar-width: none !important;
     -ms-overflow-style: none !important;
