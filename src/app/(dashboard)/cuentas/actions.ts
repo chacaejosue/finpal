@@ -248,3 +248,131 @@ export async function desactivarCuenta(cuentaId: string, espacioId: string) {
   revalidatePath("/cuentas");
   return { success: true };
 }
+
+// ── Eliminar o desactivar cuenta de forma inteligente ─────────────────────
+export async function eliminarODesactivarCuenta(cuentaId: string, espacioId: string) {
+  if (!isValidUuid(cuentaId) || !isValidUuid(espacioId)) {
+    return { error: "Identificadores no válidos" };
+  }
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/iniciar-sesion");
+
+  // Verificar si la cuenta tiene transacciones o cobros asociados
+  const [{ count: txCount }, { count: pagosCount }] = await Promise.all([
+    supabase
+      .from("transacciones")
+      .select("id", { count: "exact", head: true })
+      .eq("cuenta_dinero_id", cuentaId),
+    supabase
+      .from("pagos_prestamos")
+      .select("id", { count: "exact", head: true })
+      .eq("cuenta_dinero_id", cuentaId),
+  ]);
+
+  const tieneHistorial = (txCount ?? 0) > 0 || (pagosCount ?? 0) > 0;
+
+  if (tieneHistorial) {
+    // Caso B: Tiene historial contable -> Desactivación / Archivado seguro
+    const { error } = await supabase
+      .from("cuentas_dinero")
+      .update({ es_activa: false })
+      .eq("id", cuentaId)
+      .eq("espacio_id", espacioId);
+
+    if (error) return { error: error.message };
+
+    revalidatePath("/cuentas");
+    revalidatePath("/inicio");
+    return {
+      success: true,
+      action: "archived" as const,
+      message: "La cuenta fue archivada correctamente. Su historial financiero se conserva intacto.",
+    };
+  } else {
+    // Caso A: No tiene ningún movimiento -> Eliminación física definitiva
+    const { error } = await supabase
+      .from("cuentas_dinero")
+      .delete()
+      .eq("id", cuentaId)
+      .eq("espacio_id", espacioId);
+
+    if (error) return { error: error.message };
+
+    revalidatePath("/cuentas");
+    revalidatePath("/inicio");
+    return {
+      success: true,
+      action: "deleted" as const,
+      message: "La cuenta fue eliminada definitivamente del sistema.",
+    };
+  }
+}
+
+// ── Reactivar cuenta previamente archivada ────────────────────────────────
+export async function reactivarCuenta(cuentaId: string, espacioId: string) {
+  if (!isValidUuid(cuentaId) || !isValidUuid(espacioId)) {
+    return { error: "Identificadores no válidos" };
+  }
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/iniciar-sesion");
+
+  const { error } = await supabase
+    .from("cuentas_dinero")
+    .update({ es_activa: true })
+    .eq("id", cuentaId)
+    .eq("espacio_id", espacioId);
+
+  if (error) return { error: error.message };
+
+  revalidatePath("/cuentas");
+  revalidatePath("/inicio");
+  return { success: true, message: "¡Cuenta reactivada exitosamente!" };
+}
+
+// ── Consultar cuentas archivadas con saldo calculado ─────────────────────
+export async function getCuentasArchivadasConSaldo(espacioId: string) {
+  if (!isValidUuid(espacioId)) return [];
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return [];
+
+  const [{ data: cuentas, error: cuentasError }, { data: movimientos, error: movimientosError }] =
+    await Promise.all([
+      supabase
+        .from("cuentas_dinero")
+        .select("id, nombre, tipo, saldo_inicial, codigo_moneda, es_activa, created_at")
+        .eq("espacio_id", espacioId)
+        .eq("es_activa", false)
+        .order("created_at", { ascending: true }),
+      supabase
+        .from("transacciones")
+        .select("cuenta_dinero_id, tipo, monto, ajuste_sentido")
+        .eq("espacio_id", espacioId),
+    ]);
+
+  if (cuentasError) throw new Error(cuentasError.message);
+  if (movimientosError) throw new Error(movimientosError.message);
+
+  const deltas = new Map<string, number>();
+  for (const movimiento of movimientos ?? []) {
+    const suma =
+      ["ingreso", "transferencia_entrada", "pago_prestamo"].includes(movimiento.tipo) ||
+      (movimiento.tipo === "ajuste" && movimiento.ajuste_sentido === "sumar");
+    const delta = suma ? Number(movimiento.monto) : -Number(movimiento.monto);
+    deltas.set(
+      movimiento.cuenta_dinero_id,
+      (deltas.get(movimiento.cuenta_dinero_id) ?? 0) + delta,
+    );
+  }
+
+  return (cuentas ?? []).map((cuenta) => ({
+    ...cuenta,
+    saldo: Number(cuenta.saldo_inicial) + (deltas.get(cuenta.id) ?? 0),
+  }));
+}
+
