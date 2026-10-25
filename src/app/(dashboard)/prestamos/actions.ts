@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { prestamoSchema } from "@/lib/validations/schemas";
 
 import { isValidUuid } from "@/lib/security";
+import { encryptFieldSync, decryptFieldSync, isEncrypted, autoMigrateRow } from "@/lib/crypto";
 import { getLocalDateString, formatMonthYear, formatDateEs } from "@/lib/format-date";
 
 function isoDate(date: Date) {
@@ -183,8 +184,57 @@ export async function getPrestamos(espacioId: string) {
     const ultimoPago = pagosList.length > 0 ? pagosList[0] : null;
     const ultimoMesCubierto = ultimoPago?.fecha_esperada ? formatMonthYear(ultimoPago.fecha_esperada) : null;
 
+    // Auto-migración silenciosa y descifrado de notas del préstamo
+    if (prestamo.notas && !isEncrypted(prestamo.notas)) {
+      autoMigrateRow(supabase, "prestamos", prestamo.id, { notas: prestamo.notas });
+    }
+
+    // Auto-migración silenciosa y descifrado del contacto relacionado
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const rawContactos = prestamo.contactos as any;
+    let decryptedContactos = rawContactos;
+    if (rawContactos) {
+      if (Array.isArray(rawContactos)) {
+        decryptedContactos = rawContactos.map((c) => {
+          if (!isEncrypted(c.nombre) || (c.telefono && !isEncrypted(c.telefono)) || (c.email && !isEncrypted(c.email)) || (c.notas && !isEncrypted(c.notas))) {
+            autoMigrateRow(supabase, "contactos", c.id, {
+              ...(!isEncrypted(c.nombre) ? { nombre: c.nombre } : {}),
+              ...(c.telefono && !isEncrypted(c.telefono) ? { telefono: c.telefono } : {}),
+              ...(c.email && !isEncrypted(c.email) ? { email: c.email } : {}),
+              ...(c.notas && !isEncrypted(c.notas) ? { notas: c.notas } : {}),
+            });
+          }
+          return {
+            ...c,
+            nombre: decryptFieldSync(c.nombre) ?? "",
+            telefono: decryptFieldSync(c.telefono) ?? "",
+            email: decryptFieldSync(c.email) ?? "",
+            notas: decryptFieldSync(c.notas) ?? "",
+          };
+        });
+      } else {
+        if (!isEncrypted(rawContactos.nombre) || (rawContactos.telefono && !isEncrypted(rawContactos.telefono)) || (rawContactos.email && !isEncrypted(rawContactos.email)) || (rawContactos.notas && !isEncrypted(rawContactos.notas))) {
+          autoMigrateRow(supabase, "contactos", rawContactos.id, {
+            ...(!isEncrypted(rawContactos.nombre) ? { nombre: rawContactos.nombre } : {}),
+            ...(rawContactos.telefono && !isEncrypted(rawContactos.telefono) ? { telefono: rawContactos.telefono } : {}),
+            ...(rawContactos.email && !isEncrypted(rawContactos.email) ? { email: rawContactos.email } : {}),
+            ...(rawContactos.notas && !isEncrypted(rawContactos.notas) ? { notas: rawContactos.notas } : {}),
+          });
+        }
+        decryptedContactos = {
+          ...rawContactos,
+          nombre: decryptFieldSync(rawContactos.nombre) ?? "",
+          telefono: decryptFieldSync(rawContactos.telefono) ?? "",
+          email: decryptFieldSync(rawContactos.email) ?? "",
+          notas: decryptFieldSync(rawContactos.notas) ?? "",
+        };
+      }
+    }
+
     return {
       ...prestamo,
+      notas: decryptFieldSync(prestamo.notas),
+      contactos: decryptedContactos,
       total_pagado: Number(prestamo.monto_capital_pagado),
       interes_pagado_total: interesPorPrestamo.get(prestamo.id) ?? 0,
       estado: estadoCalculado,
@@ -243,21 +293,24 @@ export async function crearPrestamo(espacioId: string, formData: FormData) {
   let nombreDeudor = parsed.data.contacto_nombre?.trim() || "";
 
   if (!contactoId && nombreDeudor) {
-    const { data: contactoExistente } = await supabase
+    // REGLA 3: Como el nombre está cifrado en la BD, consultamos los contactos del espacio y filtramos en memoria
+    const { data: contactosEspacio } = await supabase
       .from("contactos")
       .select("id, nombre")
       .eq("espacio_id", espacioId)
-      .ilike("nombre", nombreDeudor)
-      .is("archivado_en", null)
-      .maybeSingle();
+      .is("archivado_en", null);
 
-    if (contactoExistente) {
-      contactoId = contactoExistente.id;
-      nombreDeudor = contactoExistente.nombre;
+    const match = (contactosEspacio ?? []).find(
+      (c) => (decryptFieldSync(c.nombre) ?? "").toLowerCase().trim() === nombreDeudor.toLowerCase().trim()
+    );
+
+    if (match) {
+      contactoId = match.id;
+      nombreDeudor = decryptFieldSync(match.nombre) ?? nombreDeudor;
     } else {
       const { data: nuevoContacto, error: contactoError } = await supabase
         .from("contactos")
-        .insert({ espacio_id: espacioId, nombre: nombreDeudor })
+        .insert({ espacio_id: espacioId, nombre: encryptFieldSync(nombreDeudor)! })
         .select("id, nombre")
         .single();
 
@@ -265,7 +318,7 @@ export async function crearPrestamo(espacioId: string, formData: FormData) {
         return { error: { _global: [contactoError?.message ?? "No se pudo crear el deudor"] } };
       }
       contactoId = nuevoContacto.id;
-      nombreDeudor = nuevoContacto.nombre;
+      nombreDeudor = decryptFieldSync(nuevoContacto.nombre) ?? nombreDeudor;
     }
   } else if (contactoId && !nombreDeudor) {
     const { data: c } = await supabase
@@ -274,7 +327,7 @@ export async function crearPrestamo(espacioId: string, formData: FormData) {
       .eq("id", contactoId)
       .maybeSingle();
     if (c?.nombre) {
-      nombreDeudor = c.nombre;
+      nombreDeudor = decryptFieldSync(c.nombre) ?? "";
     }
   }
 
@@ -282,7 +335,7 @@ export async function crearPrestamo(espacioId: string, formData: FormData) {
     return { error: { _global: ["Selecciona un deudor o escribe su nombre"] } };
   }
 
-  // Insertar préstamo
+  // Insertar préstamo con notas cifradas (REGLA 2)
   const nombrePrestamo =
     parsed.data.nombre?.trim() || (nombreDeudor ? `Préstamo a ${nombreDeudor}` : "Préstamo");
   const { data: prestamo, error: errPrestamo } = await supabase
@@ -297,7 +350,7 @@ export async function crearPrestamo(espacioId: string, formData: FormData) {
       fecha_inicio: parsed.data.fecha_inicio,
       dia_pago: parsed.data.dia_pago,
       metodo_entrega: parsed.data.metodo_entrega || null,
-      notas: parsed.data.notas || null,
+      notas: encryptFieldSync(parsed.data.notas) || null,
     })
     .select("id")
     .single();

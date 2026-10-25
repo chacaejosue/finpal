@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { pagoPrestamoSchema } from "@/lib/validations/schemas";
 
 import { isValidUuid, sanitizeText } from "@/lib/security";
+import { encryptFieldSync, decryptFieldSync, isEncrypted, autoMigrateRow } from "@/lib/crypto";
 
 // ── Listar pagos del espacio ──────────────────────────────────────────────
 export async function getPagos(espacioId: string) {
@@ -27,7 +28,45 @@ export async function getPagos(espacioId: string) {
     .order("recibido_en", { ascending: false });
 
   if (error) throw new Error(error.message);
-  return data ?? [];
+
+  return (data ?? []).map((pago) => {
+    // Auto-migración silenciosa y descifrado de notas del cobro
+    if (pago.notas && !isEncrypted(pago.notas)) {
+      autoMigrateRow(supabase, "pagos_prestamos", pago.id, { notas: pago.notas });
+    }
+
+    // Descifrado del deudor asociado al préstamo
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const prestamoRel: any = pago.prestamos;
+    let decryptedPrestamos = prestamoRel;
+    if (prestamoRel) {
+      const contactoRel = prestamoRel.contactos;
+      let decryptedContactos = contactoRel;
+      if (contactoRel) {
+        if (Array.isArray(contactoRel)) {
+          decryptedContactos = contactoRel.map((c: { id: string; nombre: string }) => ({
+            ...c,
+            nombre: decryptFieldSync(c.nombre) ?? "",
+          }));
+        } else {
+          decryptedContactos = {
+            ...contactoRel,
+            nombre: decryptFieldSync(contactoRel.nombre) ?? "",
+          };
+        }
+      }
+      decryptedPrestamos = {
+        ...prestamoRel,
+        contactos: decryptedContactos,
+      };
+    }
+
+    return {
+      ...pago,
+      notas: decryptFieldSync(pago.notas),
+      prestamos: decryptedPrestamos,
+    };
+  });
 }
 
 // ── Registrar cobro ────────────────────────────────────────────────────────
@@ -64,72 +103,23 @@ export async function registrarPago(espacioId: string, formData: FormData) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/iniciar-sesion");
 
-  const { data: prestamoActual, error: prestamoError } = await supabase
-    .from("prestamos")
-    .select("monto_principal, monto_capital_pagado")
-    .eq("id", parsed.data.prestamo_id)
-    .eq("espacio_id", espacioId)
-    .single();
-
-  if (prestamoError || !prestamoActual) {
-    return { error: { _global: ["No se encontró el préstamo seleccionado"] } };
-  }
-
-  const capitalPendiente =
-    Number(prestamoActual.monto_principal) - Number(prestamoActual.monto_capital_pagado);
-  if (parsed.data.monto_principal > capitalPendiente + 0.01) {
-    return {
-      error: {
-        monto_principal: [
-          `El capital abonado no puede superar el saldo pendiente de ${capitalPendiente.toFixed(2)}`,
-        ],
-      },
-    };
-  }
-
-  // Insertar pago
-  const { data: pago, error: errPago } = await supabase
-    .from("pagos_prestamos")
-    .insert({
-      espacio_id: espacioId,
-      prestamo_id: parsed.data.prestamo_id,
-      fecha_esperada: parsed.data.fecha_esperada,
-      recibido_en: parsed.data.recibido_en,
-      monto_total: parsed.data.monto_total,
-      monto_principal: parsed.data.monto_principal,
-      monto_interes: parsed.data.monto_interes,
-      cuenta_dinero_id: parsed.data.cuenta_dinero_id,
-      metodo_pago: parsed.data.metodo_pago,
-      notas: parsed.data.notas,
-    })
-    .select("id")
-    .single();
-
-  if (errPago || !pago) return { error: { _global: [errPago?.message ?? "Error al registrar el pago"] } };
-
-  // Registrar transacción de ingreso
-  await supabase.from("transacciones").insert({
-    espacio_id: espacioId,
-    cuenta_dinero_id: parsed.data.cuenta_dinero_id,
-    tipo: "pago_prestamo",
-    monto: parsed.data.monto_total,
-    ocurrido_en: parsed.data.recibido_en,
-    prestamo_id: parsed.data.prestamo_id,
-    pago_prestamo_id: pago.id,
-    descripcion: `Cobro de préstamo`,
+  // Invocación a la transacción atómica en PostgreSQL vía RPC (BEGIN...COMMIT con FOR UPDATE)
+  // REGLA 2: Se cifra p_notas antes de enviarlo al procedimiento almacenado
+  const { error: rpcError } = await supabase.rpc("fn_registrar_cobro_prestamo", {
+    p_espacio_id: espacioId,
+    p_prestamo_id: parsed.data.prestamo_id,
+    p_cuenta_dinero_id: parsed.data.cuenta_dinero_id,
+    p_fecha_esperada: parsed.data.fecha_esperada,
+    p_recibido_en: parsed.data.recibido_en,
+    p_monto_total: parsed.data.monto_total,
+    p_monto_principal: parsed.data.monto_principal,
+    p_monto_interes: parsed.data.monto_interes,
+    p_metodo_pago: parsed.data.metodo_pago || null,
+    p_notas: encryptFieldSync(parsed.data.notas) || null,
   });
 
-  // Actualizar monto_capital_pagado en el préstamo
-  if (prestamoActual) {
-    const nuevoPagado = Number(prestamoActual.monto_capital_pagado) + parsed.data.monto_principal;
-    const estadoNuevo = nuevoPagado >= Number(prestamoActual.monto_principal)
-      ? "pagado"
-      : parsed.data.recibido_en > parsed.data.fecha_esperada ? "atrasado" : "activo";
-    await supabase
-      .from("prestamos")
-      .update({ monto_capital_pagado: nuevoPagado, estado: estadoNuevo })
-      .eq("id", parsed.data.prestamo_id)
-      .eq("espacio_id", espacioId);
+  if (rpcError) {
+    return { error: { _global: [rpcError.message] } };
   }
 
   revalidatePath("/pagos");
@@ -138,3 +128,4 @@ export async function registrarPago(espacioId: string, formData: FormData) {
   revalidatePath("/cuentas");
   return { success: true };
 }
+
