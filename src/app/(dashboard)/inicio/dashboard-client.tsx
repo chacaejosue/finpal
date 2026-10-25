@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { motion } from "motion/react";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import {
   ArrowRight,
   BadgeCheck,
@@ -36,6 +36,9 @@ import {
   Globe,
   Clock,
   LayoutGrid,
+  Trash2,
+  Archive,
+  RotateCcw,
 } from "lucide-react";
 import {
   useDashboard,
@@ -56,8 +59,15 @@ import { actualizarEstadoPrestamo } from "@/app/(dashboard)/prestamos/actions";
 import { formatDateEs, formatMonthYear } from "@/lib/format-date";
 import { ReportesBiDashboard } from "@/features/reportes/reportes-bi-dashboard";
 import { SlideToConfirm, DashboardRouteSkeleton } from "@/components/dashboard-shell";
-import { actualizarCuenta, getAuditoriaEntidad } from "@/app/(dashboard)/cuentas/actions";
+import {
+  actualizarCuenta,
+  getAuditoriaEntidad,
+  eliminarODesactivarCuenta,
+  reactivarCuenta,
+  getCuentasArchivadasConSaldo,
+} from "@/app/(dashboard)/cuentas/actions";
 import { actualizarZonaHorariaEspacio } from "@/app/(dashboard)/espacios/actions";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 
 
 export type PageName =
@@ -1697,12 +1707,18 @@ function AccountCardItem({
   tipoLabel,
   themeId,
   onEdit,
+  onDelete,
+  isArchived = false,
+  onReactivate,
 }: {
   c: Cuenta;
   index: number;
   tipoLabel: string;
   themeId: string;
-  onEdit: (cuenta: Cuenta) => void;
+  onEdit?: (cuenta: Cuenta) => void;
+  onDelete?: (cuenta: Cuenta) => void;
+  isArchived?: boolean;
+  onReactivate?: (cuenta: Cuenta) => void;
 }) {
   const normalizedId = themeId === "blue" ? "ocean" : themeId;
   const currentTheme = ACCOUNT_CARD_THEMES.find((t) => t.id === normalizedId) ?? ACCOUNT_CARD_THEMES[index % ACCOUNT_CARD_THEMES.length];
@@ -1712,24 +1728,68 @@ function AccountCardItem({
       initial={{ opacity: 0, y: 14, scale: 0.98 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ duration: 0.28, delay: Math.min(index * 0.07, 0.35), ease: "easeOut" }}
-      className={`rounded-2xl border p-5 shadow-xs transition-colors relative flex flex-col justify-between ${currentTheme.cardCls}`}
+      className={`rounded-2xl border p-5 shadow-xs transition-colors relative flex flex-col justify-between ${
+        isArchived
+          ? "opacity-80 hover:opacity-100 border-dashed border-slate-300 dark:border-slate-700 bg-slate-100/60 dark:bg-slate-900/60"
+          : currentTheme.cardCls
+      }`}
     >
       <div>
         <div className="flex items-center justify-between gap-2">
-          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold border uppercase tracking-wider ${currentTheme.badgeCls}`}>
-            {tipoLabel}
-          </span>
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onEdit(c);
-            }}
-            className="p-1.5 rounded-lg text-slate-700 hover:text-slate-900 dark:text-slate-200 dark:hover:text-white hover:bg-black/10 dark:hover:bg-white/10 transition-colors cursor-pointer"
-            title="Editar nombre o categoría de la cuenta"
+          <span
+            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold border uppercase tracking-wider ${
+              isArchived
+                ? "bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/20"
+                : currentTheme.badgeCls
+            }`}
           >
-            <Pencil className="w-3.5 h-3.5" />
-          </button>
+            {isArchived ? "Archivada" : tipoLabel}
+          </span>
+          <div className="flex items-center gap-1">
+            {isArchived && onReactivate ? (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onReactivate(c);
+                }}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-emerald-600/10 hover:bg-emerald-600/20 text-emerald-700 dark:text-emerald-300 border border-emerald-600/20 transition-colors cursor-pointer"
+                title="Reactivar cuenta en el espacio de trabajo"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Reactivar</span>
+              </button>
+            ) : (
+              <>
+                {onEdit && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onEdit(c);
+                    }}
+                    className="p-1.5 rounded-lg text-slate-700 hover:text-slate-900 dark:text-slate-200 dark:hover:text-white hover:bg-black/10 dark:hover:bg-white/10 transition-colors cursor-pointer"
+                    title="Editar nombre o categoría de la cuenta"
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                  </button>
+                )}
+                {onDelete && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDelete(c);
+                    }}
+                    className="p-1.5 rounded-lg text-rose-600 hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-300 hover:bg-rose-500/10 transition-colors cursor-pointer"
+                    title="Eliminar o desactivar cuenta"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </>
+            )}
+          </div>
         </div>
         <p className="font-heading text-lg font-extrabold text-slate-800 dark:text-white mt-3 tracking-tight">{c.nombre}</p>
       </div>
@@ -2131,6 +2191,12 @@ function CuentasView({
 }) {
   const [modalColoresOpen, setModalColoresOpen] = useState(false);
   const [cuentaAEditar, setCuentaAEditar] = useState<Cuenta | null>(null);
+  const [cuentaAEliminar, setCuentaAEliminar] = useState<Cuenta | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [showArchivadas, setShowArchivadas] = useState(false);
+  const [cuentasArchivadas, setCuentasArchivadas] = useState<Cuenta[]>([]);
+  const [loadingArchivadas, setLoadingArchivadas] = useState(false);
+
   const [selectedAccountId, setSelectedAccountId] = useState<string>(cuentas[0]?.id ?? "");
   const [themeMap, setThemeMap] = useState<Record<string, string>>(() => {
     if (typeof window === "undefined") return {};
@@ -2143,6 +2209,68 @@ function CuentasView({
     });
     return map;
   });
+
+  const cargarArchivadas = useCallback(async () => {
+    setLoadingArchivadas(true);
+    try {
+      const data = await getCuentasArchivadasConSaldo(espacioId);
+      setCuentasArchivadas(data);
+    } catch (err) {
+      console.error("Error al cargar cuentas archivadas:", err);
+    } finally {
+      setLoadingArchivadas(false);
+    }
+  }, [espacioId]);
+
+  const toggleArchivadas = async () => {
+    const nextState = !showArchivadas;
+    setShowArchivadas(nextState);
+    if (nextState) {
+      await cargarArchivadas();
+    }
+  };
+
+  const handleConfirmEliminarOArchivar = async () => {
+    if (!cuentaAEliminar) return;
+    setIsProcessing(true);
+    try {
+      const res = await eliminarODesactivarCuenta(cuentaAEliminar.id, espacioId);
+      if ("error" in res && res.error) {
+        alert(res.error);
+      } else if ("success" in res && res.success) {
+        setSuccessNotice(res.message);
+        await loadData();
+        if (showArchivadas) {
+          await cargarArchivadas();
+        }
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "desconocido";
+      alert("Error al procesar la acción: " + msg);
+    } finally {
+      setIsProcessing(false);
+      setCuentaAEliminar(null);
+    }
+  };
+
+  const handleReactivarCuenta = async (cuenta: Cuenta) => {
+    setIsProcessing(true);
+    try {
+      const res = await reactivarCuenta(cuenta.id, espacioId);
+      if ("error" in res && res.error) {
+        alert(res.error);
+      } else if ("success" in res && res.success) {
+        setSuccessNotice(res.message);
+        await loadData();
+        await cargarArchivadas();
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "desconocido";
+      alert("Error al reactivar cuenta: " + msg);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
 
   const handleSelectTheme = (accountId: string, themeId: string) => {
     setThemeMap((prev) => ({ ...prev, [accountId]: themeId }));
@@ -2158,7 +2286,11 @@ function CuentasView({
   };
 
   const TIPO_LABELS: Record<string, string> = {
-    efectivo: "Efectivo", banco: "Cuenta bancaria", billetera_movil: "Billetera móvil", ahorro: "Cuenta de ahorro", otra: "Otra",
+    efectivo: "Efectivo",
+    banco: "Cuenta bancaria",
+    billetera_movil: "Billetera móvil",
+    ahorro: "Cuenta de ahorro",
+    otra: "Otra",
   };
 
   return (
@@ -2174,6 +2306,18 @@ function CuentasView({
           <p className="text-xs text-on-surface-variant mt-0.5">Efectivo, bancos, billeteras y personalización de fondo.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={toggleArchivadas}
+            className={`w-full sm:w-auto px-3.5 py-2.5 rounded-xl border text-xs font-semibold shadow-2xs flex items-center justify-center gap-2 cursor-pointer transition-colors ${
+              showArchivadas
+                ? "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300"
+                : "border-surface-container-high/80 bg-surface-container-lowest hover:bg-surface-container text-on-surface"
+            }`}
+          >
+            <Archive className="w-4 h-4" />
+            <span>{showArchivadas ? "Ocultar archivadas" : "Cuentas archivadas"}</span>
+          </button>
           {cuentas.length > 0 && (
             <button
               type="button"
@@ -2193,6 +2337,7 @@ function CuentasView({
           </button>
         </div>
       </motion.div>
+
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {cuentas.length === 0 && (
           <p className="text-xs text-on-surface-variant col-span-3 text-center py-8">Sin cuentas registradas aún.</p>
@@ -2205,9 +2350,48 @@ function CuentasView({
             tipoLabel={TIPO_LABELS[c.tipo] ?? c.tipo}
             themeId={themeMap[c.id] ?? ACCOUNT_CARD_THEMES[i % ACCOUNT_CARD_THEMES.length].id}
             onEdit={(cuenta) => setCuentaAEditar(cuenta)}
+            onDelete={(cuenta) => setCuentaAEliminar(cuenta)}
           />
         ))}
       </div>
+
+      {showArchivadas && (
+        <div className="mt-8 pt-6 border-t border-surface-container-high/60 space-y-4">
+          <div className="flex items-center gap-2">
+            <Archive className="w-4 h-4 text-amber-500" />
+            <h2 className="text-sm font-bold uppercase tracking-wider text-on-surface">Cuentas Archivadas / Inactivas</h2>
+            <span className="text-xs px-2 py-0.5 rounded-full bg-surface-container text-on-surface-variant font-medium">
+              {cuentasArchivadas.length}
+            </span>
+          </div>
+          <p className="text-xs text-on-surface-variant">
+            Estas cuentas ya no se muestran en los selectores de nuevos movimientos ni préstamos, pero conservan su historial contable. Puedes reactivarlas en cualquier momento.
+          </p>
+
+          {loadingArchivadas ? (
+            <div className="flex items-center justify-center py-8 text-on-surface-variant gap-2 text-xs">
+              <Loader2 className="w-4 h-4 animate-spin text-primary" />
+              <span>Cargando cuentas archivadas...</span>
+            </div>
+          ) : cuentasArchivadas.length === 0 ? (
+            <p className="text-xs text-on-surface-variant py-4 italic">No tienes ninguna cuenta archivada.</p>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {cuentasArchivadas.map((c, i) => (
+                <AccountCardItem
+                  key={c.id}
+                  c={c}
+                  index={i}
+                  tipoLabel={TIPO_LABELS[c.tipo] ?? c.tipo}
+                  themeId="charcoal"
+                  isArchived={true}
+                  onReactivate={handleReactivarCuenta}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {modalColoresOpen && (
         <ModalPersonalizarColores
@@ -2228,6 +2412,103 @@ function CuentasView({
           onSuccess={async () => {
             setSuccessNotice("¡Cuenta actualizada correctamente!");
             await loadData();
+          }}
+        />
+      )}
+
+      {cuentaAEliminar && (
+        <ConfirmDialog
+          isOpen={true}
+          title={
+            cuentaAEliminar.saldo > 0
+              ? `¿Deseas archivar "${cuentaAEliminar.nombre}"?`
+              : `¿Eliminar o archivar "${cuentaAEliminar.nombre}"?`
+          }
+          description={
+            <div className="space-y-3 pt-1">
+              {/* Tarjeta resumen de la cuenta a ancho completo */}
+              <div className="p-3.5 rounded-2xl bg-surface-container-low/80 border border-surface-container-high/80 flex items-center justify-between shadow-2xs">
+                <div className="space-y-0.5">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant block font-mono">
+                    {TIPO_LABELS[cuentaAEliminar.tipo] ?? cuentaAEliminar.tipo}
+                  </span>
+                  <span className="font-heading font-extrabold text-base text-on-surface block leading-tight">
+                    {cuentaAEliminar.nombre}
+                  </span>
+                </div>
+                <div className="text-right space-y-0.5 shrink-0 pl-3">
+                  <span className="text-[10px] font-semibold text-on-surface-variant block uppercase tracking-wider font-mono">
+                    Saldo actual
+                  </span>
+                  <span
+                    className={`font-mono font-extrabold text-base block leading-tight ${
+                      cuentaAEliminar.saldo > 0 ? "text-amber-600 dark:text-amber-400" : "text-on-surface"
+                    }`}
+                  >
+                    {money(cuentaAEliminar.saldo)}
+                  </span>
+                </div>
+              </div>
+
+              {/* Lista con puntos resumidos */}
+              <div className="space-y-2 pt-1">
+                <p className="font-semibold text-xs text-on-surface">
+                  {cuentaAEliminar.saldo > 0
+                    ? "Tu cuenta tiene lo siguiente y cambiará su estado:"
+                    : "Detalles de la acción:"}
+                </p>
+                <div className="space-y-2 text-xs text-on-surface-variant">
+                  {cuentaAEliminar.saldo > 0 && (
+                    <div className="flex items-start gap-2.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500 mt-1.5 shrink-0" />
+                      <p className="leading-relaxed">
+                        <strong className="text-on-surface">Saldo de {money(cuentaAEliminar.saldo)}:</strong> el saldo se conserva registrado, pero la cuenta quedará inactiva para nuevas operaciones.
+                      </p>
+                    </div>
+                  )}
+                  <div className="flex items-start gap-2.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 mt-1.5 shrink-0" />
+                    <p className="leading-relaxed">
+                      <strong className="text-on-surface">Historial contable:</strong> se mantendrán todas tus transacciones y cobros pasados intactos.
+                    </p>
+                  </div>
+                  <div className="flex items-start gap-2.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 mt-1.5 shrink-0" />
+                    <p className="leading-relaxed">
+                      <strong className="text-on-surface">Visibilidad:</strong> se ocultará de los selectores diarios para mantener tu panel ordenado.
+                    </p>
+                  </div>
+                  <div className="flex items-start gap-2.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mt-1.5 shrink-0" />
+                    <p className="leading-relaxed">
+                      <strong className="text-on-surface">Recuperable:</strong> podrás consultar su historial o reactivarla cuando quieras en <em>"Cuentas archivadas"</em>.
+                    </p>
+                  </div>
+                  {cuentaAEliminar.saldo === 0 && (
+                    <div className="flex items-start gap-2.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-rose-500 mt-1.5 shrink-0" />
+                      <p className="leading-relaxed">
+                        <strong className="text-on-surface">Sin movimientos:</strong> si nunca tuvo movimientos registrados, se borrará definitivamente del sistema.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          }
+          useSlider={true}
+          sliderLabel={
+            cuentaAEliminar.saldo > 0
+              ? "Desliza para archivar cuenta"
+              : "Desliza para confirmar"
+          }
+          submitting={isProcessing}
+          confirmText={cuentaAEliminar.saldo > 0 ? "Archivar cuenta" : "Confirmar acción"}
+          cancelText="Cancelar y volver"
+          variant={cuentaAEliminar.saldo > 0 ? "warning" : "danger"}
+          onConfirm={handleConfirmEliminarOArchivar}
+          onCancel={() => {
+            if (!isProcessing) setCuentaAEliminar(null);
           }}
         />
       )}
