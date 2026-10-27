@@ -95,19 +95,26 @@ export default async function SignInPage({ searchParams }: PageProps<"/iniciar-s
 
       {/* Pie de página */}
       <footer className="w-full py-2.5 text-center border-t border-surface-container-high/30 shrink-0">
-        <div className="flex items-center justify-center gap-3 text-[11px] text-outline font-medium">
+        <div className="flex flex-wrap items-center justify-center gap-3 text-[11px] text-outline font-medium px-4">
           <div className="flex items-center gap-1.5">
             <ShieldCheck className="w-3.5 h-3.5 text-primary" />
-            <span>Cifrado de extremo a extremo</span>
+            <span>Cifrado AES-256-GCM en servidor</span>
           </div>
           <span>•</span>
           <div className="flex items-center gap-1.5">
             <Code2 className="w-3.5 h-3.5 text-primary" />
-            <span>Información centralizada</span>
+            <span>Aislamiento por RLS</span>
           </div>
+          <span>•</span>
+          <Link href="/terminos" className="hover:text-primary transition-colors">
+            Términos
+          </Link>
+          <span>•</span>
+          <Link href="/privacidad" className="hover:text-primary transition-colors">
+            Privacidad
+          </Link>
         </div>
       </footer>
     </div>
   );
 }
-

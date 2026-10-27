@@ -58,6 +58,11 @@ export default async function SignUpPage({ searchParams }: PageProps<"/registrar
                 <p className="mt-1.5 sm:mt-2 text-xs sm:text-sm leading-relaxed text-on-surface-variant">Configura tu acceso para comenzar a organizar tu información.</p>
               </div>
               <form className="space-y-4 sm:space-y-5" action={signUp}>
+                {/* Campo señuelo (Honeypot) invisible para bloquear bots automatizados */}
+                <div className="hidden" aria-hidden="true">
+                  <label htmlFor="website_url">Sitio web</label>
+                  <input id="website_url" name="website_url" type="text" tabIndex={-1} autoComplete="off" />
+                </div>
                 <div className="space-y-1.5">
                   <label className="block text-xs font-semibold" htmlFor="email">Correo electrónico</label>
                   <div className="relative flex items-center">
@@ -69,9 +74,30 @@ export default async function SignUpPage({ searchParams }: PageProps<"/registrar
                   <label className="block text-xs font-semibold" htmlFor="password">Contraseña</label>
                   <div className="relative flex items-center">
                     <Lock className="absolute left-3.5 h-4 w-4 text-outline pointer-events-none" />
-                    <input autoComplete="new-password" className="h-11 sm:h-12 w-full rounded-xl border border-surface-container-high/80 bg-background pl-10 pr-3.5 text-base sm:text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20" id="password" name="password" placeholder="Crea una contraseña segura" required type="password" />
+                    <input autoComplete="new-password" minLength={8} className="h-11 sm:h-12 w-full rounded-xl border border-surface-container-high/80 bg-background pl-10 pr-3.5 text-base sm:text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20" id="password" name="password" placeholder="Crea una contraseña segura (mín. 8 caracteres)" required type="password" />
                   </div>
-                  <p className="pt-0.5 text-xs text-on-surface-variant">Usa una contraseña que puedas recordar con facilidad.</p>
+                  <p className="pt-0.5 text-xs text-on-surface-variant">Usa una contraseña de al menos 8 caracteres que puedas recordar con facilidad.</p>
+                </div>
+                {/* Consentimiento activo obligatorio (Clickwrap) */}
+                <div className="flex items-start gap-2.5 pt-1">
+                  <input
+                    id="accept_terms"
+                    name="accept_terms"
+                    type="checkbox"
+                    required
+                    className="mt-0.5 h-4 w-4 rounded border-surface-container-high accent-primary cursor-pointer shrink-0"
+                  />
+                  <label htmlFor="accept_terms" className="text-[11px] sm:text-xs text-on-surface-variant leading-relaxed cursor-pointer select-none">
+                    Confirmo que soy mayor de 18 años y acepto expresamente los{" "}
+                    <Link href="/terminos" target="_blank" className="text-primary font-semibold hover:underline">
+                      Términos de Servicio y Deslinde Legal
+                    </Link>{" "}
+                    (incluyendo la cláusula sobre herramientas automatizadas/IA y no intermediación financiera) y la{" "}
+                    <Link href="/privacidad" target="_blank" className="text-primary font-semibold hover:underline">
+                      Política de Privacidad
+                    </Link>
+                    .
+                  </label>
                 </div>
                 <button className="mt-2 sm:mt-3 flex h-11 sm:h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary text-sm font-semibold text-on-primary shadow-xs transition-all duration-200 hover:bg-primary-container hover:shadow-sm active:translate-y-px cursor-pointer" type="submit">
                   <span>Crear mi cuenta</span><ArrowRight className="h-4 w-4" />
@@ -91,19 +117,26 @@ export default async function SignUpPage({ searchParams }: PageProps<"/registrar
 
       {/* Pie de página */}
       <footer className="w-full py-2.5 text-center border-t border-surface-container-high/30 shrink-0">
-        <div className="flex items-center justify-center gap-3 text-[11px] text-outline font-medium">
+        <div className="flex flex-wrap items-center justify-center gap-3 text-[11px] text-outline font-medium px-4">
           <div className="flex items-center gap-1.5">
             <ShieldCheck className="w-3.5 h-3.5 text-primary" />
-            <span>Cifrado de extremo a extremo</span>
+            <span>Cifrado AES-256-GCM en servidor</span>
           </div>
           <span>•</span>
           <div className="flex items-center gap-1.5">
             <Code2 className="w-3.5 h-3.5 text-primary" />
-            <span>Información centralizada</span>
+            <span>Aislamiento por RLS</span>
           </div>
+          <span>•</span>
+          <Link href="/terminos" className="hover:text-primary transition-colors">
+            Términos
+          </Link>
+          <span>•</span>
+          <Link href="/privacidad" className="hover:text-primary transition-colors">
+            Privacidad
+          </Link>
         </div>
       </footer>
     </div>
   );
 }
-

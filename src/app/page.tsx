@@ -10,6 +10,11 @@ import { MODO_MANTENIMIENTO } from "@/config/mantenimiento";
 import { PantallaMantenimiento } from "@/components/pantalla-mantenimiento";
 import { resetGlobalThemeColors, clearSessionAccent } from "@/lib/theme-utils";
 import {
+  TERMINOS_DE_SERVICIO,
+  POLITICA_DE_PRIVACIDAD,
+  LEGAL_VERSION,
+} from "@/config/legal-content";
+import {
   ArrowUp,
   Banknote,
   CalendarDays,
@@ -41,7 +46,7 @@ const borrowers = [
     name: "Carlos Ramírez",
     detail: "Préstamo personal",
     capital: "$1,200.00",
-    interest: "+5% mes ($60.00)",
+    interest: "+2.5% mes ($30.00)",
     date: "15 Oct 2024",
     status: "Al día",
     late: false,
@@ -52,7 +57,7 @@ const borrowers = [
     name: "Mariana Vega",
     detail: "Cuota de taller",
     capital: "$450.00",
-    interest: "+3% mes ($13.50)",
+    interest: "+2% mes ($9.00)",
     date: "Ayer (10 Oct)",
     status: "Con atraso (1 d)",
     late: true,
@@ -63,7 +68,7 @@ const borrowers = [
     name: "Jorge Peña",
     detail: "Equipos de oficina",
     capital: "$1,800.00",
-    interest: "+4.5% mes ($81.00)",
+    interest: "+3% mes ($54.00)",
     date: "28 Oct 2024",
     status: "Al día",
     late: false,
@@ -980,45 +985,52 @@ export default function Home() {
               </button>
 
               <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-surface-container-low">
-                <ShieldCheck className="w-6 h-6 text-primary" />
-                <h3 className="font-heading text-lg font-bold">
-                  {legalModal === "terminos" ? "Términos de Servicio" : "Política de Privacidad y Seguridad"}
-                </h3>
+                <ShieldCheck className="w-6 h-6 text-primary shrink-0" />
+                <div>
+                  <h3 className="font-heading text-lg font-bold">
+                    {legalModal === "terminos"
+                      ? "Términos de Servicio y Deslinde Legal"
+                      : "Política de Privacidad y Soberanía de Datos"}
+                  </h3>
+                  <p className="text-[11px] text-on-surface-variant">
+                    Versión {LEGAL_VERSION} · Jurisdicción Bolivia &amp; Estándar Internacional
+                  </p>
+                </div>
               </div>
 
               {legalModal === "terminos" ? (
-                <div className="space-y-3.5 text-xs text-on-surface-variant leading-relaxed">
-                  <p>
-                    <strong className="text-on-surface">1. Propósito de la Plataforma:</strong> FinPal es un sistema diseñado para el registro, cálculo de intereses y control administrativo de préstamos y finanzas personales o familiares.
-                  </p>
-                  <p>
-                    <strong className="text-on-surface">2. Sin Custodia de Fondos:</strong> FinPal no es un banco ni custodio monetario. No capta dinero ni custodia fondos reales; actúa exclusivamente como libro contable digital y calculadora de amortizaciones.
-                  </p>
-                  <p>
-                    <strong className="text-on-surface">3. Responsabilidad del Usuario:</strong> La veracidad de los datos, acuerdos pactados con deudores y registros contables introducidos en la plataforma son responsabilidad exclusiva de cada usuario.
-                  </p>
-                  <p>
-                    <strong className="text-on-surface">4. Licencia Abierta:</strong> El código fuente está disponible públicamente con fines de transparencia, auditabilidad y soberanía sobre los datos propios.
-                  </p>
+                <div className="space-y-4 text-xs text-on-surface-variant leading-relaxed">
+                  {TERMINOS_DE_SERVICIO.map((sec) => (
+                    <div key={sec.id} className="space-y-1.5">
+                      <p className="font-bold text-on-surface">{sec.titulo}</p>
+                      {sec.parrafos.map((p, i) => (
+                        <p key={i}>{p}</p>
+                      ))}
+                    </div>
+                  ))}
                 </div>
               ) : (
-                <div className="space-y-3.5 text-xs text-on-surface-variant leading-relaxed">
-                  <p>
-                    <strong className="text-on-surface">1. Cero Venta de Información:</strong> FinPal no vende, no comercializa ni comparte tu información financiera, deudores ni saldos con anunciantes ni terceros.
-                  </p>
-                  <p>
-                    <strong className="text-on-surface">2. Seguridad y Aislamiento por RLS:</strong> Tu información está aislada mediante políticas de seguridad a nivel de fila (Row Level Security - RLS) en la base de datos; únicamente tu usuario autenticado puede leer y modificar tus espacios de trabajo.
-                  </p>
-                  <p>
-                    <strong className="text-on-surface">3. Sesiones y Control:</strong> Puedes cerrar sesión en cualquier momento y decidir si recordar tu sesión en tu navegador o requerir autenticación cada vez que abras una nueva pestaña.
-                  </p>
-                  <p>
-                    <strong className="text-on-surface">4. Exportación y Respaldo:</strong> Tienes derecho a descargar copias de tus datos en formatos abiertos (CSV, reporte ejecutivo en PDF) cuando lo consideres oportuno.
-                  </p>
+                <div className="space-y-4 text-xs text-on-surface-variant leading-relaxed">
+                  {POLITICA_DE_PRIVACIDAD.map((sec) => (
+                    <div key={sec.id} className="space-y-1.5">
+                      <p className="font-bold text-on-surface">{sec.titulo}</p>
+                      {sec.parrafos.map((p, i) => (
+                        <p key={i}>{p}</p>
+                      ))}
+                    </div>
+                  ))}
                 </div>
               )}
 
-              <div className="mt-6 pt-4 border-t border-surface-container-low flex justify-end">
+              <div className="mt-6 pt-4 border-t border-surface-container-low flex items-center justify-between gap-3">
+                <Link
+                  href={legalModal === "terminos" ? "/terminos" : "/privacidad"}
+                  className="text-xs font-semibold text-primary hover:underline inline-flex items-center gap-1"
+                  onClick={() => setLegalModal(null)}
+                >
+                  <span>Abrir documento completo en página dedicada</span>
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </Link>
                 <button
                   type="button"
                   onClick={() => setLegalModal(null)}
