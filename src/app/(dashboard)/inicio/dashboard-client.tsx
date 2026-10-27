@@ -67,6 +67,7 @@ import {
   getCuentasArchivadasConSaldo,
 } from "@/app/(dashboard)/cuentas/actions";
 import { actualizarZonaHorariaEspacio } from "@/app/(dashboard)/espacios/actions";
+import { eliminarMiCuentaDefinitivamente } from "@/app/(dashboard)/configuracion/actions";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 
 
@@ -2872,6 +2873,10 @@ function ConfiguracionView({
   const [guardando, setGuardando] = useState(false);
   const [guardandoZona, setGuardandoZona] = useState(false);
   const [mensaje, setMensaje] = useState<string | null>(null);
+  const [mostrarModalEliminarCuenta, setMostrarModalEliminarCuenta] = useState(false);
+  const [textoConfirmarEliminar, setTextoConfirmarEliminar] = useState("");
+  const [eliminandoCuenta, setEliminandoCuenta] = useState(false);
+  const [errorEliminarCuenta, setErrorEliminarCuenta] = useState<string | null>(null);
 
 
 
@@ -3059,6 +3064,14 @@ function ConfiguracionView({
               <p className="text-[11px] text-on-surface-variant mt-2 leading-relaxed">
                 Rellena automáticamente los nuevos formularios para ahorrar tiempo; no altera créditos ya otorgados.
               </p>
+              {tasa > 3 && (
+                <div className="mt-2.5 p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-[11px] text-on-surface leading-relaxed flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                  <span>
+                    <strong>Nota legal informativa:</strong> Verifica el límite máximo de interés convencional permitido en tu jurisdicción (por ejemplo, en Bolivia el Art. 409 del Código Civil fija un máximo del 3% mensual para préstamos civiles entre particulares).
+                  </span>
+                </div>
+              )}
             </div>
           </div>
 
@@ -3123,7 +3136,153 @@ function ConfiguracionView({
             </Link>
           </div>
         </motion.div>
+
+        {/* Card 5: Privacidad, Textos Legales y Derecho al Olvido */}
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.28, delay: 0.2 }}
+          className="lg:col-span-2 bg-surface-container-lowest rounded-2xl border border-surface-container-high/70 shadow-2xs p-6 flex flex-col md:flex-row md:items-center justify-between gap-6"
+        >
+          <div className="space-y-2 max-w-2xl">
+            <div className="flex items-center gap-2.5">
+              <span className="w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                <Scale className="w-5 h-5" />
+              </span>
+              <div>
+                <h2 className="font-heading text-base font-bold text-on-surface">
+                  Privacidad, Marco Legal y Soberanía de Datos (Derecho al Olvido)
+                </h2>
+                <p className="text-xs text-on-surface-variant">
+                  Cumplimiento con protección de privacidad en Bolivia (CPE Art. 21.2), CCPA (EE. UU.) y GDPR.
+                </p>
+              </div>
+            </div>
+            <p className="text-xs text-on-surface-variant leading-relaxed pt-1">
+              Tus datos están aislados con políticas Row Level Security (RLS) y cifrado AES-256-GCM en servidor. Puedes consultar nuestros textos legales o solicitar la eliminación definitiva e irreversible de tu cuenta y todos tus espacios.
+            </p>
+            <div className="flex flex-wrap items-center gap-4 pt-1 text-xs font-semibold">
+              <Link href="/terminos" target="_blank" className="text-primary hover:underline">
+                Términos de Servicio y Deslinde IA/Finanzas
+              </Link>
+              <span className="text-outline-variant">•</span>
+              <Link href="/privacidad" target="_blank" className="text-primary hover:underline">
+                Política de Privacidad
+              </Link>
+            </div>
+          </div>
+
+          <div className="shrink-0">
+            <button
+              type="button"
+              onClick={() => {
+                setTextoConfirmarEliminar("");
+                setErrorEliminarCuenta(null);
+                setMostrarModalEliminarCuenta(true);
+              }}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-error/40 bg-error-container/30 hover:bg-error-container/60 text-error text-xs font-bold transition-colors cursor-pointer"
+            >
+              <Trash2 className="w-4 h-4" />
+              <span>Eliminar mi cuenta y datos</span>
+            </button>
+          </div>
+        </motion.div>
       </div>
+
+      {/* Modal de Confirmación de Derecho al Olvido / Eliminación Total */}
+      {mostrarModalEliminarCuenta && (
+        <div
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4"
+          onClick={() => !eliminandoCuenta && setMostrarModalEliminarCuenta(false)}
+        >
+          <div
+            className="bg-surface-container-lowest border border-surface-container-high/80 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <span className="w-10 h-10 rounded-xl bg-error/10 text-error flex items-center justify-center shrink-0">
+                  <Trash2 className="w-5 h-5" />
+                </span>
+                <div>
+                  <h3 className="font-heading text-base font-bold text-on-surface">
+                    Eliminar cuenta definitivamente
+                  </h3>
+                  <p className="text-xs text-on-surface-variant">
+                    Acción irreversible (Derecho al Olvido)
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                disabled={eliminandoCuenta}
+                onClick={() => setMostrarModalEliminarCuenta(false)}
+                className="p-1 rounded-lg text-on-surface-variant hover:text-on-surface cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <p className="text-xs text-on-surface-variant leading-relaxed">
+              Se borrarán de forma permanente todos tus espacios de trabajo, contactos, préstamos, cobros, cuentas de dinero y tu usuario de acceso. Te recomendamos exportar antes tus reportes en CSV o PDF.
+            </p>
+
+            <div className="space-y-1.5">
+              <label className="block text-xs font-semibold text-on-surface">
+                Escribe <span className="font-mono text-error font-bold">ELIMINAR MI CUENTA</span> para confirmar:
+              </label>
+              <input
+                type="text"
+                value={textoConfirmarEliminar}
+                onChange={(e) => setTextoConfirmarEliminar(e.target.value)}
+                placeholder="ELIMINAR MI CUENTA"
+                className="w-full h-10 px-3 rounded-xl bg-surface-container-low border border-surface-container-high text-xs font-mono text-on-surface focus:outline-none focus:ring-2 focus:ring-error/30"
+              />
+            </div>
+
+            {errorEliminarCuenta && (
+              <p className="text-xs font-semibold text-error">{errorEliminarCuenta}</p>
+            )}
+
+            <div className="pt-2 flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                disabled={eliminandoCuenta}
+                onClick={() => setMostrarModalEliminarCuenta(false)}
+                className="px-4 py-2 rounded-xl border border-surface-container-high text-xs font-semibold text-on-surface hover:bg-surface-container cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={
+                  eliminandoCuenta ||
+                  textoConfirmarEliminar.trim().toUpperCase() !== "ELIMINAR MI CUENTA"
+                }
+                onClick={async () => {
+                  setEliminandoCuenta(true);
+                  setErrorEliminarCuenta(null);
+                  const res = await eliminarMiCuentaDefinitivamente(textoConfirmarEliminar);
+                  if (res?.error) {
+                    setErrorEliminarCuenta(res.error);
+                    setEliminandoCuenta(false);
+                  }
+                }}
+                className="px-4 py-2 rounded-xl bg-error text-on-error text-xs font-bold hover:opacity-90 disabled:opacity-50 cursor-pointer flex items-center gap-1.5"
+              >
+                {eliminandoCuenta ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Eliminando...</span>
+                  </>
+                ) : (
+                  <span>Borrar todo definitivamente</span>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

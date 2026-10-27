@@ -7,10 +7,14 @@ export function LoginForm({ action }: { action: (formData: FormData) => void | P
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  function submit(event: FormEvent<HTMLFormElement>) {
+  async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setLoading(true);
-    void action(new FormData(event.currentTarget));
+    try {
+      await action(new FormData(event.currentTarget));
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -65,6 +69,11 @@ export function LoginForm({ action }: { action: (formData: FormData) => void | P
           </button>
         </div>
       </div>
+      {/* Campo señuelo (Honeypot) al final del formulario para no interferir con gestores de contraseñas */}
+      <div className="hidden" aria-hidden="true">
+        <label htmlFor="website_url">Sitio web</label>
+        <input id="website_url" name="website_url" type="text" tabIndex={-1} autoComplete="off" />
+      </div>
       <div className="flex items-center gap-2 pt-0.5">
         <input
           className="h-4 w-4 cursor-pointer rounded border-surface-container-high accent-primary shrink-0"
@@ -84,8 +93,6 @@ export function LoginForm({ action }: { action: (formData: FormData) => void | P
         <span>{loading ? "Verificando..." : "Iniciar sesión"}</span>
         <ArrowRight className="h-4 w-4" />
       </button>
-
     </form>
   );
 }
-

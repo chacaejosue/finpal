@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { cuentaDineroSchema } from "@/lib/validations/schemas";
 
 import { isValidUuid, sanitizeText } from "@/lib/security";
+import { checkRateLimit, QUOTAS } from "@/lib/rate-limit";
 
 // ── Listar cuentas del espacio ────────────────────────────────────────────
 export async function getCuentas(espacioId: string) {
@@ -46,7 +47,8 @@ export async function getCuentasConSaldo(espacioId: string) {
       supabase
         .from("transacciones")
         .select("cuenta_dinero_id, tipo, monto, ajuste_sentido")
-        .eq("espacio_id", espacioId),
+        .eq("espacio_id", espacioId)
+        .limit(QUOTAS.MAX_TRANSACTIONS_PER_WORKSPACE),
     ]);
 
   if (cuentasError) throw new Error(cuentasError.message);
@@ -109,6 +111,14 @@ export async function crearCuenta(espacioId: string, formData: FormData) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/iniciar-sesion");
+
+  const rl = await checkRateLimit({
+    action: "mutation:cuenta",
+    limit: 20,
+    windowMs: 60_000,
+    identifier: user.id,
+  });
+  if (!rl.allowed) return { error: { _global: [rl.message!] } };
 
   const { error } = await supabase.from("cuentas_dinero").insert({
     espacio_id: espacioId,
@@ -352,7 +362,8 @@ export async function getCuentasArchivadasConSaldo(espacioId: string) {
       supabase
         .from("transacciones")
         .select("cuenta_dinero_id, tipo, monto, ajuste_sentido")
-        .eq("espacio_id", espacioId),
+        .eq("espacio_id", espacioId)
+        .limit(QUOTAS.MAX_TRANSACTIONS_PER_WORKSPACE),
     ]);
 
   if (cuentasError) throw new Error(cuentasError.message);

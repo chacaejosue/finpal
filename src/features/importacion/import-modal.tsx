@@ -528,6 +528,13 @@ export function ImportModal({
       return;
     }
 
+    if (dataRows.length > 200) {
+      setErrorGlobal(
+        `El archivo contiene ${dataRows.length} filas. Por seguridad y protección del servidor, el límite máximo es de 200 filas por importación. Divide tu archivo en partes más pequeñas.`
+      );
+      return;
+    }
+
     setFileHeaders(headers);
     setFileRows(dataRows);
     autoMapHeaders(headers, currentFieldsDef);
@@ -539,6 +546,11 @@ export function ImportModal({
     setFileName(file.name);
     setErrorGlobal(null);
     setResultado(null);
+
+    if (file.size > 2 * 1024 * 1024) {
+      setErrorGlobal("El archivo supera el tamaño máximo permitido de 2 MB.");
+      return;
+    }
 
     const reader = new FileReader();
     reader.onload = (event) => {

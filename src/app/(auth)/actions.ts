@@ -3,10 +3,25 @@
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
+import { checkRateLimit, isBotHoneypotTriggered } from "@/lib/rate-limit";
+import { LEGAL_VERSION } from "@/config/legal-content";
 
 export async function signIn(formData: FormData) {
-  const email = String(formData.get("email") ?? "").trim();
-  const password = String(formData.get("password") ?? "");
+  if (isBotHoneypotTriggered(formData)) {
+    redirect(`/iniciar-sesion?error=${encodeURIComponent("Solicitud rechazada por filtro de seguridad.")}`);
+  }
+
+  const rl = await checkRateLimit({
+    action: "auth:signin",
+    limit: 8,
+    windowMs: 60_000,
+  });
+  if (!rl.allowed) {
+    redirect(`/iniciar-sesion?error=${encodeURIComponent(rl.message!)}`);
+  }
+
+  const email = String(formData.get("email") ?? "").trim().slice(0, 150);
+  const password = String(formData.get("password") ?? "").slice(0, 256);
   const remember = formData.get("remember") === "on";
   const supabase = await createClient();
   const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -34,16 +49,63 @@ export async function signIn(formData: FormData) {
 }
 
 export async function signUp(formData: FormData) {
-  const email = String(formData.get("email") ?? "").trim();
-  const password = String(formData.get("password") ?? "");
+  if (isBotHoneypotTriggered(formData)) {
+    redirect(`/registrarse?error=${encodeURIComponent("Solicitud rechazada por filtro anti-bots.")}`);
+  }
+
+  const rl = await checkRateLimit({
+    action: "auth:signup",
+    limit: 5,
+    windowMs: 60_000,
+  });
+  if (!rl.allowed) {
+    redirect(`/registrarse?error=${encodeURIComponent(rl.message!)}`);
+  }
+
+  const acceptTerms = formData.get("accept_terms") === "on";
+  if (!acceptTerms) {
+    redirect(
+      `/registrarse?error=${encodeURIComponent(
+        "Debes aceptar los Términos de Servicio y la Política de Privacidad para crear una cuenta."
+      )}`
+    );
+  }
+
+  const email = String(formData.get("email") ?? "").trim().slice(0, 150);
+  const password = String(formData.get("password") ?? "").slice(0, 256);
+
+  if (password.length < 8) {
+    redirect(
+      `/registrarse?error=${encodeURIComponent("La contraseña debe tener al menos 8 caracteres.")}`
+    );
+  }
+
   const supabase = await createClient();
-  const { error } = await supabase.auth.signUp({ email, password });
+  const { error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: {
+      data: {
+        terms_accepted_at: new Date().toISOString(),
+        terms_version: LEGAL_VERSION,
+      },
+    },
+  });
 
   if (error) redirect(`/registrarse?error=${encodeURIComponent("No se pudo crear la cuenta. Inténtalo de nuevo.")}`);
   redirect("/iniciar-sesion?mensaje=Revisa tu correo para confirmar tu cuenta.");
 }
 
 export async function signInWithOAuth(provider: "google" | "github") {
+  const rl = await checkRateLimit({
+    action: "auth:oauth",
+    limit: 10,
+    windowMs: 60_000,
+  });
+  if (!rl.allowed) {
+    redirect(`/iniciar-sesion?error=${encodeURIComponent(rl.message!)}`);
+  }
+
   const supabase = await createClient();
   const rawOrigin =
     process.env.NEXT_PUBLIC_SITE_URL ||
