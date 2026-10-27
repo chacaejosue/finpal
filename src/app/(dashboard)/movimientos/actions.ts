@@ -7,6 +7,7 @@ import { transaccionSchema } from "@/lib/validations/schemas";
 
 import { isValidUuid, sanitizeText } from "@/lib/security";
 import { encryptFieldSync, decryptFieldSync, isEncrypted, autoMigrateRow } from "@/lib/crypto";
+import { checkRateLimit, QUOTAS } from "@/lib/rate-limit";
 
 // ── Listar transacciones del espacio ──────────────────────────────────────
 export async function getMovimientos(espacioId: string, limit = 200) {
@@ -63,6 +64,29 @@ export async function registrarMovimiento(espacioId: string, formData: FormData)
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/iniciar-sesion");
+
+  const rl = await checkRateLimit({
+    action: "mutation:movimiento",
+    limit: 30,
+    windowMs: 60_000,
+    identifier: user.id,
+  });
+  if (!rl.allowed) return { error: { _global: [rl.message!] } };
+
+  const { count } = await supabase
+    .from("transacciones")
+    .select("id", { count: "exact", head: true })
+    .eq("espacio_id", espacioId);
+
+  if ((count ?? 0) >= QUOTAS.MAX_TRANSACTIONS_PER_WORKSPACE) {
+    return {
+      error: {
+        _global: [
+          `Has alcanzado el límite de ${QUOTAS.MAX_TRANSACTIONS_PER_WORKSPACE} transacciones en este espacio.`,
+        ],
+      },
+    };
+  }
 
   const { error } = await supabase.from("transacciones").insert({
     espacio_id: espacioId,

@@ -7,6 +7,7 @@ import { pagoPrestamoSchema } from "@/lib/validations/schemas";
 
 import { isValidUuid, sanitizeText } from "@/lib/security";
 import { encryptFieldSync, decryptFieldSync, isEncrypted, autoMigrateRow } from "@/lib/crypto";
+import { checkRateLimit, QUOTAS } from "@/lib/rate-limit";
 
 // ── Listar pagos del espacio ──────────────────────────────────────────────
 export async function getPagos(espacioId: string) {
@@ -25,7 +26,8 @@ export async function getPagos(espacioId: string) {
       cuentas_dinero(id, nombre)
     `)
     .eq("espacio_id", espacioId)
-    .order("recibido_en", { ascending: false });
+    .order("recibido_en", { ascending: false })
+    .limit(QUOTAS.MAX_QUERY_LIMIT);
 
   if (error) throw new Error(error.message);
 
@@ -102,6 +104,14 @@ export async function registrarPago(espacioId: string, formData: FormData) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/iniciar-sesion");
+
+  const rl = await checkRateLimit({
+    action: "mutation:pago",
+    limit: 30,
+    windowMs: 60_000,
+    identifier: user.id,
+  });
+  if (!rl.allowed) return { error: { _global: [rl.message!] } };
 
   // Invocación a la transacción atómica en PostgreSQL vía RPC (BEGIN...COMMIT con FOR UPDATE)
   // REGLA 2: Se cifra p_notas antes de enviarlo al procedimiento almacenado

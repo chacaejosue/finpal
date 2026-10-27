@@ -6,8 +6,33 @@ export default function robots(): MetadataRoute.Robots {
   return {
     rules: [
       {
+        userAgent: [
+          "GPTBot",
+          "ChatGPT-User",
+          "OAI-SearchBot",
+          "Google-Extended",
+          "ClaudeBot",
+          "Claude-Web",
+          "anthropic-ai",
+          "CCBot",
+          "Bytespider",
+          "PerplexityBot",
+          "Amazonbot",
+          "FacebookBot",
+          "Meta-ExternalAgent",
+          "Diffbot",
+          "Omgilibot",
+          "ImagesiftBot",
+          "AhrefsBot",
+          "SemrushBot",
+          "DotBot",
+          "MJ12bot",
+        ],
+        disallow: ["/"],
+      },
+      {
         userAgent: "*",
-        allow: ["/", "/iniciar-sesion", "/registrarse"],
+        allow: ["/", "/iniciar-sesion", "/registrarse", "/terminos", "/privacidad"],
         disallow: [
           "/inicio",
           "/contactos",

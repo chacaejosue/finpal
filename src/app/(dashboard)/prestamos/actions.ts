@@ -8,6 +8,7 @@ import { prestamoSchema } from "@/lib/validations/schemas";
 import { isValidUuid } from "@/lib/security";
 import { encryptFieldSync, decryptFieldSync, isEncrypted, autoMigrateRow } from "@/lib/crypto";
 import { getLocalDateString, formatMonthYear, formatDateEs } from "@/lib/format-date";
+import { checkRateLimit, QUOTAS } from "@/lib/rate-limit";
 
 function isoDate(date: Date) {
   return date.toISOString().slice(0, 10);
@@ -42,12 +43,14 @@ export async function getPrestamos(espacioId: string) {
     `)
     .eq("espacio_id", espacioId)
     .is("archivado_en", null)
-    .order("created_at", { ascending: false }),
+    .order("created_at", { ascending: false })
+    .limit(QUOTAS.MAX_LOANS_PER_WORKSPACE),
     supabase
       .from("pagos_prestamos")
       .select("id, prestamo_id, fecha_esperada, recibido_en, monto_total, monto_principal, monto_interes, created_at")
       .eq("espacio_id", espacioId)
-      .order("recibido_en", { ascending: false }),
+      .order("recibido_en", { ascending: false })
+      .limit(QUOTAS.MAX_TRANSACTIONS_PER_WORKSPACE),
     supabase
       .from("espacios_trabajo")
       .select("zona_horaria")
@@ -288,6 +291,29 @@ export async function crearPrestamo(espacioId: string, formData: FormData) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/iniciar-sesion");
+
+  const rl = await checkRateLimit({
+    action: "mutation:prestamo",
+    limit: 25,
+    windowMs: 60_000,
+    identifier: user.id,
+  });
+  if (!rl.allowed) return { error: { _global: [rl.message!] } };
+
+  const { count } = await supabase
+    .from("prestamos")
+    .select("id", { count: "exact", head: true })
+    .eq("espacio_id", espacioId);
+
+  if ((count ?? 0) >= QUOTAS.MAX_LOANS_PER_WORKSPACE) {
+    return {
+      error: {
+        _global: [
+          `Has alcanzado el límite máximo de ${QUOTAS.MAX_LOANS_PER_WORKSPACE} préstamos en este espacio.`,
+        ],
+      },
+    };
+  }
 
   let contactoId = parsed.data.contacto_id || "";
   let nombreDeudor = parsed.data.contacto_nombre?.trim() || "";

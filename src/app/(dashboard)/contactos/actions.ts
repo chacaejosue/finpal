@@ -7,6 +7,7 @@ import { contactoSchema } from "@/lib/validations/schemas";
 
 import { isValidUuid, sanitizeText } from "@/lib/security";
 import { encryptFieldSync, decryptFieldSync, isEncrypted, autoMigrateRow } from "@/lib/crypto";
+import { checkRateLimit, QUOTAS } from "@/lib/rate-limit";
 
 // ── Listar contactos del espacio ──────────────────────────────────────────
 export async function getContactos(espacioId: string) {
@@ -23,7 +24,8 @@ export async function getContactos(espacioId: string) {
       prestamos(id, monto_principal, monto_capital_pagado, estado)
     `)
     .eq("espacio_id", espacioId)
-    .is("archivado_en", null);
+    .is("archivado_en", null)
+    .limit(QUOTAS.MAX_CONTACTS_PER_WORKSPACE);
 
   if (error) throw new Error(error.message);
 
@@ -72,6 +74,29 @@ export async function crearContacto(espacioId: string, formData: FormData) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/iniciar-sesion");
+
+  const rl = await checkRateLimit({
+    action: "mutation:contacto",
+    limit: 30,
+    windowMs: 60_000,
+    identifier: user.id,
+  });
+  if (!rl.allowed) return { error: { _global: [rl.message!] } };
+
+  const { count } = await supabase
+    .from("contactos")
+    .select("id", { count: "exact", head: true })
+    .eq("espacio_id", espacioId);
+
+  if ((count ?? 0) >= QUOTAS.MAX_CONTACTS_PER_WORKSPACE) {
+    return {
+      error: {
+        _global: [
+          `Has alcanzado el límite de ${QUOTAS.MAX_CONTACTS_PER_WORKSPACE} contactos en este espacio.`,
+        ],
+      },
+    };
+  }
 
   const { error } = await supabase.from("contactos").insert({
     espacio_id: espacioId,

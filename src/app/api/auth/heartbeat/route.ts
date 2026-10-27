@@ -1,7 +1,24 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 export async function POST() {
+  // Bloquear ráfagas antes de invocar a Supabase Auth
+  const rl = await checkRateLimit({
+    action: "api:heartbeat",
+    limit: 6,
+    windowMs: 60_000,
+  });
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: rl.message },
+      {
+        status: 429,
+        headers: { "Retry-After": String(rl.retryAfterSeconds) },
+      }
+    );
+  }
+
   const supabase = await createClient();
   const {
     data: { user },
@@ -21,4 +38,3 @@ export async function POST() {
   });
   return response;
 }
-

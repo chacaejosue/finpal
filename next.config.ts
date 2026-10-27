@@ -1,9 +1,12 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  poweredByHeader: false,
   experimental: {
     agentUpgrade: "security",
+    serverActions: {
+      bodySizeLimit: "1mb",
+    },
   },
   images: {
     dangerouslyAllowSVG: true,
@@ -42,6 +45,10 @@ const nextConfig: NextConfig = {
           {
             key: "Permissions-Policy",
             value: "camera=(), microphone=(), geolocation=()",
+          },
+          {
+            key: "X-Robots-Tag",
+            value: "noai, noimageai",
           },
         ],
       },
