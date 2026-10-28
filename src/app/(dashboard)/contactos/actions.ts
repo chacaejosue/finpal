@@ -9,7 +9,7 @@ import { isValidUuid, sanitizeText } from "@/lib/security";
 import { encryptFieldSync, decryptFieldSync, isEncrypted, autoMigrateRow } from "@/lib/crypto";
 import { checkRateLimit, QUOTAS } from "@/lib/rate-limit";
 
-// ── Listar contactos del espacio ──────────────────────────────────────────
+// ── Listar contactos activos del espacio ──────────────────────────────────
 export async function getContactos(espacioId: string) {
   if (!isValidUuid(espacioId)) return [];
 
@@ -55,6 +55,37 @@ export async function getContactos(espacioId: string) {
   });
 
   // Ordenar en memoria por nombre alfabéticamente (ya que en BD está cifrado)
+  return decrypted.sort((a, b) => (a.nombre ?? "").localeCompare(b.nombre ?? ""));
+}
+
+// ── Listar contactos archivados del espacio ───────────────────────────────
+export async function getContactosArchivados(espacioId: string) {
+  if (!isValidUuid(espacioId)) return [];
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return [];
+
+  const { data, error } = await supabase
+    .from("contactos")
+    .select(`
+      id, nombre, telefono, email, notas, archivado_en, created_at,
+      prestamos(id, monto_principal, monto_capital_pagado, estado)
+    `)
+    .eq("espacio_id", espacioId)
+    .not("archivado_en", "is", null)
+    .limit(QUOTAS.MAX_CONTACTS_PER_WORKSPACE);
+
+  if (error) throw new Error(error.message);
+
+  const decrypted = (data ?? []).map((c) => ({
+    ...c,
+    nombre: decryptFieldSync(c.nombre) ?? "",
+    telefono: decryptFieldSync(c.telefono) ?? "",
+    email: decryptFieldSync(c.email) ?? "",
+    notas: decryptFieldSync(c.notas) ?? "",
+  }));
+
   return decrypted.sort((a, b) => (a.nombre ?? "").localeCompare(b.nombre ?? ""));
 }
 
@@ -109,6 +140,7 @@ export async function crearContacto(espacioId: string, formData: FormData) {
   if (error) return { error: { _global: [error.message] } };
 
   revalidatePath("/contactos");
+  revalidatePath("/inicio");
   return { success: true };
 }
 
@@ -145,6 +177,8 @@ export async function actualizarContacto(contactoId: string, espacioId: string, 
   if (error) return { error: { _global: [error.message] } };
 
   revalidatePath("/contactos");
+  revalidatePath("/prestamos");
+  revalidatePath("/inicio");
   return { success: true };
 }
 
@@ -167,5 +201,29 @@ export async function archivarContacto(contactoId: string, espacioId: string) {
   if (error) return { error: error.message };
 
   revalidatePath("/contactos");
-  return { success: true };
+  revalidatePath("/inicio");
+  return { success: true, message: "Contacto archivado correctamente." };
+}
+
+// ── Reactivar contacto archivado ──────────────────────────────────────────
+export async function reactivarContacto(contactoId: string, espacioId: string) {
+  if (!isValidUuid(contactoId) || !isValidUuid(espacioId)) {
+    return { error: "Identificador no válido" };
+  }
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/iniciar-sesion");
+
+  const { error } = await supabase
+    .from("contactos")
+    .update({ archivado_en: null })
+    .eq("id", contactoId)
+    .eq("espacio_id", espacioId);
+
+  if (error) return { error: error.message };
+
+  revalidatePath("/contactos");
+  revalidatePath("/inicio");
+  return { success: true, message: "¡Contacto reactivado correctamente!" };
 }

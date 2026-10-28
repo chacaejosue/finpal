@@ -3,9 +3,13 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { prestamoSchema } from "@/lib/validations/schemas";
+import {
+  prestamoSchema,
+  actualizarPrestamoSchema,
+  ampliarCapitalSchema,
+} from "@/lib/validations/schemas";
 
-import { isValidUuid } from "@/lib/security";
+import { isValidUuid, sanitizeText } from "@/lib/security";
 import { encryptFieldSync, decryptFieldSync, isEncrypted, autoMigrateRow } from "@/lib/crypto";
 import { getLocalDateString, formatMonthYear, formatDateEs } from "@/lib/format-date";
 import { checkRateLimit, QUOTAS } from "@/lib/rate-limit";
@@ -34,17 +38,17 @@ export async function getPrestamos(espacioId: string) {
 
   const [{ data, error }, { data: pagos, error: pagosError }, { data: espacioData }] = await Promise.all([
     supabase
-    .from("prestamos")
-    .select(`
-      id, nombre, monto_principal, monto_capital_pagado, cobra_interes,
-      tasa_interes_mensual, fecha_inicio, dia_pago, estado, notas,
-      archivado_en, created_at,
-      contactos(id, nombre, telefono, email, notas)
-    `)
-    .eq("espacio_id", espacioId)
-    .is("archivado_en", null)
-    .order("created_at", { ascending: false })
-    .limit(QUOTAS.MAX_LOANS_PER_WORKSPACE),
+      .from("prestamos")
+      .select(`
+        id, nombre, monto_principal, monto_capital_pagado, cobra_interes,
+        tasa_interes_mensual, fecha_inicio, dia_pago, estado, metodo_entrega, notas,
+        archivado_en, created_at,
+        contactos(id, nombre, telefono, email, notas)
+      `)
+      .eq("espacio_id", espacioId)
+      .is("archivado_en", null)
+      .order("created_at", { ascending: false })
+      .limit(QUOTAS.MAX_LOANS_PER_WORKSPACE),
     supabase
       .from("pagos_prestamos")
       .select("id, prestamo_id, fecha_esperada, recibido_en, monto_total, monto_principal, monto_interes, created_at")
@@ -262,15 +266,6 @@ export async function getPrestamos(espacioId: string) {
 }
 
 // ── Crear préstamo + transacción de entrega ────────────────────────────────
-
-/**
- * Registra un nuevo préstamo y genera su impacto contable automático:
- * 1. Valida el esquema con `prestamoSchema` (coerción de tasa 0% a sin interés).
- * 2. Asocia o crea automáticamente el deudor en la tabla `contactos` del espacio de trabajo.
- * 3. Inserta el registro del préstamo con estado `activo`.
- * 4. Inserta la transacción contable de tipo `entrega_prestamo` para debitar el dinero de la cuenta origen.
- * 5. Revalida rutas del dashboard para actualización en tiempo real.
- */
 export async function crearPrestamo(espacioId: string, formData: FormData) {
   const parsed = prestamoSchema.safeParse({
     contacto_id: (formData.get("contacto_id") as string) || undefined,
@@ -319,7 +314,6 @@ export async function crearPrestamo(espacioId: string, formData: FormData) {
   let nombreDeudor = parsed.data.contacto_nombre?.trim() || "";
 
   if (!contactoId && nombreDeudor) {
-    // REGLA 3: Como el nombre está cifrado en la BD, consultamos los contactos del espacio y filtramos en memoria
     const { data: contactosEspacio } = await supabase
       .from("contactos")
       .select("id, nombre")
@@ -361,7 +355,6 @@ export async function crearPrestamo(espacioId: string, formData: FormData) {
     return { error: { _global: ["Selecciona un deudor o escribe su nombre"] } };
   }
 
-  // Insertar préstamo con notas cifradas (REGLA 2)
   const nombrePrestamo =
     parsed.data.nombre?.trim() || (nombreDeudor ? `Préstamo a ${nombreDeudor}` : "Préstamo");
   const { data: prestamo, error: errPrestamo } = await supabase
@@ -391,12 +384,124 @@ export async function crearPrestamo(espacioId: string, formData: FormData) {
     monto: parsed.data.monto_principal,
     ocurrido_en: parsed.data.fecha_inicio,
     prestamo_id: prestamo.id,
-    descripcion: `Préstamo entregado: ${nombrePrestamo}`,
+    descripcion: encryptFieldSync(`Préstamo entregado: ${nombrePrestamo}`),
   });
 
   revalidatePath("/prestamos");
   revalidatePath("/inicio");
   revalidatePath("/cuentas");
+  return { success: true };
+}
+
+// ── Actualizar parámetros de un préstamo existente ────────────────────────
+export async function actualizarPrestamo(
+  prestamoId: string,
+  espacioId: string,
+  formData: FormData,
+) {
+  if (!isValidUuid(prestamoId) || !isValidUuid(espacioId)) {
+    return { error: { _global: ["Identificadores no válidos"] } };
+  }
+
+  const parsed = actualizarPrestamoSchema.safeParse({
+    nombre: sanitizeText(formData.get("nombre"), 150),
+    cobra_interes: formData.get("cobra_interes") === "true",
+    tasa_interes_mensual: formData.get("tasa_interes_mensual"),
+    dia_pago: formData.get("dia_pago"),
+    notas: sanitizeText(formData.get("notas"), 1000),
+  });
+
+  if (!parsed.success) return { error: parsed.error.flatten().fieldErrors };
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/iniciar-sesion");
+
+  const { error } = await supabase
+    .from("prestamos")
+    .update({
+      nombre: parsed.data.nombre,
+      cobra_interes: parsed.data.cobra_interes,
+      tasa_interes_mensual: parsed.data.tasa_interes_mensual,
+      dia_pago: parsed.data.dia_pago,
+      notas: encryptFieldSync(parsed.data.notas) || null,
+    })
+    .eq("id", prestamoId)
+    .eq("espacio_id", espacioId);
+
+  if (error) return { error: { _global: [error.message] } };
+
+  revalidatePath("/prestamos");
+  revalidatePath("/inicio");
+  return { success: true };
+}
+
+// ── Ampliar capital de un préstamo existente (Recarga / Refinanciamiento) ─
+export async function ampliarCapitalPrestamo(
+  prestamoId: string,
+  espacioId: string,
+  formData: FormData,
+) {
+  if (!isValidUuid(prestamoId) || !isValidUuid(espacioId)) {
+    return { error: { _global: ["Identificadores no válidos"] } };
+  }
+
+  const parsed = ampliarCapitalSchema.safeParse({
+    monto_ampliacion: formData.get("monto_ampliacion"),
+    cuenta_dinero_id: formData.get("cuenta_dinero_id"),
+    fecha: formData.get("fecha"),
+    notas: sanitizeText(formData.get("notas"), 500),
+  });
+
+  if (!parsed.success) return { error: parsed.error.flatten().fieldErrors };
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/iniciar-sesion");
+
+  const { data: actual } = await supabase
+    .from("prestamos")
+    .select("id, nombre, monto_principal, estado, notas")
+    .eq("id", prestamoId)
+    .eq("espacio_id", espacioId)
+    .single();
+
+  if (!actual) return { error: { _global: ["El préstamo no existe"] } };
+
+  const nuevoMontoPrincipal = Number(actual.monto_principal) + Number(parsed.data.monto_ampliacion);
+  const notaAnterior = decryptFieldSync(actual.notas) ?? "";
+  const notaAdicional = `[Ampliación ${formatDateEs(parsed.data.fecha)}: +${parsed.data.monto_ampliacion}${parsed.data.notas ? ` — ${parsed.data.notas}` : ""}]`;
+  const nuevaNota = notaAnterior ? `${notaAnterior}\n${notaAdicional}` : notaAdicional;
+
+  const { error: errUpdate } = await supabase
+    .from("prestamos")
+    .update({
+      monto_principal: nuevoMontoPrincipal,
+      estado: actual.estado === "pagado" ? "activo" : actual.estado,
+      notas: encryptFieldSync(nuevaNota),
+    })
+    .eq("id", prestamoId)
+    .eq("espacio_id", espacioId);
+
+  if (errUpdate) return { error: { _global: [errUpdate.message] } };
+
+  // Registrar desembolso adicional en transacciones
+  await supabase.from("transacciones").insert({
+    espacio_id: espacioId,
+    cuenta_dinero_id: parsed.data.cuenta_dinero_id,
+    tipo: "entrega_prestamo",
+    monto: parsed.data.monto_ampliacion,
+    ocurrido_en: parsed.data.fecha,
+    prestamo_id: prestamoId,
+    descripcion: encryptFieldSync(
+      `Ampliación de capital (${actual.nombre})${parsed.data.notas ? `: ${parsed.data.notas}` : ""}`,
+    ),
+  });
+
+  revalidatePath("/prestamos");
+  revalidatePath("/movimientos");
+  revalidatePath("/cuentas");
+  revalidatePath("/inicio");
   return { success: true };
 }
 

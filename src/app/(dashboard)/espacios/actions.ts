@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { workspaceSchema } from "@/lib/validations/workspace";
 import { checkRateLimit, QUOTAS } from "@/lib/rate-limit";
-import { isValidUuid } from "@/lib/security";
+import { isValidUuid, sanitizeText } from "@/lib/security";
 
 // ── Listar espacios del usuario autenticado ───────────────────────────────
 export async function getEspacios() {
@@ -99,6 +99,7 @@ export async function eliminarEspacio(espacioId: string) {
 
 // ── Actualizar zona horaria del espacio de trabajo ────────────────────────
 export async function actualizarZonaHorariaEspacio(espacioId: string, zonaHoraria: string) {
+  if (!isValidUuid(espacioId)) return { error: "Identificador de espacio no válido" };
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/iniciar-sesion");
@@ -116,3 +117,48 @@ export async function actualizarZonaHorariaEspacio(espacioId: string, zonaHorari
   return { success: true };
 }
 
+// ── Actualizar moneda o nombre del espacio de trabajo ─────────────────────
+export async function actualizarMonedaEspacio(espacioId: string, codigoMoneda: string) {
+  if (!isValidUuid(espacioId)) return { error: "Identificador de espacio no válido" };
+  const validCurrencies = ["BOB", "USD", "PEN", "COP", "MXN", "ARS", "EUR", "BRL", "CLP"];
+  const norm = codigoMoneda.trim().toUpperCase();
+  if (!validCurrencies.includes(norm)) return { error: "Moneda no soportada" };
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/iniciar-sesion");
+
+  const { error } = await supabase
+    .from("espacios_trabajo")
+    .update({ codigo_moneda: norm })
+    .eq("id", espacioId);
+
+  if (error) return { error: error.message };
+
+  revalidatePath("/configuracion");
+  revalidatePath("/inicio");
+  revalidatePath("/espacios");
+  return { success: true };
+}
+
+export async function actualizarNombreEspacio(espacioId: string, nuevoNombre: string) {
+  if (!isValidUuid(espacioId)) return { error: "Identificador de espacio no válido" };
+  const clean = sanitizeText(nuevoNombre, 100);
+  if (!clean) return { error: "El nombre del espacio no puede estar vacío" };
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/iniciar-sesion");
+
+  const { error } = await supabase
+    .from("espacios_trabajo")
+    .update({ nombre: clean })
+    .eq("id", espacioId);
+
+  if (error) return { error: error.message };
+
+  revalidatePath("/configuracion");
+  revalidatePath("/inicio");
+  revalidatePath("/espacios");
+  return { success: true };
+}

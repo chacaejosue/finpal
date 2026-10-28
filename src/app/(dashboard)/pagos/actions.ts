@@ -20,13 +20,14 @@ export async function getPagos(espacioId: string) {
   const { data, error } = await supabase
     .from("pagos_prestamos")
     .select(`
-      id, fecha_esperada, recibido_en, monto_total, monto_principal, monto_interes,
+      id, prestamo_id, cuenta_dinero_id, fecha_esperada, recibido_en, monto_total, monto_principal, monto_interes,
       metodo_pago, notas, created_at,
-      prestamos(id, nombre, contactos(id, nombre)),
+      prestamos(id, nombre, monto_principal, monto_capital_pagado, contactos(id, nombre)),
       cuentas_dinero(id, nombre)
     `)
     .eq("espacio_id", espacioId)
     .order("recibido_en", { ascending: false })
+    .order("created_at", { ascending: false })
     .limit(QUOTAS.MAX_QUERY_LIMIT);
 
   if (error) throw new Error(error.message);
@@ -72,18 +73,6 @@ export async function getPagos(espacioId: string) {
 }
 
 // ── Registrar cobro ────────────────────────────────────────────────────────
-
-/**
- * Registra un cobro de préstamo y procesa su impacto contable y estado de cartera:
- * 1. Valida el desglose contable (total = capital + interés) y sanea entradas de texto.
- * 2. Verifica que el abono de capital no exceda el saldo pendiente real del préstamo.
- * 3. Inserta el cobro en `pagos_prestamos`.
- * 4. Inserta la transacción contable de tipo `pago_prestamo` para acreditar el dinero a la cuenta seleccionada.
- * 5. Actualiza `monto_capital_pagado` en el préstamo:
- *    - Si el capital devuelto cubre el 100% del principal -> estado pasa a `pagado`.
- *    - Si queda saldo y la fecha de cobro excedió el vencimiento -> pasa a `atrasado`.
- *    - Si queda saldo y está al día -> permanece `activo`.
- */
 export async function registrarPago(espacioId: string, formData: FormData) {
   if (!isValidUuid(espacioId)) return { error: { _global: ["Espacio de trabajo no válido"] } };
 
@@ -114,7 +103,6 @@ export async function registrarPago(espacioId: string, formData: FormData) {
   if (!rl.allowed) return { error: { _global: [rl.message!] } };
 
   // Invocación a la transacción atómica en PostgreSQL vía RPC (BEGIN...COMMIT con FOR UPDATE)
-  // REGLA 2: Se cifra p_notas antes de enviarlo al procedimiento almacenado
   const { error: rpcError } = await supabase.rpc("fn_registrar_cobro_prestamo", {
     p_espacio_id: espacioId,
     p_prestamo_id: parsed.data.prestamo_id,
@@ -139,3 +127,112 @@ export async function registrarPago(espacioId: string, formData: FormData) {
   return { success: true };
 }
 
+// ── Anular / Revertir un cobro registrado por error ────────────────────────
+export async function anularPago(pagoId: string, espacioId: string) {
+  if (!isValidUuid(pagoId) || !isValidUuid(espacioId)) {
+    return { error: "Identificadores no válidos" };
+  }
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/iniciar-sesion");
+
+  const { data: pago } = await supabase
+    .from("pagos_prestamos")
+    .select("id, prestamo_id, cuenta_dinero_id, monto_total, monto_principal, monto_interes, recibido_en")
+    .eq("id", pagoId)
+    .eq("espacio_id", espacioId)
+    .maybeSingle();
+
+  if (!pago) {
+    return { error: "El cobro no fue encontrado en este espacio." };
+  }
+
+  const { data: prestamo } = await supabase
+    .from("prestamos")
+    .select("id, monto_principal, monto_capital_pagado, estado")
+    .eq("id", pago.prestamo_id)
+    .eq("espacio_id", espacioId)
+    .maybeSingle();
+
+  // 1. Eliminar transacción asociada a este cobro
+  const { data: txByPagoId } = await supabase
+    .from("transacciones")
+    .select("id")
+    .eq("espacio_id", espacioId)
+    .eq("pago_prestamo_id", pagoId);
+
+  if (txByPagoId && txByPagoId.length > 0) {
+    await supabase
+      .from("transacciones")
+      .delete()
+      .eq("espacio_id", espacioId)
+      .eq("pago_prestamo_id", pagoId);
+  } else {
+    // Si el RPC insertó la transacción sin pago_prestamo_id, buscar la transacción pago_prestamo coincidente
+    const { data: candidateTx } = await supabase
+      .from("transacciones")
+      .select("id")
+      .eq("espacio_id", espacioId)
+      .eq("prestamo_id", pago.prestamo_id)
+      .eq("cuenta_dinero_id", pago.cuenta_dinero_id)
+      .eq("tipo", "pago_prestamo")
+      .eq("monto", pago.monto_total)
+      .eq("ocurrido_en", pago.recibido_en)
+      .order("created_at", { ascending: false })
+      .limit(1);
+
+    if (candidateTx && candidateTx[0]) {
+      await supabase
+        .from("transacciones")
+        .delete()
+        .eq("id", candidateTx[0].id)
+        .eq("espacio_id", espacioId);
+    }
+  }
+
+  // 2. Eliminar el registro del cobro en pagos_prestamos
+  const { error: delError } = await supabase
+    .from("pagos_prestamos")
+    .delete()
+    .eq("id", pagoId)
+    .eq("espacio_id", espacioId);
+
+  if (delError) {
+    return { error: delError.message };
+  }
+
+  // 3. Restaurar el capital pagado y el estado del préstamo
+  if (prestamo) {
+    const nuevoCapitalPagado = Math.max(
+      0,
+      Number(prestamo.monto_capital_pagado) - Number(pago.monto_principal),
+    );
+    const nuevoEstado =
+      nuevoCapitalPagado >= Number(prestamo.monto_principal)
+        ? "pagado"
+        : prestamo.estado === "pagado"
+        ? "activo"
+        : prestamo.estado;
+
+    await supabase
+      .from("prestamos")
+      .update({
+        monto_capital_pagado: nuevoCapitalPagado,
+        estado: nuevoEstado,
+      })
+      .eq("id", prestamo.id)
+      .eq("espacio_id", espacioId);
+  }
+
+  revalidatePath("/pagos");
+  revalidatePath("/prestamos");
+  revalidatePath("/movimientos");
+  revalidatePath("/cuentas");
+  revalidatePath("/inicio");
+
+  return {
+    success: true,
+    message: "Cobro anulado correctamente. Se restauró el saldo del préstamo y de la cuenta.",
+  };
+}

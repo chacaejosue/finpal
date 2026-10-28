@@ -25,7 +25,7 @@ export type CuentaDineroInput = z.infer<typeof cuentaDineroSchema>;
 
 /**
  * Esquema de validación para la creación de préstamos.
- * 
+ *
  * Regla de negocio / Invariante de BD:
  * - Si la tasa de interés es 0 o el usuario desmarca la opción de interés, el préstamo se
  *   transforma a `cobra_interes = false` y `tasa_interes_mensual = 0`. Esto garantiza el
@@ -60,11 +60,33 @@ export const prestamoSchema = z.object({
 );
 export type PrestamoInput = z.infer<typeof prestamoSchema>;
 
+export const actualizarPrestamoSchema = z.object({
+  nombre: z.string().trim().min(1, "El concepto del préstamo es obligatorio").max(150),
+  cobra_interes: z.boolean().default(true),
+  tasa_interes_mensual: z.coerce.number().min(0, "La tasa no puede ser negativa").max(100, "La tasa máxima es 100%").default(0),
+  dia_pago: z.coerce.number().int().min(1).max(31),
+  notas: z.string().trim().max(1000).optional().nullable().default(""),
+}).transform((d) => {
+  const tieneInteres = Boolean(d.cobra_interes) && d.tasa_interes_mensual > 0;
+  return {
+    ...d,
+    cobra_interes: tieneInteres,
+    tasa_interes_mensual: tieneInteres ? d.tasa_interes_mensual : 0,
+  };
+});
+
+export const ampliarCapitalSchema = z.object({
+  monto_ampliacion: z.coerce.number().positive("El monto a ampliar debe ser mayor a 0"),
+  cuenta_dinero_id: z.string().uuid("Selecciona la cuenta desde donde sale el dinero"),
+  fecha: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Fecha inválida"),
+  notas: z.string().trim().max(500).optional().default(""),
+});
+
 // ── Cobros de préstamos ────────────────────────────────────────────────────
 
 /**
  * Esquema de validación para cobros y amortizaciones de préstamos.
- * 
+ *
  * Regla de negocio / Balance contable:
  * - El monto total cobrado debe equivaler exactamente a la suma del abono a capital
  *   (`monto_principal`) más el cobro de intereses (`monto_interes`).
@@ -86,22 +108,38 @@ export const pagoPrestamoSchema = z.object({
 );
 export type PagoPrestamoInput = z.infer<typeof pagoPrestamoSchema>;
 
-// ── Transacciones (gastos / ingresos) ─────────────────────────────────────
+// ── Transacciones (gastos / ingresos / transferencias / ajustes) ───────────
 
 export const transaccionSchema = z.object({
-  cuenta_dinero_id: z.string().uuid(),
-  tipo: z.enum(["ingreso", "gasto", "transferencia_entrada", "transferencia_salida", "ajuste"]),
+  cuenta_dinero_id: z.string().uuid("Selecciona una cuenta de origen"),
+  cuenta_destino_id: z.string().uuid("Selecciona una cuenta de destino").optional().nullable(),
+  tipo: z.enum([
+    "ingreso",
+    "gasto",
+    "transferencia",
+    "transferencia_entrada",
+    "transferencia_salida",
+    "ajuste",
+  ]),
   ajuste_sentido: z.enum(["sumar", "restar"]).optional().nullable(),
   monto: z.coerce.number().positive("El monto debe ser mayor a 0"),
   ocurrido_en: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Fecha inválida"),
   descripcion: z.string().trim().max(500).optional().default(""),
   categoria_id: z.string().uuid().optional().nullable(),
+  categoria_nombre: z.string().trim().max(100).optional().default(""),
 }).superRefine((data, ctx) => {
   if (data.tipo === "ajuste" && !data.ajuste_sentido) {
     ctx.addIssue({ code: "custom", path: ["ajuste_sentido"], message: "Indica si el ajuste suma o resta dinero" });
   }
   if (data.tipo === "ajuste" && !data.descripcion) {
     ctx.addIssue({ code: "custom", path: ["descripcion"], message: "La justificación del ajuste es obligatoria" });
+  }
+  if (data.tipo === "transferencia") {
+    if (!data.cuenta_destino_id) {
+      ctx.addIssue({ code: "custom", path: ["cuenta_destino_id"], message: "Selecciona la cuenta de destino" });
+    } else if (data.cuenta_destino_id === data.cuenta_dinero_id) {
+      ctx.addIssue({ code: "custom", path: ["cuenta_destino_id"], message: "La cuenta de destino debe ser distinta a la de origen" });
+    }
   }
 });
 export type TransaccionInput = z.infer<typeof transaccionSchema>;

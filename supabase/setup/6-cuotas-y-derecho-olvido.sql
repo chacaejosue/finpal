@@ -32,6 +32,11 @@ CREATE POLICY "Miembros eliminan préstamos"
   ON public.prestamos FOR DELETE
   USING (public.es_miembro_espacio(espacio_id));
 
+DROP POLICY IF EXISTS "Miembros eliminan pagos de préstamos" ON public.pagos_prestamos;
+CREATE POLICY "Miembros eliminan pagos de préstamos"
+  ON public.pagos_prestamos FOR DELETE
+  USING (public.es_miembro_espacio(espacio_id));
+
 DROP POLICY IF EXISTS "Miembros eliminan transacciones" ON public.transacciones;
 CREATE POLICY "Miembros eliminan transacciones"
   ON public.transacciones FOR DELETE
