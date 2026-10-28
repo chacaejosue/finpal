@@ -87,10 +87,10 @@ export default function EspaciosClient({
   const avatarLetters = userEmail ? userEmail.slice(0, 2).toUpperCase() : "FP";
   const [enteringEspacioId, setEnteringEspacioId] = useState<string | null>(null);
 
-  function handleSelectEspacio(id: string, nombre: string, zona?: string) {
+  function handleSelectEspacio(id: string, nombre: string, zona?: string, moneda?: string) {
     if (enteringEspacioId) return;
     setEnteringEspacioId(id);
-    setEspacio(id, nombre, zona);
+    setEspacio(id, nombre, zona, moneda);
     router.push("/inicio");
   }
 
@@ -209,7 +209,7 @@ export default function EspaciosClient({
                 initial={{ opacity: 0, y: 14, scale: 0.98 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 transition={{ duration: 0.28, delay: Math.min(i * 0.05, 0.3) }}
-                onClick={() => handleSelectEspacio(espacio.id, espacio.nombre, espacio.zona_horaria)}
+                onClick={() => handleSelectEspacio(espacio.id, espacio.nombre, espacio.zona_horaria, espacio.codigo_moneda)}
                 className={`group bg-surface-container-lowest rounded-2xl border border-surface-container-high/70 hover:border-primary/50 shadow-2xs hover:shadow-md transition-all duration-200 p-5 sm:p-6 flex flex-col justify-between cursor-pointer text-left relative overflow-hidden w-full max-w-[340px] sm:w-[320px] lg:w-[340px] active:scale-[0.98] ${
                   isEntering ? "ring-2 ring-primary ring-offset-2 scale-[0.98] opacity-90 shadow-md" : ""
                 }`}

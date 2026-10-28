@@ -78,26 +78,26 @@ const borrowers = [
 
 const features = [
   {
-    title: "Cuentas organizadas",
-    description: "Separa espacios personales o proyectos sin mezclar saldos, movimientos ni información.",
+    title: "Cuentas y transferencias",
+    description: "Separa espacios de trabajo, administra saldos y transfiere entre cuentas en un solo paso con historial auditado.",
     icon: Landmark,
     bgColor: "kpi-icon-blue",
   },
   {
-    title: "Movimientos claros",
-    description: "Registra entradas, salidas y ajustes para entender cómo cambia el dinero disponible.",
+    title: "Simulador y frecuencias",
+    description: "Proyecta cuotas con abono fijo o Sistema Francés y configura préstamos mensuales, quincenales o semanales.",
     icon: Percent,
     bgColor: "kpi-icon-teal",
   },
   {
-    title: "Cobros y fechas",
-    description: "Conserva la fecha esperada y la fecha real de cada cobro, incluidos atrasos y abonos parciales.",
+    title: "Cobros y recibos digitales",
+    description: "Registra abonos parciales o solo interés, emite comprobantes listos para imprimir y revierte cobros con seguridad.",
     icon: CalendarDays,
     bgColor: "kpi-icon-amber",
   },
   {
-    title: "Préstamos en contexto",
-    description: "Consulta préstamos, intereses y estados junto con el resto de tu información financiera.",
+    title: "Expediente y Ficha 360°",
+    description: "Consulta el kardex de cada préstamo, amplía capital y evalúa el indicador de puntualidad de cada deudor.",
     icon: WalletCards,
     bgColor: "kpi-icon-emerald",
   },
@@ -413,36 +413,66 @@ export default function Home() {
                     </span>
                   </div>
 
-                  <div className="overflow-hidden rounded-xl bg-surface-container-low border border-surface-container-high/30 shadow-inner p-3">
-                    <div className="flex items-center gap-2 mb-3">
-                      <FinPalLogo size={28} className="w-7 h-7" priority />
-                      <div className="h-2.5 w-28 rounded-full bg-surface-container-high" />
-                      <div className="ml-auto h-2.5 w-12 rounded-full bg-primary/25" />
-                    </div>
-                    <div className="grid grid-cols-3 gap-2 mb-3">
-                      {["Saldo total", "Por cobrar", "Movimientos"].map((label, index) => (
-                        <div key={label} className="rounded-lg bg-surface-container-lowest p-2">
-                          <p className="text-[9px] text-on-surface-variant">{label}</p>
-                          <div className={`mt-2 h-3 rounded-full ${index === 1 ? "w-3/4 bg-primary/45" : "w-1/2 bg-primary/25"}`} />
+                  <div className="overflow-hidden rounded-xl bg-surface-container-low border border-surface-container-high/30 shadow-inner p-3.5 space-y-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <FinPalLogo size={28} className="w-7 h-7 shrink-0" priority />
+                        <div className="min-w-0">
+                          <p className="font-heading text-xs font-bold text-on-surface truncate">Resumen Financiero 360°</p>
+                          <p className="text-[10px] text-on-surface-variant truncate">Ciclo activo • Trazabilidad en vivo</p>
                         </div>
-                      ))}
+                      </div>
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-primary/12 text-primary font-mono text-[10px] font-bold shrink-0">
+                        <ShieldCheck className="w-3 h-3" /> AES-256
+                      </span>
                     </div>
-                    <div className="rounded-lg bg-surface-container-lowest p-3">
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="h-2.5 w-24 rounded-full bg-surface-container-high" />
-                        <div className="h-2.5 w-16 rounded-full bg-primary/30" />
+
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className="rounded-lg bg-surface-container-lowest border border-surface-container-high/40 p-2.5">
+                        <p className="text-[9px] font-semibold uppercase tracking-wider text-on-surface-variant">Saldo total</p>
+                        <p className="mt-1 font-heading text-xs sm:text-sm font-extrabold text-on-surface">$4,825.00</p>
+                        <p className="mt-0.5 font-mono text-[9px] font-semibold text-primary">+12.4% mes</p>
+                      </div>
+                      <div className="rounded-lg bg-surface-container-lowest border border-primary/25 p-2.5">
+                        <p className="text-[9px] font-semibold uppercase tracking-wider text-on-surface-variant">Por cobrar</p>
+                        <p className="mt-1 font-heading text-xs sm:text-sm font-extrabold text-primary">$1,950.00</p>
+                        <p className="mt-0.5 text-[9px] text-on-surface-variant">3 préstamos</p>
+                      </div>
+                      <div className="rounded-lg bg-surface-container-lowest border border-surface-container-high/40 p-2.5">
+                        <p className="text-[9px] font-semibold uppercase tracking-wider text-on-surface-variant">Interés mes</p>
+                        <p className="mt-1 font-heading text-xs sm:text-sm font-extrabold text-on-surface">+$93.00</p>
+                        <p className="mt-0.5 text-[9px] text-emerald-600 dark:text-emerald-400 font-medium">94% puntual</p>
+                      </div>
+                    </div>
+
+                    <div className="rounded-lg bg-surface-container-lowest border border-surface-container-high/40 p-3 space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-bold text-on-surface">Expedientes y actividad reciente</span>
+                        <span className="font-mono text-[10px] font-semibold text-primary">Kardex 360°</span>
                       </div>
                       <div className="space-y-2">
-                        {[["Cuenta principal", "Saldo disponible"], ["Cobro pendiente", "Próxima fecha"], ["Movimiento reciente", "Registrado"]].map(([title, detail]) => (
-                          <div key={title} className="flex items-center gap-2">
-                            <div className="w-5 h-5 rounded-md bg-primary/15" />
-                            <div className="flex-1">
-                              <div className="h-2 w-2/3 rounded-full bg-surface-container-high" />
-                              <div className="h-1.5 w-1/2 rounded-full bg-surface-container mt-1.5" />
-                            </div>
-                            <span className="text-[8px] text-on-surface-variant">{detail}</span>
+                        <div className="p-2 rounded-lg bg-surface-container-low/70 border border-surface-container-high/30">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="font-semibold text-on-surface">Carlos Ramírez • Mensual</span>
+                            <span className="font-mono text-[10px] font-bold text-primary">75% pagado</span>
                           </div>
-                        ))}
+                          <div className="mt-1.5 h-1.5 w-full rounded-full bg-surface-container-high overflow-hidden">
+                            <div className="h-full w-3/4 rounded-full bg-primary" />
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between gap-2 px-1 pt-0.5">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <div className="w-6 h-6 rounded-md bg-primary/15 text-primary flex items-center justify-center shrink-0">
+                              <Check className="w-3.5 h-3.5" />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-[11px] font-semibold text-on-surface truncate">Recibo #FP-842 • Abono parcial</p>
+                              <p className="text-[9px] text-on-surface-variant truncate">Acreditado en Cuenta Principal</p>
+                            </div>
+                          </div>
+                          <span className="font-mono text-[10px] font-bold text-emerald-600 dark:text-emerald-400 shrink-0">+$200.00</span>
+                        </div>
                       </div>
                     </div>
                   </div>

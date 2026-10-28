@@ -66,9 +66,23 @@ import {
   reactivarCuenta,
   getCuentasArchivadasConSaldo,
 } from "@/app/(dashboard)/cuentas/actions";
-import { actualizarZonaHorariaEspacio } from "@/app/(dashboard)/espacios/actions";
+import {
+  actualizarZonaHorariaEspacio,
+  actualizarMonedaEspacio,
+  actualizarNombreEspacio,
+} from "@/app/(dashboard)/espacios/actions";
 import { eliminarMiCuentaDefinitivamente } from "@/app/(dashboard)/configuracion/actions";
 import { ConfirmDialog } from "@/components/confirm-dialog";
+import {
+  ModalReciboCobro,
+  ModalSimuladorPrestamo,
+  ModalKardexPrestamo,
+  ModalFichaContacto,
+} from "@/components/finpal-modals";
+import { getContactosArchivados, reactivarContacto } from "@/app/(dashboard)/contactos/actions";
+import { anularPago } from "@/app/(dashboard)/pagos/actions";
+import { eliminarMovimiento } from "@/app/(dashboard)/movimientos/actions";
+import { Calculator, Eye, FolderOpen, Tag, UserCheck } from "lucide-react";
 
 
 export type PageName =
@@ -104,8 +118,25 @@ export default function DashboardClient({
     guardarPreferencias,
     setSuccessNotice,
   } = useDashboard();
-  const { espacioId, zonaHoraria, setZonaHoraria } = useEspacio();
+  const {
+    espacioId,
+    espacioNombre,
+    setEspacio,
+    zonaHoraria,
+    setZonaHoraria,
+    codigoMoneda,
+    setCodigoMoneda,
+  } = useEspacio();
   const [notaModal, setNotaModal] = useState<{ titulo: string; subtitulo?: string; texto: string } | null>(null);
+  const [reciboPago, setReciboPago] = useState<Pago | null>(null);
+  const [simuladorOpen, setSimuladorOpen] = useState(false);
+  const [kardexPrestamoId, setKardexPrestamoId] = useState<string | null>(null);
+  const [fichaContacto, setFichaContacto] = useState<{ contacto: Contacto; tab: "ficha" | "editar" } | null>(null);
+
+  const activeKardexPrestamo = useMemo(
+    () => (kardexPrestamoId ? prestamos.find((p) => p.id === kardexPrestamoId) ?? null : null),
+    [kardexPrestamoId, prestamos]
+  );
 
   const handleVerNota = (titulo: string, subtitulo?: string, texto?: string | null) => {
     if (texto && texto.trim()) {
@@ -145,7 +176,9 @@ export default function DashboardClient({
             prestamos={prestamos}
             movimientos={movimientos}
             totals={totals}
-            openModal={(m) => openModal(m)}
+            openModal={(m, preset) => openModal(m, preset)}
+            onOpenSimulador={() => setSimuladorOpen(true)}
+            onOpenKardex={(id) => setKardexPrestamoId(id)}
             onVerNota={handleVerNota}
           />
         )}
@@ -154,6 +187,11 @@ export default function DashboardClient({
             contactos={contactos}
             prestamos={prestamos}
             openModal={() => openModal("contact")}
+            openLoanForContact={(contactId) => openModal("loan", { contactId })}
+            onOpenFicha={(contacto, tab) => setFichaContacto({ contacto, tab })}
+            espacioId={espacioId ?? ""}
+            loadData={loadData}
+            setSuccessNotice={setSuccessNotice}
             onVerNota={handleVerNota}
           />
         )}
@@ -161,6 +199,9 @@ export default function DashboardClient({
           <PrestamosView
             prestamos={prestamos}
             openModal={() => openModal("loan")}
+            onCobrarPrestamo={(loanId) => openModal("payment", { loanId })}
+            onOpenSimulador={() => setSimuladorOpen(true)}
+            onOpenKardex={(loanId) => setKardexPrestamoId(loanId)}
             onVerNota={handleVerNota}
             onStatusChange={async (prestamoId, estado) => {
               if (!espacioId) return;
@@ -177,6 +218,10 @@ export default function DashboardClient({
           <PagosView
             pagos={pagos}
             openModal={() => openModal("payment")}
+            onVerRecibo={(pago) => setReciboPago(pago)}
+            espacioId={espacioId ?? ""}
+            loadData={loadData}
+            setSuccessNotice={setSuccessNotice}
             onVerNota={handleVerNota}
           />
         )}
@@ -193,6 +238,9 @@ export default function DashboardClient({
           <MovimientosView
             movimientos={movimientos}
             openModal={() => openModal("movement")}
+            espacioId={espacioId ?? ""}
+            loadData={loadData}
+            setSuccessNotice={setSuccessNotice}
             onVerNota={handleVerNota}
           />
         )}
@@ -209,12 +257,18 @@ export default function DashboardClient({
         )}
         {page === "configuracion" && (
           <ConfiguracionView
-            key={`${preferencias.colorAcento}-${preferencias.tasaInteresPredeterminada}-${zonaHoraria}`}
+            key={`${preferencias.colorAcento}-${preferencias.tasaInteresPredeterminada}-${zonaHoraria}-${codigoMoneda}`}
             preferencias={preferencias}
             guardarPreferencias={guardarPreferencias}
             espacioId={espacioId ?? ""}
+            espacioNombre={espacioNombre}
+            setEspacioNombre={(nuevoNombre) => {
+              if (espacioId) setEspacio(espacioId, nuevoNombre, zonaHoraria, codigoMoneda);
+            }}
             zonaHoraria={zonaHoraria}
             setZonaHoraria={setZonaHoraria}
+            codigoMoneda={codigoMoneda}
+            setCodigoMoneda={setCodigoMoneda}
             setSuccessNotice={setSuccessNotice}
           />
         )}
@@ -226,6 +280,76 @@ export default function DashboardClient({
           subtitulo={notaModal.subtitulo}
           texto={notaModal.texto}
           onClose={() => setNotaModal(null)}
+        />
+      )}
+
+      {reciboPago && (
+        <ModalReciboCobro
+          pago={reciboPago}
+          prestamo={
+            prestamos.find((pr) => pr.id === reciboPago.prestamo_id) ??
+            prestamos.find((pr) => pr.nombre === rel(reciboPago.prestamos)?.nombre) ??
+            null
+          }
+          espacioNombre={espacioNombre}
+          onClose={() => setReciboPago(null)}
+        />
+      )}
+
+      {simuladorOpen && (
+        <ModalSimuladorPrestamo
+          tasaPredeterminada={preferencias.tasaInteresPredeterminada}
+          onClose={() => setSimuladorOpen(false)}
+          onUsarEnPrestamo={(preset) => {
+            setSimuladorOpen(false);
+            openModal("loan", preset);
+          }}
+        />
+      )}
+
+      {activeKardexPrestamo && (
+        <ModalKardexPrestamo
+          prestamo={activeKardexPrestamo}
+          pagos={pagos}
+          cuentas={cuentas}
+          espacioId={espacioId ?? ""}
+          onClose={() => setKardexPrestamoId(null)}
+          onCobrar={(loanId) => {
+            setKardexPrestamoId(null);
+            openModal("payment", { loanId });
+          }}
+          onVerRecibo={(pago) => setReciboPago(pago)}
+          onSuccess={async (msg) => {
+            setSuccessNotice(msg);
+            await loadData();
+          }}
+        />
+      )}
+
+      {fichaContacto && (
+        <ModalFichaContacto
+          contacto={contactos.find((c) => c.id === fichaContacto.contacto.id) ?? fichaContacto.contacto}
+          prestamos={prestamos}
+          pagos={pagos}
+          espacioId={espacioId ?? ""}
+          initialTab={fichaContacto.tab}
+          onClose={() => setFichaContacto(null)}
+          onNuevoPrestamo={(contactId) => {
+            setFichaContacto(null);
+            openModal("loan", { contactId });
+          }}
+          onCobrarPrestamo={(loanId) => {
+            setFichaContacto(null);
+            openModal("payment", { loanId });
+          }}
+          onAbrirPrestamo={(loan) => {
+            setFichaContacto(null);
+            setKardexPrestamoId(loan.id);
+          }}
+          onSuccess={async (msg) => {
+            setSuccessNotice(msg);
+            await loadData();
+          }}
         />
       )}
     </>
@@ -556,13 +680,17 @@ function DashboardView({
   movimientos,
   totals,
   openModal,
+  onOpenSimulador,
+  onOpenKardex,
   onVerNota,
 }: {
   cuentas: Cuenta[];
   prestamos: Prestamo[];
   movimientos: Movimiento[];
   totals: ReturnType<typeof Object.assign>;
-  openModal: (m: "loan" | "payment") => void;
+  openModal: (m: "loan" | "payment", preset?: { loanId?: string; contactId?: string }) => void;
+  onOpenSimulador: () => void;
+  onOpenKardex: (loanId: string) => void;
   onVerNota: (titulo: string, subtitulo?: string, texto?: string | null) => void;
 }) {
   const [widgets, setWidgets] = useState<WidgetItem[]>(() => {
@@ -598,6 +726,15 @@ function DashboardView({
           <p className="text-xs sm:text-sm text-on-surface-variant mt-1">Resumen consolidado de tus finanzas y cartera de préstamos.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+          <button
+            type="button"
+            onClick={onOpenSimulador}
+            className="inline-flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl border border-surface-container-high/80 bg-surface-container-lowest hover:bg-surface-container text-on-surface font-semibold text-xs transition-all shadow-2xs cursor-pointer"
+            title="Simular préstamo e intereses antes de otorgarlo"
+          >
+            <Calculator className="w-4 h-4 text-primary" />
+            <span>Simulador</span>
+          </button>
           <button
             type="button"
             onClick={() => setModalPersonalizar(true)}
@@ -780,6 +917,26 @@ function DashboardView({
                                 </span>
                               </div>
                             </div>
+                            <div className="pt-2 border-t border-surface-container-high/40 flex items-center justify-end gap-2">
+                              <button
+                                type="button"
+                                onClick={() => onOpenKardex(p.id)}
+                                className="px-2.5 py-1 rounded-lg bg-surface-container hover:bg-surface-container-high text-on-surface text-[11px] font-semibold inline-flex items-center gap-1 cursor-pointer transition-colors"
+                              >
+                                <FolderOpen className="w-3 h-3 text-primary" />
+                                <span>Expediente</span>
+                              </button>
+                              {!isPaid && (
+                                <button
+                                  type="button"
+                                  onClick={() => openModal("payment", { loanId: p.id })}
+                                  className="px-2.5 py-1 rounded-lg bg-primary text-on-primary text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer hover:bg-primary-container transition-colors"
+                                >
+                                  <ReceiptText className="w-3 h-3" />
+                                  <span>Cobrar</span>
+                                </button>
+                              )}
+                            </div>
                           </div>
                         );
                       })}
@@ -787,14 +944,15 @@ function DashboardView({
 
                     {/* Vista Desktop / Tablet */}
                     <div className="hidden sm:block overflow-x-auto">
-                      <table className="w-full text-left text-sm min-w-[580px]">
+                      <table className="w-full text-left text-sm min-w-[660px]">
                         <thead>
                           <tr className="bg-surface-container-low/70 text-on-surface-variant text-xs font-semibold uppercase tracking-wider">
                             <th className="py-3 px-3.5 rounded-l-lg">Contacto</th>
                             <th className="py-3 px-3.5">Capital</th>
                             <th className="py-3 px-3.5">Interés</th>
                             <th className="py-3 px-3.5">Próximo Pago</th>
-                            <th className="py-3 px-3.5 rounded-r-lg text-right">Estado</th>
+                            <th className="py-3 px-3.5">Estado</th>
+                            <th className="py-3 px-3.5 rounded-r-lg text-right">Acciones</th>
                           </tr>
                         </thead>
                         <tbody className="text-on-surface divide-y divide-surface-container-low">
@@ -858,7 +1016,7 @@ function DashboardView({
                                     ? formatDateEs(p.fecha_proximo_pago)
                                     : `Día ${p.dia_pago}`}
                                 </td>
-                                <td className="py-3.5 px-3.5 text-right">
+                                <td className="py-3.5 px-3.5">
                                   {isLate ? (
                                     <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold badge-atrasado">
                                       Con atraso
@@ -872,6 +1030,30 @@ function DashboardView({
                                       Al día
                                     </span>
                                   )}
+                                </td>
+                                <td className="py-3.5 px-3.5 text-right">
+                                  <div className="inline-flex items-center justify-end gap-1.5">
+                                    <button
+                                      type="button"
+                                      onClick={() => onOpenKardex(p.id)}
+                                      className="px-2.5 py-1 rounded-lg bg-surface-container-low hover:bg-surface-container border border-surface-container-high/60 text-on-surface text-xs font-semibold inline-flex items-center gap-1 cursor-pointer transition-colors"
+                                      title="Ver expediente y extracto del préstamo"
+                                    >
+                                      <FolderOpen className="w-3.5 h-3.5 text-primary" />
+                                      <span>Expediente</span>
+                                    </button>
+                                    {!isPaid && (
+                                      <button
+                                        type="button"
+                                        onClick={() => openModal("payment", { loanId: p.id })}
+                                        className="px-2.5 py-1 rounded-lg bg-primary hover:bg-primary-container text-on-primary text-xs font-bold inline-flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
+                                        title="Registrar cobro rápido de este préstamo"
+                                      >
+                                        <ReceiptText className="w-3.5 h-3.5" />
+                                        <span>Cobrar</span>
+                                      </button>
+                                    )}
+                                  </div>
                                 </td>
                               </tr>
                             );
@@ -976,13 +1158,78 @@ function ContactosView({
   contactos,
   prestamos,
   openModal,
+  openLoanForContact,
+  onOpenFicha,
+  espacioId,
+  loadData,
+  setSuccessNotice,
   onVerNota,
 }: {
   contactos: Contacto[];
   prestamos: Prestamo[];
   openModal: () => void;
+  openLoanForContact: (contactId: string) => void;
+  onOpenFicha: (contacto: Contacto, tab: "ficha" | "editar") => void;
+  espacioId: string;
+  loadData: () => Promise<void>;
+  setSuccessNotice: (msg: string | null) => void;
   onVerNota: (titulo: string, subtitulo?: string, texto?: string | null) => void;
 }) {
+  const [busqueda, setBusqueda] = useState("");
+  const [filtroEstado, setFiltroEstado] = useState<"todos" | "con_deuda" | "atrasados" | "sin_deuda">("todos");
+  const [showArchivados, setShowArchivados] = useState(false);
+  const [contactosArchivados, setContactosArchivados] = useState<Contacto[]>([]);
+  const [loadingArchivados, setLoadingArchivados] = useState(false);
+
+  const cargarArchivados = useCallback(async () => {
+    if (!espacioId) return;
+    setLoadingArchivados(true);
+    try {
+      const data = await getContactosArchivados(espacioId);
+      setContactosArchivados(data as Contacto[]);
+    } finally {
+      setLoadingArchivados(false);
+    }
+  }, [espacioId]);
+
+  const toggleArchivados = async () => {
+    const next = !showArchivados;
+    setShowArchivados(next);
+    if (next) await cargarArchivados();
+  };
+
+  const handleReactivar = async (contacto: Contacto) => {
+    const res = await reactivarContacto(contacto.id, espacioId);
+    if ("error" in res && res.error) {
+      setSuccessNotice(res.error);
+      return;
+    }
+    setSuccessNotice(`¡Contacto "${contacto.nombre}" reactivado!`);
+    await loadData();
+    await cargarArchivados();
+  };
+
+  const contactosFiltrados = useMemo(() => {
+    return contactos.filter((c) => {
+      const allLoans = prestamos.filter((l) => rel(l.contactos)?.id === c.id);
+      const activeLoans = allLoans.filter((l) => l.estado === "activo" || l.estado === "atrasado");
+      const isLate = activeLoans.some((l) => l.estado === "atrasado");
+
+      if (filtroEstado === "con_deuda" && activeLoans.length === 0) return false;
+      if (filtroEstado === "atrasados" && !isLate) return false;
+      if (filtroEstado === "sin_deuda" && activeLoans.length > 0) return false;
+
+      if (busqueda.trim()) {
+        const q = busqueda.toLowerCase().trim();
+        const matchNombre = c.nombre.toLowerCase().includes(q);
+        const matchTel = (c.telefono ?? "").toLowerCase().includes(q);
+        const matchEmail = (c.email ?? "").toLowerCase().includes(q);
+        if (!matchNombre && !matchTel && !matchEmail) return false;
+      }
+      return true;
+    });
+  }, [contactos, prestamos, filtroEstado, busqueda]);
+
   return (
     <div className="space-y-6">
       <motion.div
@@ -993,20 +1240,80 @@ function ContactosView({
       >
         <div>
           <h1 className="font-heading text-2xl font-extrabold text-on-surface">Contactos & Deudores</h1>
-          <p className="text-xs text-on-surface-variant mt-0.5">Directorio de personas y seguimiento del estado de deuda.</p>
+          <p className="text-xs text-on-surface-variant mt-0.5">Directorio 360° de personas, reputación crediticia y seguimiento de deuda.</p>
         </div>
-        <button className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-primary text-on-primary text-xs font-semibold shadow-xs hover:bg-primary-container flex items-center justify-center gap-2 cursor-pointer" onClick={openModal}>
-          <Plus className="w-4 h-4" /><span>Nuevo contacto</span>
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={toggleArchivados}
+            className={`px-3.5 py-2.5 rounded-xl border text-xs font-semibold shadow-2xs flex items-center justify-center gap-2 cursor-pointer transition-colors ${
+              showArchivados
+                ? "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300"
+                : "border-surface-container-high/80 bg-surface-container-lowest hover:bg-surface-container text-on-surface"
+            }`}
+          >
+            <Archive className="w-4 h-4" />
+            <span>{showArchivados ? "Ocultar archivados" : "Archivados"}</span>
+          </button>
+          <button className="flex-1 sm:flex-initial px-4 py-2.5 rounded-xl bg-primary text-on-primary text-xs font-semibold shadow-xs hover:bg-primary-container flex items-center justify-center gap-2 cursor-pointer" onClick={openModal}>
+            <Plus className="w-4 h-4" /><span>Nuevo contacto</span>
+          </button>
+        </div>
       </motion.div>
+
+      {/* Barra de Búsqueda y Filtros de Deudores */}
+      <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+        <div className="flex items-center gap-1 bg-surface-container-low p-1 rounded-xl overflow-x-auto">
+          {[
+            { id: "todos", label: `Todos (${contactos.length})` },
+            { id: "con_deuda", label: "Con deuda activa" },
+            { id: "atrasados", label: "Con atraso" },
+            { id: "sin_deuda", label: "Sin deuda" },
+          ].map((f) => (
+            <button
+              key={f.id}
+              type="button"
+              onClick={() => setFiltroEstado(f.id as typeof filtroEstado)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
+                filtroEstado === f.id
+                  ? "bg-primary text-on-primary shadow-xs"
+                  : "text-on-surface-variant hover:text-on-surface"
+              }`}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="relative min-w-[220px] sm:w-72">
+          <Search className="w-4 h-4 text-on-surface-variant absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+          <input
+            type="text"
+            value={busqueda}
+            onChange={(e) => setBusqueda(e.target.value)}
+            placeholder="Buscar por nombre, teléfono o correo..."
+            className="w-full h-9 pl-9 pr-8 rounded-xl bg-surface-container-lowest border border-surface-container-high/80 text-xs text-on-surface focus:outline-none focus:border-primary"
+          />
+          {busqueda && (
+            <button
+              type="button"
+              onClick={() => setBusqueda("")}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface p-0.5 cursor-pointer"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+      </div>
+
       {/* Vista Móvil (Tarjetas de contactos) */}
       <div className="sm:hidden space-y-2.5">
-        {contactos.length === 0 ? (
+        {contactosFiltrados.length === 0 ? (
           <div className="bg-surface-container-lowest border border-surface-container-high/70 rounded-2xl p-6 text-center text-xs text-on-surface-variant">
-            Sin contactos aún. Crea el primero.
+            {contactos.length === 0 ? "Sin contactos aún. Crea el primero." : "No se encontraron contactos con ese criterio."}
           </div>
         ) : (
-          contactos.map((c, i) => {
+          contactosFiltrados.map((c, i) => {
             const allLoans = prestamos.filter((l) => rel(l.contactos)?.id === c.id);
             const activeLoans = allLoans.filter((l) => l.estado === "activo" || l.estado === "atrasado");
             const paidLoans = allLoans.filter((l) => l.estado === "pagado");
@@ -1021,18 +1328,22 @@ function ContactosView({
                 className="bg-surface-container-lowest border border-surface-container-high/70 rounded-2xl p-4 shadow-2xs space-y-3"
               >
                 <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-center gap-3 min-w-0">
+                  <button
+                    type="button"
+                    onClick={() => onOpenFicha(c, "ficha")}
+                    className="flex items-center gap-3 min-w-0 text-left cursor-pointer"
+                  >
                     <ContactAvatar name={c.nombre} size={38} className="rounded-full shadow-xs shrink-0" />
                     <div className="min-w-0">
-                      <h4 className="font-bold text-sm text-on-surface truncate">{c.nombre}</h4>
+                      <h4 className="font-bold text-sm text-on-surface hover:text-primary truncate transition-colors">{c.nombre}</h4>
                       {c.telefono && (
-                        <a href={`tel:${c.telefono}`} className="text-xs text-primary font-medium block truncate hover:underline">
+                        <span className="text-xs text-primary font-medium block truncate">
                           {c.telefono}
-                        </a>
+                        </span>
                       )}
                       {c.email && <span className="text-[11px] text-on-surface-variant block truncate">{c.email}</span>}
                     </div>
-                  </div>
+                  </button>
                   <div>
                     {activeLoans.length > 0 ? isLate ? (
                       <span className="px-2.5 py-1 rounded-full text-[11px] font-bold badge-atrasado inline-flex items-center">Con atraso</span>
@@ -1058,18 +1369,44 @@ function ContactosView({
                   </div>
                 </div>
 
-                {c.notas && (
-                  <div className="pt-2 border-t border-surface-container-low flex justify-start">
+                <div className="pt-2 border-t border-surface-container-low flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-1.5">
                     <button
                       type="button"
-                      onClick={() => onVerNota("Notas del contacto", c.nombre, c.notas)}
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-surface-container-low hover:bg-surface-container text-on-surface-variant hover:text-on-surface text-[11px] font-medium border border-surface-container-high/60 transition-colors cursor-pointer"
+                      onClick={() => onOpenFicha(c, "ficha")}
+                      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-surface-container-low hover:bg-surface-container text-on-surface text-[11px] font-semibold border border-surface-container-high/60 transition-colors cursor-pointer"
                     >
-                      <FileText className="w-3.5 h-3.5 text-primary" />
-                      <span>Ver nota completa</span>
+                      <Eye className="w-3.5 h-3.5 text-primary" />
+                      <span>Ficha 360°</span>
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => onOpenFicha(c, "editar")}
+                      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-surface-container-low hover:bg-surface-container text-on-surface-variant hover:text-on-surface text-[11px] font-semibold border border-surface-container-high/60 transition-colors cursor-pointer"
+                    >
+                      <Pencil className="w-3 h-3" />
+                      <span>Editar</span>
+                    </button>
+                    {c.notas && (
+                      <button
+                        type="button"
+                        onClick={() => onVerNota("Notas del contacto", c.nombre, c.notas)}
+                        className="p-1.5 rounded-lg bg-surface-container-low hover:bg-surface-container text-primary border border-surface-container-high/60 transition-colors cursor-pointer"
+                        title="Ver nota completa"
+                      >
+                        <FileText className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                   </div>
-                )}
+                  <button
+                    type="button"
+                    onClick={() => openLoanForContact(c.id)}
+                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary text-[11px] font-bold transition-colors cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Préstamo</span>
+                  </button>
+                </div>
               </motion.div>
             );
           })
@@ -1083,20 +1420,23 @@ function ContactosView({
         transition={{ duration: 0.28, delay: 0.04 }}
         className="hidden sm:block bg-surface-container-lowest border border-surface-container-high/70 rounded-2xl overflow-x-auto shadow-2xs"
       >
-        <table className="w-full text-left text-sm min-w-[620px]">
+        <table className="w-full text-left text-sm min-w-[720px]">
           <thead>
             <tr className="bg-surface-container-low/70 text-on-surface-variant text-xs font-semibold uppercase tracking-wider">
               <th className="py-3 px-4 rounded-l-lg">Persona</th>
               <th className="py-3 px-4">Teléfono</th>
               <th className="py-3 px-4">Préstamos</th>
               <th className="py-3 px-4">Por cobrar</th>
-              <th className="py-3 px-4 rounded-r-lg text-right">Estado</th>
+              <th className="py-3 px-4">Estado</th>
+              <th className="py-3 px-4 rounded-r-lg text-right">Acciones</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-surface-container-low text-on-surface">
-            {contactos.length === 0 ? (
-              <tr><td colSpan={5} className="py-8 text-center text-xs text-on-surface-variant">Sin contactos aún. Crea el primero.</td></tr>
-            ) : contactos.map((c) => {
+            {contactosFiltrados.length === 0 ? (
+              <tr><td colSpan={6} className="py-8 text-center text-xs text-on-surface-variant">
+                {contactos.length === 0 ? "Sin contactos aún. Crea el primero." : "No se encontraron contactos con ese criterio."}
+              </td></tr>
+            ) : contactosFiltrados.map((c) => {
               const allLoans = prestamos.filter((l) => rel(l.contactos)?.id === c.id);
               const activeLoans = allLoans.filter((l) => l.estado === "activo" || l.estado === "atrasado");
               const paidLoans = allLoans.filter((l) => l.estado === "pagado");
@@ -1109,7 +1449,13 @@ function ContactosView({
                       <ContactAvatar name={c.nombre} size={36} className="rounded-full shadow-xs shrink-0" />
                       <div>
                         <div className="flex items-center gap-1.5">
-                          <span className="font-semibold text-sm leading-tight">{c.nombre}</span>
+                          <button
+                            type="button"
+                            onClick={() => onOpenFicha(c, "ficha")}
+                            className="font-semibold text-sm leading-tight hover:text-primary transition-colors cursor-pointer text-left"
+                          >
+                            {c.nombre}
+                          </button>
                           {c.notas && (
                             <button
                               type="button"
@@ -1135,7 +1481,7 @@ function ContactosView({
                   <td className="py-3 px-4 font-mono font-semibold text-sm whitespace-nowrap">
                     {money(balance)}
                   </td>
-                  <td className="py-3 px-4 text-right">
+                  <td className="py-3 px-4">
                     {activeLoans.length > 0 ? isLate ? (
                       <span className="px-2.5 py-1 rounded-full text-xs font-bold badge-atrasado inline-flex items-center">Con atraso</span>
                     ) : (
@@ -1144,12 +1490,88 @@ function ContactosView({
                       <span className="px-2.5 py-1 rounded-full text-xs font-bold badge-saldado inline-flex items-center">Sin deuda activa</span>
                     )}
                   </td>
+                  <td className="py-3 px-4 text-right">
+                    <div className="inline-flex items-center justify-end gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => onOpenFicha(c, "ficha")}
+                        className="px-2.5 py-1 rounded-lg bg-surface-container-low hover:bg-surface-container border border-surface-container-high/60 text-on-surface text-xs font-semibold inline-flex items-center gap-1 cursor-pointer transition-colors"
+                        title="Ver ficha 360° e historial del deudor"
+                      >
+                        <Eye className="w-3.5 h-3.5 text-primary" />
+                        <span>Ficha</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onOpenFicha(c, "editar")}
+                        className="p-1.5 rounded-lg bg-surface-container-low hover:bg-surface-container border border-surface-container-high/60 text-on-surface-variant hover:text-on-surface cursor-pointer transition-colors"
+                        title="Editar datos del contacto"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => openLoanForContact(c.id)}
+                        className="px-2.5 py-1 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary text-xs font-bold inline-flex items-center gap-1 cursor-pointer transition-colors"
+                        title="Crear nuevo préstamo para este contacto"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Préstamo</span>
+                      </button>
+                    </div>
+                  </td>
                 </tr>
               );
             })}
           </tbody>
         </table>
       </motion.div>
+
+      {/* Sección de Contactos Archivados */}
+      {showArchivados && (
+        <div className="mt-6 pt-6 border-t border-surface-container-high/60 space-y-3">
+          <div className="flex items-center gap-2">
+            <Archive className="w-4 h-4 text-amber-500" />
+            <h2 className="text-sm font-bold uppercase tracking-wider text-on-surface">Contactos Archivados</h2>
+            <span className="text-xs px-2 py-0.5 rounded-full bg-surface-container text-on-surface-variant font-medium">
+              {contactosArchivados.length}
+            </span>
+          </div>
+          {loadingArchivados ? (
+            <div className="flex items-center gap-2 text-xs text-on-surface-variant py-4">
+              <Loader2 className="w-4 h-4 animate-spin text-primary" />
+              <span>Cargando contactos archivados...</span>
+            </div>
+          ) : contactosArchivados.length === 0 ? (
+            <p className="text-xs text-on-surface-variant italic py-2">No tienes contactos archivados.</p>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {contactosArchivados.map((c) => (
+                <div
+                  key={c.id}
+                  className="p-3.5 rounded-2xl border border-dashed border-surface-container-high bg-surface-container-low/50 flex items-center justify-between gap-3"
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <ContactAvatar name={c.nombre} size={32} className="rounded-full opacity-75 shrink-0" />
+                    <div className="min-w-0">
+                      <p className="font-bold text-xs text-on-surface truncate">{c.nombre}</p>
+                      <p className="text-[11px] text-on-surface-variant truncate">{c.telefono || c.email || "Sin teléfono"}</p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleReactivar(c)}
+                    className="px-2.5 py-1.5 rounded-xl bg-emerald-600/10 hover:bg-emerald-600/20 text-emerald-700 dark:text-emerald-300 border border-emerald-600/20 text-xs font-semibold inline-flex items-center gap-1 cursor-pointer shrink-0"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    <span>Reactivar</span>
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -1189,19 +1611,45 @@ function EstadoPrestamoSelect({
 function PrestamosView({
   prestamos,
   openModal,
+  onCobrarPrestamo,
+  onOpenSimulador,
+  onOpenKardex,
   onStatusChange,
   onVerNota,
 }: {
   prestamos: Prestamo[];
   openModal: () => void;
+  onCobrarPrestamo: (loanId: string) => void;
+  onOpenSimulador: () => void;
+  onOpenKardex: (loanId: string) => void;
   onStatusChange: (prestamoId: string, estado: "activo" | "pagado" | "atrasado" | "cancelado") => Promise<void>;
   onVerNota: (titulo: string, subtitulo?: string, texto?: string | null) => void;
 }) {
   const [tab, setTab] = useState<"activos" | "pagados">("activos");
+  const [busqueda, setBusqueda] = useState("");
+  const [subFiltro, setSubFiltro] = useState<"todos" | "al_dia" | "atrasados" | "vencen_hoy">("todos");
+
   const activos = prestamos.filter((p) => p.estado === "activo" || p.estado === "atrasado");
   const pagados = prestamos.filter((p) => p.estado === "pagado" || p.estado === "cancelado");
   const vencenHoy = activos.filter((p) => p.vence_hoy);
-  const displayed = tab === "activos" ? activos : pagados;
+  const baseDisplayed = tab === "activos" ? activos : pagados;
+
+  const displayed = useMemo(() => {
+    return baseDisplayed.filter((l) => {
+      if (tab === "activos") {
+        if (subFiltro === "al_dia" && l.estado !== "activo") return false;
+        if (subFiltro === "atrasados" && l.estado !== "atrasado") return false;
+        if (subFiltro === "vencen_hoy" && !l.vence_hoy) return false;
+      }
+      if (busqueda.trim()) {
+        const q = busqueda.toLowerCase().trim();
+        const contactoNombre = (rel(l.contactos)?.nombre ?? "").toLowerCase();
+        const prestamoNombre = l.nombre.toLowerCase();
+        if (!contactoNombre.includes(q) && !prestamoNombre.includes(q)) return false;
+      }
+      return true;
+    });
+  }, [baseDisplayed, tab, subFiltro, busqueda]);
 
   return (
     <div className="space-y-6">
@@ -1213,48 +1661,106 @@ function PrestamosView({
       >
         <div>
           <h1 className="font-heading text-2xl font-extrabold text-on-surface">Préstamos</h1>
-          <p className="text-xs text-on-surface-variant mt-0.5">Registro de préstamos con cálculo mensual de intereses.</p>
+          <p className="text-xs text-on-surface-variant mt-0.5">Cartera de créditos, simulación financiera, expedientes y ampliación de capital.</p>
         </div>
-        <button className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-primary text-on-primary text-xs font-semibold shadow-xs hover:bg-primary-container flex items-center justify-center gap-2 cursor-pointer" onClick={openModal}>
-          <Plus className="w-4 h-4" /><span>Nuevo préstamo</span>
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={onOpenSimulador}
+            className="px-3.5 py-2.5 rounded-xl border border-surface-container-high/80 bg-surface-container-lowest hover:bg-surface-container text-on-surface text-xs font-semibold shadow-2xs flex items-center justify-center gap-2 cursor-pointer transition-colors"
+          >
+            <Calculator className="w-4 h-4 text-primary" />
+            <span>Simulador</span>
+          </button>
+          <button className="flex-1 sm:flex-initial px-4 py-2.5 rounded-xl bg-primary text-on-primary text-xs font-semibold shadow-xs hover:bg-primary-container flex items-center justify-center gap-2 cursor-pointer" onClick={openModal}>
+            <Plus className="w-4 h-4" /><span>Nuevo préstamo</span>
+          </button>
+        </div>
       </motion.div>
 
-      {/* Tabs activos / saldados */}
+      {/* Tabs activos / saldados + Buscador */}
       <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.24, delay: 0.03 }}
-        className="grid grid-cols-2 sm:flex sm:items-center gap-1 bg-surface-container-low p-1 rounded-xl w-full sm:w-fit"
+        className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3"
       >
-        <button
-          type="button"
-          onClick={() => setTab("activos")}
-          className={`px-4 py-2 sm:py-1.5 text-xs font-semibold rounded-lg transition-all text-center ${
-            tab === "activos" ? "bg-primary text-on-primary shadow-xs" : "text-on-surface-variant hover:text-on-surface"
-          }`}
-        >
-          Por cobrar
-          {activos.length > 0 && (
-            <span className={`ml-1.5 text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-              tab === "activos" ? "bg-white/20" : "bg-surface-container text-on-surface-variant"
-            }`}>{activos.length}</span>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="grid grid-cols-2 sm:flex sm:items-center gap-1 bg-surface-container-low p-1 rounded-xl w-full sm:w-fit">
+            <button
+              type="button"
+              onClick={() => setTab("activos")}
+              className={`px-4 py-2 sm:py-1.5 text-xs font-semibold rounded-lg transition-all text-center cursor-pointer ${
+                tab === "activos" ? "bg-primary text-on-primary shadow-xs" : "text-on-surface-variant hover:text-on-surface"
+              }`}
+            >
+              Por cobrar
+              {activos.length > 0 && (
+                <span className={`ml-1.5 text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                  tab === "activos" ? "bg-white/20" : "bg-surface-container text-on-surface-variant"
+                }`}>{activos.length}</span>
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={() => setTab("pagados")}
+              className={`px-4 py-2 sm:py-1.5 text-xs font-semibold rounded-lg transition-all text-center cursor-pointer ${
+                tab === "pagados" ? "bg-primary text-on-primary shadow-xs" : "text-on-surface-variant hover:text-on-surface"
+              }`}
+            >
+              Saldados
+              {pagados.length > 0 && (
+                <span className={`ml-1.5 text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                  tab === "pagados" ? "bg-white/20" : "bg-surface-container text-on-surface-variant"
+                }`}>{pagados.length}</span>
+              )}
+            </button>
+          </div>
+
+          {tab === "activos" && (
+            <div className="flex items-center gap-1 bg-surface-container-low p-1 rounded-xl overflow-x-auto">
+              {[
+                { id: "todos", label: "Todos" },
+                { id: "al_dia", label: "Al día" },
+                { id: "atrasados", label: "Con atraso" },
+                { id: "vencen_hoy", label: "Vencen hoy" },
+              ].map((sf) => (
+                <button
+                  key={sf.id}
+                  type="button"
+                  onClick={() => setSubFiltro(sf.id as typeof subFiltro)}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold whitespace-nowrap transition-all cursor-pointer ${
+                    subFiltro === sf.id
+                      ? "bg-surface-container-lowest text-on-surface shadow-2xs"
+                      : "text-on-surface-variant hover:text-on-surface"
+                  }`}
+                >
+                  {sf.label}
+                </button>
+              ))}
+            </div>
           )}
-        </button>
-        <button
-          type="button"
-          onClick={() => setTab("pagados")}
-          className={`px-4 py-2 sm:py-1.5 text-xs font-semibold rounded-lg transition-all text-center ${
-            tab === "pagados" ? "bg-primary text-on-primary shadow-xs" : "text-on-surface-variant hover:text-on-surface"
-          }`}
-        >
-          Saldados
-          {pagados.length > 0 && (
-            <span className={`ml-1.5 text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-              tab === "pagados" ? "bg-white/20" : "bg-surface-container text-on-surface-variant"
-            }`}>{pagados.length}</span>
+        </div>
+
+        <div className="relative min-w-[220px] sm:w-64">
+          <Search className="w-4 h-4 text-on-surface-variant absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+          <input
+            type="text"
+            value={busqueda}
+            onChange={(e) => setBusqueda(e.target.value)}
+            placeholder="Buscar deudor o concepto..."
+            className="w-full h-9 pl-9 pr-8 rounded-xl bg-surface-container-lowest border border-surface-container-high/80 text-xs text-on-surface focus:outline-none focus:border-primary"
+          />
+          {busqueda && (
+            <button
+              type="button"
+              onClick={() => setBusqueda("")}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface p-0.5 cursor-pointer"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
           )}
-        </button>
+        </div>
       </motion.div>
       {vencenHoy.length > 0 && (
         <motion.div
@@ -1367,8 +1873,27 @@ function PrestamosView({
                   </div>
                 )}
 
-                <div className="pt-2 border-t border-surface-container-low flex items-center justify-between gap-2">
-                  <span className="text-[11px] font-semibold text-on-surface-variant">Estado:</span>
+                <div className="pt-2 border-t border-surface-container-low flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => onOpenKardex(l.id)}
+                      className="px-2.5 py-1.5 rounded-lg bg-surface-container hover:bg-surface-container-high text-on-surface text-[11px] font-semibold inline-flex items-center gap-1 cursor-pointer transition-colors"
+                    >
+                      <FolderOpen className="w-3.5 h-3.5 text-primary" />
+                      <span>Expediente</span>
+                    </button>
+                    {!isPaid && (
+                      <button
+                        type="button"
+                        onClick={() => onCobrarPrestamo(l.id)}
+                        className="px-2.5 py-1.5 rounded-lg bg-primary text-on-primary text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer hover:bg-primary-container transition-colors"
+                      >
+                        <ReceiptText className="w-3.5 h-3.5" />
+                        <span>Cobrar</span>
+                      </button>
+                    )}
+                  </div>
                   <EstadoPrestamoSelect
                     estado={l.estado}
                     nombre={l.nombre}
@@ -1388,7 +1913,7 @@ function PrestamosView({
         transition={{ duration: 0.28, delay: 0.06 }}
         className="hidden sm:block bg-surface-container-lowest border border-surface-container-high/70 rounded-2xl overflow-x-auto shadow-2xs"
       >
-        <table className="w-full text-left text-sm min-w-[760px]">
+        <table className="w-full text-left text-sm min-w-[840px]">
           <thead>
             <tr className="bg-surface-container-low/70 text-on-surface-variant text-xs font-semibold uppercase tracking-wider">
               <th className="py-3 px-4 rounded-l-lg">Persona</th>
@@ -1398,12 +1923,13 @@ function PrestamosView({
               <th className="py-3 px-4">Interés mensual</th>
               <th className="py-3 px-4">Último mes cubierto</th>
               <th className="py-3 px-4">Próximo vencimiento</th>
-              <th className="py-3 px-4 rounded-r-lg text-left">Estado</th>
+              <th className="py-3 px-4">Estado</th>
+              <th className="py-3 px-4 rounded-r-lg text-right">Acciones</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-surface-container-low text-on-surface">
             {displayed.length === 0 ? (
-              <tr><td colSpan={8} className="py-8 text-center text-xs text-on-surface-variant">
+              <tr><td colSpan={9} className="py-8 text-center text-xs text-on-surface-variant">
                 {tab === "activos" ? "No hay préstamos activos pendientes." : "No hay préstamos saldados aún."}
               </td></tr>
             ) : displayed.map((l) => {
@@ -1421,7 +1947,13 @@ function PrestamosView({
                   </td>
                   <td className="py-3.5 px-4 align-middle text-xs">
                     <div className="flex items-center gap-1.5 font-semibold text-on-surface">
-                      <span>{l.nombre}</span>
+                      <button
+                        type="button"
+                        onClick={() => onOpenKardex(l.id)}
+                        className="hover:text-primary transition-colors cursor-pointer text-left"
+                      >
+                        {l.nombre}
+                      </button>
                       {l.notas && (
                         <button
                           type="button"
@@ -1482,6 +2014,30 @@ function PrestamosView({
                       onChange={(nuevoEstado) => onStatusChange(l.id, nuevoEstado)}
                     />
                   </td>
+                  <td className="py-3.5 px-4 align-middle text-right">
+                    <div className="inline-flex items-center justify-end gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => onOpenKardex(l.id)}
+                        className="px-2.5 py-1.5 rounded-lg bg-surface-container-low hover:bg-surface-container border border-surface-container-high/60 text-on-surface text-xs font-semibold inline-flex items-center gap-1 cursor-pointer transition-colors"
+                        title="Abrir expediente del préstamo (extracto, edición y ampliación)"
+                      >
+                        <FolderOpen className="w-3.5 h-3.5 text-primary" />
+                        <span>Expediente</span>
+                      </button>
+                      {!isPaid && (
+                        <button
+                          type="button"
+                          onClick={() => onCobrarPrestamo(l.id)}
+                          className="px-2.5 py-1.5 rounded-lg bg-primary hover:bg-primary-container text-on-primary text-xs font-bold inline-flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
+                          title="Registrar cobro rápido"
+                        >
+                          <ReceiptText className="w-3.5 h-3.5" />
+                          <span>Cobrar</span>
+                        </button>
+                      )}
+                    </div>
+                  </td>
                 </tr>
               );
             })}
@@ -1495,12 +2051,69 @@ function PrestamosView({
 function PagosView({
   pagos,
   openModal,
+  onVerRecibo,
+  espacioId,
+  loadData,
+  setSuccessNotice,
   onVerNota,
 }: {
   pagos: Pago[];
   openModal: () => void;
+  onVerRecibo: (pago: Pago) => void;
+  espacioId: string;
+  loadData: () => Promise<void>;
+  setSuccessNotice: (msg: string | null) => void;
   onVerNota: (titulo: string, subtitulo?: string, texto?: string | null) => void;
 }) {
+  const [busqueda, setBusqueda] = useState("");
+  const [filtroTiempo, setFiltroTiempo] = useState<"todos" | "este_mes" | "puntuales" | "atrasados">("todos");
+  const [pagoAAnular, setPagoAAnular] = useState<Pago | null>(null);
+  const [isAnulando, setIsAnulando] = useState(false);
+
+  const pagosFiltrados = useMemo(() => {
+    const thisMonthPrefix = new Date().toISOString().slice(0, 7);
+    return pagos.filter((p) => {
+      if (filtroTiempo === "este_mes" && !p.recibido_en.startsWith(thisMonthPrefix)) return false;
+      if (filtroTiempo === "puntuales" && p.fecha_esperada && p.recibido_en > p.fecha_esperada) return false;
+      if (filtroTiempo === "atrasados" && (!p.fecha_esperada || p.recibido_en <= p.fecha_esperada)) return false;
+
+      if (busqueda.trim()) {
+        const q = busqueda.toLowerCase().trim();
+        const prestamo = rel(p.prestamos);
+        const contactoNombre = (rel(prestamo?.contactos)?.nombre ?? "").toLowerCase();
+        const prestamoNombre = (prestamo?.nombre ?? "").toLowerCase();
+        const cuentaNombre = (rel(p.cuentas_dinero)?.nombre ?? "").toLowerCase();
+        const montoStr = String(p.monto_total);
+        if (
+          !contactoNombre.includes(q) &&
+          !prestamoNombre.includes(q) &&
+          !cuentaNombre.includes(q) &&
+          !montoStr.includes(q)
+        ) {
+          return false;
+        }
+      }
+      return true;
+    });
+  }, [pagos, filtroTiempo, busqueda]);
+
+  const handleConfirmAnular = async () => {
+    if (!pagoAAnular || !espacioId) return;
+    setIsAnulando(true);
+    try {
+      const res = await anularPago(pagoAAnular.id, espacioId);
+      if ("error" in res && res.error) {
+        setSuccessNotice(res.error);
+      } else if ("success" in res && res.success) {
+        setSuccessNotice(res.message);
+        await loadData();
+      }
+    } finally {
+      setIsAnulando(false);
+      setPagoAAnular(null);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <motion.div
@@ -1511,20 +2124,66 @@ function PagosView({
       >
         <div>
           <h1 className="font-heading text-2xl font-extrabold text-on-surface">Cobros recibidos</h1>
-          <p className="text-xs text-on-surface-variant mt-0.5">Registro del dinero que realmente recibiste de tus préstamos.</p>
+          <p className="text-xs text-on-surface-variant mt-0.5">Comprobantes digitales de pago, historial de cuotas y reversión segura.</p>
         </div>
         <button className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-primary text-on-primary text-xs font-semibold shadow-xs hover:bg-primary-container flex items-center justify-center gap-2 cursor-pointer" onClick={openModal}>
           <Plus className="w-4 h-4" /><span>Registrar cobro</span>
         </button>
       </motion.div>
+
+      {/* Barra de Búsqueda y Filtros */}
+      <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+        <div className="flex items-center gap-1 bg-surface-container-low p-1 rounded-xl overflow-x-auto">
+          {[
+            { id: "todos", label: `Todos (${pagos.length})` },
+            { id: "este_mes", label: "Este mes" },
+            { id: "puntuales", label: "En fecha / Anticipados" },
+            { id: "atrasados", label: "Con retraso" },
+          ].map((f) => (
+            <button
+              key={f.id}
+              type="button"
+              onClick={() => setFiltroTiempo(f.id as typeof filtroTiempo)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
+                filtroTiempo === f.id
+                  ? "bg-primary text-on-primary shadow-xs"
+                  : "text-on-surface-variant hover:text-on-surface"
+              }`}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="relative min-w-[220px] sm:w-64">
+          <Search className="w-4 h-4 text-on-surface-variant absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+          <input
+            type="text"
+            value={busqueda}
+            onChange={(e) => setBusqueda(e.target.value)}
+            placeholder="Buscar por deudor, préstamo o cuenta..."
+            className="w-full h-9 pl-9 pr-8 rounded-xl bg-surface-container-lowest border border-surface-container-high/80 text-xs text-on-surface focus:outline-none focus:border-primary"
+          />
+          {busqueda && (
+            <button
+              type="button"
+              onClick={() => setBusqueda("")}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface p-0.5 cursor-pointer"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+      </div>
+
       {/* Vista Móvil (Tarjetas de cobros) */}
       <div className="sm:hidden space-y-2.5">
-        {pagos.length === 0 ? (
+        {pagosFiltrados.length === 0 ? (
           <div className="bg-surface-container-lowest border border-surface-container-high/70 rounded-2xl p-6 text-center text-xs text-on-surface-variant">
-            Sin cobros registrados aún.
+            {pagos.length === 0 ? "Sin cobros registrados aún." : "No se encontraron cobros con ese filtro."}
           </div>
         ) : (
-          pagos.map((p, i) => {
+          pagosFiltrados.map((p, i) => {
             const prestamo = rel(p.prestamos);
             const contacto = rel(prestamo?.contactos);
             return (
@@ -1566,18 +2225,36 @@ function PagosView({
                   <span className="font-medium text-on-surface bg-surface-container-low px-2 py-0.5 rounded-md border border-surface-container-high/40">{rel(p.cuentas_dinero)?.nombre ?? "—"}</span>
                 </div>
 
-                {p.notas && (
-                  <div className="pt-2 border-t border-surface-container-low flex justify-start">
+                <div className="pt-2 border-t border-surface-container-low flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-1.5">
                     <button
                       type="button"
-                      onClick={() => onVerNota("Notas del cobro", `${contacto?.nombre ?? "—"} · ${formatDateEs(p.recibido_en)}`, p.notas)}
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-surface-container-low hover:bg-surface-container text-on-surface-variant hover:text-on-surface text-[11px] font-medium border border-surface-container-high/60 transition-colors cursor-pointer"
+                      onClick={() => onVerRecibo(p)}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary text-[11px] font-bold transition-colors cursor-pointer"
                     >
-                      <FileText className="w-3.5 h-3.5 text-primary" />
-                      <span>Ver nota completa</span>
+                      <ReceiptText className="w-3.5 h-3.5" />
+                      <span>Recibo</span>
                     </button>
+                    {p.notas && (
+                      <button
+                        type="button"
+                        onClick={() => onVerNota("Notas del cobro", `${contacto?.nombre ?? "—"} · ${formatDateEs(p.recibido_en)}`, p.notas)}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-surface-container-low hover:bg-surface-container text-on-surface-variant hover:text-on-surface text-[11px] font-medium border border-surface-container-high/60 transition-colors cursor-pointer"
+                      >
+                        <FileText className="w-3.5 h-3.5 text-primary" />
+                        <span>Nota</span>
+                      </button>
+                    )}
                   </div>
-                )}
+                  <button
+                    type="button"
+                    onClick={() => setPagoAAnular(p)}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 text-[11px] font-semibold transition-colors cursor-pointer"
+                  >
+                    <RotateCcw className="w-3 h-3" />
+                    <span>Anular</span>
+                  </button>
+                </div>
               </motion.div>
             );
           })
@@ -1591,7 +2268,7 @@ function PagosView({
         transition={{ duration: 0.28, delay: 0.06 }}
         className="hidden sm:block bg-surface-container-lowest border border-surface-container-high/70 rounded-2xl overflow-x-auto shadow-2xs"
       >
-        <table className="w-full text-left text-sm min-w-[720px]">
+        <table className="w-full text-left text-sm min-w-[820px]">
           <thead>
             <tr className="bg-surface-container-low/70 text-on-surface-variant text-xs font-semibold uppercase tracking-wider">
               <th className="py-3 px-4 rounded-l-lg">Cuota / Período</th>
@@ -1601,13 +2278,16 @@ function PagosView({
               <th className="py-3 px-4">Total</th>
               <th className="py-3 px-4">Capital</th>
               <th className="py-3 px-4">Interés</th>
-              <th className="py-3 px-4 rounded-r-lg">Cuenta</th>
+              <th className="py-3 px-4">Cuenta</th>
+              <th className="py-3 px-4 rounded-r-lg text-right">Acciones</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-surface-container-low text-on-surface">
-            {pagos.length === 0 ? (
-              <tr><td colSpan={8} className="py-8 text-center text-xs text-on-surface-variant">Sin cobros registrados aún.</td></tr>
-            ) : pagos.map((p) => {
+            {pagosFiltrados.length === 0 ? (
+              <tr><td colSpan={9} className="py-8 text-center text-xs text-on-surface-variant">
+                {pagos.length === 0 ? "Sin cobros registrados aún." : "No se encontraron cobros con ese filtro."}
+              </td></tr>
+            ) : pagosFiltrados.map((p) => {
               const prestamo = rel(p.prestamos);
               const contacto = rel(prestamo?.contactos);
               return (
@@ -1649,12 +2329,64 @@ function PagosView({
                   <td className="py-3.5 px-4 font-mono text-xs whitespace-nowrap">{money(Number(p.monto_principal))}</td>
                   <td className="py-3.5 px-4 font-mono text-xs whitespace-nowrap">{money(Number(p.monto_interes))}</td>
                   <td className="py-3.5 px-4 text-xs text-on-surface-variant">{rel(p.cuentas_dinero)?.nombre ?? "—"}</td>
+                  <td className="py-3.5 px-4 text-right">
+                    <div className="inline-flex items-center justify-end gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => onVerRecibo(p)}
+                        className="px-2.5 py-1 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary text-xs font-bold inline-flex items-center gap-1 cursor-pointer transition-colors"
+                        title="Generar recibo digital de pago"
+                      >
+                        <ReceiptText className="w-3.5 h-3.5" />
+                        <span>Recibo</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPagoAAnular(p)}
+                        className="p-1.5 rounded-lg text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 cursor-pointer transition-colors"
+                        title="Anular y revertir este cobro"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </td>
                 </tr>
               );
             })}
           </tbody>
         </table>
       </motion.div>
+
+      {pagoAAnular && (
+        <ConfirmDialog
+          isOpen={true}
+          title="¿Anular y revertir este cobro?"
+          description={
+            <div className="space-y-2.5 text-xs text-on-surface-variant">
+              <div className="p-3 rounded-xl bg-surface-container-low border border-surface-container-high/70 flex items-center justify-between">
+                <div>
+                  <span className="font-bold text-on-surface block">
+                    {rel(rel(pagoAAnular.prestamos)?.contactos)?.nombre ?? "Deudor"}
+                  </span>
+                  <span className="text-[11px]">{rel(pagoAAnular.prestamos)?.nombre ?? "Préstamo"} · {formatDateEs(pagoAAnular.recibido_en)}</span>
+                </div>
+                <span className="font-mono font-extrabold text-sm text-rose-600 dark:text-rose-400">
+                  {money(Number(pagoAAnular.monto_total))}
+                </span>
+              </div>
+              <p className="leading-relaxed">
+                Al anular este cobro se <strong>eliminará el movimiento de ingreso</strong> en la cuenta <strong>{rel(pagoAAnular.cuentas_dinero)?.nombre ?? "seleccionada"}</strong> y se <strong>restaurará automáticamente el capital pendiente</strong> del préstamo.
+              </p>
+            </div>
+          }
+          useSlider={true}
+          sliderLabel="Desliza para anular cobro"
+          submitting={isAnulando}
+          variant="danger"
+          onConfirm={handleConfirmAnular}
+          onCancel={() => !isAnulando && setPagoAAnular(null)}
+        />
+      )}
     </div>
   );
 }
@@ -2544,16 +3276,41 @@ function CuentasView({
 function MovimientosView({
   movimientos,
   openModal,
+  espacioId,
+  loadData,
+  setSuccessNotice,
   onVerNota,
 }: {
   movimientos: Movimiento[];
   openModal: () => void;
+  espacioId: string;
+  loadData: () => Promise<void>;
+  setSuccessNotice: (msg: string | null) => void;
   onVerNota: (titulo: string, subtitulo?: string, texto?: string | null) => void;
 }) {
   const [busqueda, setBusqueda] = useState("");
   const [filtroTipo, setFiltroTipo] = useState<"todos" | "ingreso" | "gasto" | "cobro" | "transferencia" | "ajuste">("todos");
   const [pagina, setPagina] = useState(1);
   const [porPagina, setPorPagina] = useState(5);
+  const [movimientoAEliminar, setMovimientoAEliminar] = useState<Movimiento | null>(null);
+  const [isEliminando, setIsEliminando] = useState(false);
+
+  const handleConfirmEliminar = async () => {
+    if (!movimientoAEliminar || !espacioId) return;
+    setIsEliminando(true);
+    try {
+      const res = await eliminarMovimiento(movimientoAEliminar.id, espacioId);
+      if ("error" in res && res.error) {
+        setSuccessNotice(res.error);
+      } else if ("success" in res && res.success) {
+        setSuccessNotice(res.message);
+        await loadData();
+      }
+    } finally {
+      setIsEliminando(false);
+      setMovimientoAEliminar(null);
+    }
+  };
 
   const filtrados = useMemo(() => {
     return movimientos.filter((m) => {
@@ -2568,9 +3325,10 @@ function MovimientosView({
         const cuentaNombre = (Array.isArray(m.cuentas_dinero)
           ? (m.cuentas_dinero[0] as unknown as { nombre?: string })?.nombre
           : (m.cuentas_dinero as unknown as { nombre?: string })?.nombre) ?? "";
+        const catNombre = (rel(m.categorias)?.nombre ?? "").toLowerCase();
         const desc = (m.descripcion ?? "").toLowerCase();
         const montoStr = String(m.monto);
-        if (!desc.includes(q) && !cuentaNombre.toLowerCase().includes(q) && !montoStr.includes(q)) {
+        if (!desc.includes(q) && !cuentaNombre.toLowerCase().includes(q) && !catNombre.includes(q) && !montoStr.includes(q)) {
           return false;
         }
       }
@@ -2603,7 +3361,7 @@ function MovimientosView({
       >
         <div>
           <h1 className="font-heading text-2xl font-extrabold text-on-surface">Movimientos</h1>
-          <p className="text-xs text-on-surface-variant mt-0.5">Todos los flujos de dinero del espacio.</p>
+          <p className="text-xs text-on-surface-variant mt-0.5">Libro mayor de ingresos, gastos, categorías y transferencias entre cuentas.</p>
         </div>
         <button className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-primary text-on-primary text-xs font-semibold shadow-xs hover:bg-primary-container flex items-center justify-center gap-2 cursor-pointer" onClick={openModal}>
           <Plus className="w-4 h-4" /><span>Registrar movimiento</span>
@@ -2649,7 +3407,7 @@ function MovimientosView({
             type="text"
             value={busqueda}
             onChange={(e) => cambiarBusqueda(e.target.value)}
-            placeholder="Buscar por concepto o cuenta..."
+            placeholder="Buscar concepto, categoría o cuenta..."
             className="w-full h-9 pl-9 pr-3 rounded-xl bg-surface-container-lowest border border-surface-container-high/80 text-xs text-on-surface focus:outline-none focus:border-primary"
           />
           {busqueda && (
@@ -2679,6 +3437,8 @@ function MovimientosView({
             const cuentaNombre = (Array.isArray(m.cuentas_dinero)
               ? (m.cuentas_dinero[0] as unknown as { nombre?: string })?.nombre
               : (m.cuentas_dinero as unknown as { nombre?: string })?.nombre) ?? "—";
+            const catNombre = rel(m.categorias)?.nombre;
+            const isManual = !m.prestamo_id && !m.pago_prestamo_id;
             return (
               <motion.div
                 key={m.id}
@@ -2688,11 +3448,17 @@ function MovimientosView({
                 className="bg-surface-container-lowest border border-surface-container-high/70 rounded-xl p-3.5 shadow-2xs flex items-center justify-between gap-3"
               >
                 <div className="min-w-0">
-                  <div className="mb-1">
+                  <div className="mb-1 flex items-center gap-1.5 flex-wrap">
                     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border shadow-2xs ${badge.badgeClass}`}>
                       <BadgeIcon className="w-2.5 h-2.5 shrink-0" />
                       <span>{badge.label}</span>
                     </span>
+                    {catNombre && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-surface-container text-on-surface-variant border border-surface-container-high/60">
+                        <Tag className="w-2.5 h-2.5 text-primary" />
+                        <span>{catNombre}</span>
+                      </span>
+                    )}
                   </div>
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <p className="text-xs font-semibold text-on-surface truncate">{m.descripcion ? fixSpanishEncoding(m.descripcion) : badge.label}</p>
@@ -2708,10 +3474,20 @@ function MovimientosView({
                   </div>
                   <p className="text-[11px] text-on-surface-variant truncate">{formatDateEs(m.ocurrido_en)} · {cuentaNombre}</p>
                 </div>
-                <div className="text-right shrink-0">
+                <div className="text-right shrink-0 flex items-center gap-2">
                   <span className={`font-mono text-xs font-bold whitespace-nowrap inline-block ${isPositive ? "text-primary" : "text-rose-600 dark:text-rose-400"}`}>
                     {isPositive ? "+" : "−"}{money(Number(m.monto))}
                   </span>
+                  {isManual && (
+                    <button
+                      type="button"
+                      onClick={() => setMovimientoAEliminar(m)}
+                      className="p-1.5 rounded-lg text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 cursor-pointer transition-colors"
+                      title="Eliminar movimiento"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                 </div>
               </motion.div>
             );
@@ -2726,7 +3502,7 @@ function MovimientosView({
         transition={{ duration: 0.28, delay: 0.06 }}
         className="hidden sm:block bg-surface-container-lowest border border-surface-container-high/70 rounded-2xl overflow-x-auto shadow-2xs"
       >
-        <table className="w-full text-left text-sm min-w-[600px]">
+        <table className="w-full text-left text-sm min-w-[680px]">
           <thead>
             <tr className="bg-surface-container-low text-xs font-semibold uppercase tracking-wider text-on-surface-variant">
               <th className="py-3 px-4">Fecha</th>
@@ -2734,24 +3510,35 @@ function MovimientosView({
               <th className="py-3 px-4">Descripción</th>
               <th className="py-3 px-4">Cuenta</th>
               <th className="py-3 px-4 text-right">Monto</th>
+              <th className="py-3 px-4 text-right">Acción</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-surface-container-low text-on-surface">
             {paginados.length === 0 ? (
-              <tr><td colSpan={5} className="py-8 text-center text-xs text-on-surface-variant">No se encontraron movimientos con los filtros aplicados.</td></tr>
+              <tr><td colSpan={6} className="py-8 text-center text-xs text-on-surface-variant">No se encontraron movimientos con los filtros aplicados.</td></tr>
             ) : paginados.map((m) => {
               const isPositive = ["ingreso", "pago_prestamo", "transferencia_entrada"].includes(m.tipo)
                 || (m.tipo === "ajuste" && m.ajuste_sentido === "sumar");
               const badge = getTipoMovimientoBadge(m.tipo, m.ajuste_sentido);
               const BadgeIcon = badge.Icon;
+              const catNombre = rel(m.categorias)?.nombre;
+              const isManual = !m.prestamo_id && !m.pago_prestamo_id;
               return (
                 <tr key={m.id} className="hover:bg-surface-container-low/40 transition-colors">
                   <td className="py-3.5 px-4 text-xs text-on-surface-variant">{formatDateEs(m.ocurrido_en)}</td>
                   <td className="py-3.5 px-4">
-                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border shadow-2xs ${badge.badgeClass}`}>
-                      <BadgeIcon className="w-3.5 h-3.5 shrink-0" />
-                      <span>{badge.label}</span>
-                    </span>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border shadow-2xs ${badge.badgeClass}`}>
+                        <BadgeIcon className="w-3.5 h-3.5 shrink-0" />
+                        <span>{badge.label}</span>
+                      </span>
+                      {catNombre && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-surface-container-low text-on-surface-variant border border-surface-container-high/60">
+                          <Tag className="w-3 h-3 text-primary" />
+                          <span>{catNombre}</span>
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="py-3.5 px-4 text-sm font-medium text-on-surface">
                     <div className="flex items-center gap-1.5">
@@ -2776,12 +3563,61 @@ function MovimientosView({
                   <td className={`py-3.5 px-4 text-right font-mono font-bold text-sm whitespace-nowrap ${isPositive ? "text-primary" : "text-rose-600 dark:text-rose-400"}`}>
                     {isPositive ? "+" : "−"}{money(Number(m.monto))}
                   </td>
+                  <td className="py-3.5 px-4 text-right">
+                    {isManual ? (
+                      <button
+                        type="button"
+                        onClick={() => setMovimientoAEliminar(m)}
+                        className="p-1.5 rounded-lg text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 cursor-pointer transition-colors"
+                        title="Eliminar este movimiento y revertir su efecto en el saldo"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    ) : (
+                      <span className="text-[10px] text-on-surface-variant/60 italic" title="Vinculado a un préstamo o cobro">
+                        Automático
+                      </span>
+                    )}
+                  </td>
                 </tr>
               );
             })}
           </tbody>
         </table>
       </motion.div>
+
+      {movimientoAEliminar && (
+        <ConfirmDialog
+          isOpen={true}
+          title="¿Eliminar movimiento del libro?"
+          description={
+            <div className="space-y-2 text-xs text-on-surface-variant">
+              <div className="p-3 rounded-xl bg-surface-container-low border border-surface-container-high/70 flex items-center justify-between">
+                <div>
+                  <span className="font-bold text-on-surface block">
+                    {movimientoAEliminar.descripcion ? fixSpanishEncoding(movimientoAEliminar.descripcion) : "Movimiento"}
+                  </span>
+                  <span className="text-[11px]">{formatDateEs(movimientoAEliminar.ocurrido_en)}</span>
+                </div>
+                <span className="font-mono font-extrabold text-sm text-rose-600 dark:text-rose-400">
+                  {money(Number(movimientoAEliminar.monto))}
+                </span>
+              </div>
+              <p className="leading-relaxed">
+                {movimientoAEliminar.transfer_group_id
+                  ? "Este movimiento forma parte de una transferencia entre cuentas. Se eliminarán ambos asientos (salida y entrada) para mantener cuadradas tus cuentas."
+                  : "Se eliminará este registro y el saldo disponible de la cuenta se recalculará automáticamente."}
+              </p>
+            </div>
+          }
+          useSlider={true}
+          sliderLabel="Desliza para eliminar movimiento"
+          submitting={isEliminando}
+          variant="danger"
+          onConfirm={handleConfirmEliminar}
+          onCancel={() => !isEliminando && setMovimientoAEliminar(null)}
+        />
+      )}
 
       {/* Barra de Paginación Minimalista */}
       <motion.div
@@ -2852,33 +3688,55 @@ const POPULAR_TIMEZONES = [
   { value: "America/New_York", label: "Nueva York (EE.UU. · UTC-5 / UTC-4)" },
 ];
 
+const POPULAR_CURRENCIES = [
+  { value: "BOB", label: "Boliviano (BOB · Bs)" },
+  { value: "USD", label: "Dólar estadounidense (USD · $)" },
+  { value: "EUR", label: "Euro (EUR · €)" },
+  { value: "ARS", label: "Peso argentino (ARS · $)" },
+  { value: "CLP", label: "Peso chileno (CLP · $)" },
+  { value: "PEN", label: "Sol peruano (PEN · S/)" },
+  { value: "COP", label: "Peso colombiano (COP · $)" },
+  { value: "MXN", label: "Peso mexicano (MXN · $)" },
+  { value: "BRL", label: "Real brasileño (BRL · R$)" },
+];
+
 function ConfiguracionView({
   preferencias,
   guardarPreferencias,
   espacioId,
+  espacioNombre,
+  setEspacioNombre,
   zonaHoraria,
   setZonaHoraria,
+  codigoMoneda,
+  setCodigoMoneda,
   setSuccessNotice,
 }: {
   preferencias: { colorAcento: string; modoOscuro: boolean; tasaInteresPredeterminada: number };
   guardarPreferencias: (colorAcento: string, modoOscuro: boolean, tasaInteresPredeterminada: number) => Promise<string | null>;
   espacioId: string;
+  espacioNombre: string;
+  setEspacioNombre: (nombre: string) => void;
   zonaHoraria: string;
   setZonaHoraria: (zona: string) => void;
+  codigoMoneda: string;
+  setCodigoMoneda: (moneda: string) => void;
   setSuccessNotice: (msg: string | null) => void;
 }) {
   const [color, setColor] = useState(preferencias.colorAcento);
   const [tasa, setTasa] = useState(preferencias.tasaInteresPredeterminada);
   const [zona, setZona] = useState(zonaHoraria || "America/La_Paz");
+  const [moneda, setMoneda] = useState(codigoMoneda || "BOB");
+  const [nombreEspacioLocal, setNombreEspacioLocal] = useState(espacioNombre || "Mi espacio");
   const [guardando, setGuardando] = useState(false);
   const [guardandoZona, setGuardandoZona] = useState(false);
+  const [guardandoMoneda, setGuardandoMoneda] = useState(false);
+  const [guardandoNombre, setGuardandoNombre] = useState(false);
   const [mensaje, setMensaje] = useState<string | null>(null);
   const [mostrarModalEliminarCuenta, setMostrarModalEliminarCuenta] = useState(false);
   const [textoConfirmarEliminar, setTextoConfirmarEliminar] = useState("");
   const [eliminandoCuenta, setEliminandoCuenta] = useState(false);
   const [errorEliminarCuenta, setErrorEliminarCuenta] = useState<string | null>(null);
-
-
 
   async function guardar() {
     setGuardando(true);
@@ -2900,6 +3758,29 @@ function ConfiguracionView({
     }
   }
 
+  async function guardarMoneda(nuevaMoneda: string) {
+    setMoneda(nuevaMoneda);
+    if (!espacioId) return;
+    setGuardandoMoneda(true);
+    const res = await actualizarMonedaEspacio(espacioId, nuevaMoneda);
+    setGuardandoMoneda(false);
+    if (!res.error) {
+      setCodigoMoneda(nuevaMoneda);
+      setSuccessNotice(`¡Moneda principal actualizada a ${nuevaMoneda}!`);
+    }
+  }
+
+  async function guardarNombreDelEspacio() {
+    if (!espacioId || !nombreEspacioLocal.trim()) return;
+    setGuardandoNombre(true);
+    const res = await actualizarNombreEspacio(espacioId, nombreEspacioLocal.trim());
+    setGuardandoNombre(false);
+    if (!res.error) {
+      setEspacioNombre(nombreEspacioLocal.trim());
+      setSuccessNotice("¡Nombre del espacio actualizado!");
+    }
+  }
+
   return (
     <div className="space-y-6 w-full">
       <motion.div
@@ -2910,12 +3791,12 @@ function ConfiguracionView({
       >
         <div>
           <h1 className="font-heading text-2xl sm:text-3xl font-extrabold text-on-surface">Configuración</h1>
-          <p className="text-xs text-on-surface-variant mt-1">Ajustes del espacio de trabajo, región y preferencias visuales.</p>
+          <p className="text-xs text-on-surface-variant mt-1">Ajustes del espacio de trabajo, moneda principal, región y preferencias visuales.</p>
         </div>
       </motion.div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 w-full">
-        {/* Card 1: Zona Horaria del Espacio */}
+        {/* Card 1: Región y Moneda del Espacio */}
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
@@ -2928,41 +3809,61 @@ function ConfiguracionView({
                 <Globe className="w-5 h-5" />
               </span>
               <div>
-                <h2 className="font-heading text-base font-bold text-on-surface">Zona horaria del espacio</h2>
+                <h2 className="font-heading text-base font-bold text-on-surface">Región y Moneda del espacio</h2>
                 <p className="text-xs text-on-surface-variant">
-                  Evita desfases de fecha en cobros y vencimientos en horario nocturno.
+                  Define la divisa principal y el huso horario para tus reportes y vencimientos.
                 </p>
               </div>
             </div>
 
-            <div className="pt-2">
-              <label className="block text-xs font-semibold text-on-surface mb-1.5">
-                Huso horario oficial
-              </label>
-              <select
-                value={zona}
-                onChange={(e) => guardarZonaHoraria(e.target.value)}
-                disabled={guardandoZona}
-                className="w-full h-11 pl-3.5 pr-10 rounded-xl bg-surface-container-low border border-surface-container-high/80 text-sm font-medium text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer disabled:opacity-50"
-              >
-                {POPULAR_TIMEZONES.map((tz) => (
-                  <option key={tz.value} value={tz.value}>
-                    {tz.label}
-                  </option>
-                ))}
-              </select>
-              <div className="flex items-center gap-2 mt-2.5 text-[11px] text-on-surface-variant">
+            <div className="pt-2 space-y-3">
+              <div>
+                <label className="block text-xs font-semibold text-on-surface mb-1.5">
+                  Moneda principal del espacio
+                </label>
+                <select
+                  value={moneda}
+                  onChange={(e) => guardarMoneda(e.target.value)}
+                  disabled={guardandoMoneda}
+                  className="w-full h-11 pl-3.5 pr-10 rounded-xl bg-surface-container-low border border-surface-container-high/80 text-sm font-medium text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer disabled:opacity-50"
+                >
+                  {POPULAR_CURRENCIES.map((cur) => (
+                    <option key={cur.value} value={cur.value}>
+                      {cur.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-on-surface mb-1.5">
+                  Huso horario oficial
+                </label>
+                <select
+                  value={zona}
+                  onChange={(e) => guardarZonaHoraria(e.target.value)}
+                  disabled={guardandoZona}
+                  className="w-full h-11 pl-3.5 pr-10 rounded-xl bg-surface-container-low border border-surface-container-high/80 text-sm font-medium text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer disabled:opacity-50"
+                >
+                  {POPULAR_TIMEZONES.map((tz) => (
+                    <option key={tz.value} value={tz.value}>
+                      {tz.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex items-center gap-2 text-[11px] text-on-surface-variant">
                 <Clock className="w-3.5 h-3.5 text-primary shrink-0" />
                 <span>
-                  Tus registros y vencimientos se calculan en base a esta zona. Los cambios se sincronizan en vivo.
+                  Los cambios de moneda y zona horaria se sincronizan en vivo en todo el panel.
                 </span>
               </div>
             </div>
           </div>
 
           <div className="mt-6 pt-4 border-t border-surface-container-low flex items-center justify-between text-xs text-on-surface-variant">
-            <span>Zona activa: <b className="text-on-surface font-mono">{zona}</b></span>
-            {guardandoZona && <span className="text-primary font-bold animate-pulse">Sincronizando...</span>}
+            <span>Moneda: <b className="text-on-surface font-mono">{moneda}</b> · Zona: <b className="text-on-surface font-mono">{zona}</b></span>
+            {(guardandoZona || guardandoMoneda) && <span className="text-primary font-bold animate-pulse">Sincronizando...</span>}
           </div>
         </motion.div>
 
@@ -3115,10 +4016,28 @@ function ConfiguracionView({
               </div>
             </div>
 
-            <div className="pt-2 space-y-2">
-              <p className="text-xs text-on-surface-variant leading-relaxed">
-                Cada espacio cuenta con su propia base de datos, monedas, cuentas y miembros aislados de forma independiente.
-              </p>
+            <div className="pt-2 space-y-2.5">
+              <div>
+                <label className="block text-xs font-semibold text-on-surface mb-1">
+                  Nombre del espacio actual
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={nombreEspacioLocal}
+                    onChange={(e) => setNombreEspacioLocal(e.target.value)}
+                    className="flex-1 h-10 px-3 rounded-xl bg-surface-container-low border border-surface-container-high/80 text-xs font-semibold text-on-surface focus:outline-none focus:border-primary"
+                  />
+                  <button
+                    type="button"
+                    disabled={guardandoNombre || !nombreEspacioLocal.trim() || nombreEspacioLocal.trim() === espacioNombre}
+                    onClick={guardarNombreDelEspacio}
+                    className="px-3.5 h-10 rounded-xl bg-primary text-on-primary text-xs font-bold hover:bg-primary-container disabled:opacity-40 cursor-pointer transition-colors"
+                  >
+                    {guardandoNombre ? "..." : "Renombrar"}
+                  </button>
+                </div>
+              </div>
               <div className="p-3 rounded-xl bg-surface-container-low border border-surface-container-high/40 text-xs text-on-surface-variant flex items-center justify-between">
                 <span>Espacio actual ID:</span>
                 <span className="font-mono text-[11px] font-bold text-on-surface truncate max-w-[200px]">{espacioId || "predeterminado"}</span>

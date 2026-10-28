@@ -10,12 +10,12 @@ import {
   ReactNode,
 } from "react";
 import { useRouter } from "next/navigation";
-import { useEspacio } from "@/lib/espacio-context";
+import { useEspacio, getActiveCurrencyCode } from "@/lib/espacio-context";
 import { getContactos, crearContacto } from "@/app/(dashboard)/contactos/actions";
 import { getCuentasConSaldo, crearCuenta } from "@/app/(dashboard)/cuentas/actions";
 import { getPrestamos, crearPrestamo } from "@/app/(dashboard)/prestamos/actions";
 import { getPagos, registrarPago } from "@/app/(dashboard)/pagos/actions";
-import { getMovimientos, registrarMovimiento } from "@/app/(dashboard)/movimientos/actions";
+import { getMovimientos, getCategorias, registrarMovimiento } from "@/app/(dashboard)/movimientos/actions";
 import { getPreferencias, actualizarPreferencias } from "@/app/(dashboard)/configuracion/actions";
 import { getSessionAccent, setSessionAccent, applyCustomAccent } from "@/lib/theme-utils";
 
@@ -24,6 +24,7 @@ export type Cuenta = Awaited<ReturnType<typeof getCuentasConSaldo>>[number];
 export type Prestamo = Awaited<ReturnType<typeof getPrestamos>>[number];
 export type Pago = Awaited<ReturnType<typeof getPagos>>[number];
 export type Movimiento = Awaited<ReturnType<typeof getMovimientos>>[number];
+export type Categoria = Awaited<ReturnType<typeof getCategorias>>[number];
 export type Preferencias = Awaited<ReturnType<typeof getPreferencias>>;
 
 /**
@@ -41,13 +42,38 @@ export const loanBalance = (p: Prestamo): number =>
 export const monthlyInterest = (p: Prestamo): number =>
   p.cobra_interes ? loanBalance(p) * (Number(p.tasa_interes_mensual) / 100) : 0;
 
+const CURRENCY_LABELS: Record<string, { locale: string; symbol: string }> = {
+  BOB: { locale: "es-BO", symbol: "Bs" },
+  USD: { locale: "en-US", symbol: "US$" },
+  PEN: { locale: "es-PE", symbol: "S/" },
+  COP: { locale: "es-CO", symbol: "COP" },
+  MXN: { locale: "es-MX", symbol: "MX$" },
+  ARS: { locale: "es-AR", symbol: "ARS" },
+  EUR: { locale: "es-ES", symbol: "€" },
+  BRL: { locale: "pt-BR", symbol: "R$" },
+  CLP: { locale: "es-CL", symbol: "CLP" },
+};
+
 /**
- * Formatea valores numéricos en moneda local boliviana (Bs) con dos decimales y separador de miles.
+ * Formatea valores numéricos respetando la moneda activa del espacio de trabajo
+ * (por defecto BOB / Bs), con dos decimales y separador de miles.
  */
-export const money = (v: number): string =>
-  new Intl.NumberFormat("es-BO", { style: "currency", currency: "BOB", minimumFractionDigits: 2 })
-    .format(v)
-    .replace("BOB", "Bs");
+export const money = (v: number, currencyOverride?: string): string => {
+  const code = (currencyOverride || getActiveCurrencyCode() || "BOB").toUpperCase();
+  const cfg = CURRENCY_LABELS[code] ?? { locale: "es-BO", symbol: code };
+  try {
+    return new Intl.NumberFormat(cfg.locale, {
+      style: "currency",
+      currency: code,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })
+      .format(v)
+      .replace(code, cfg.symbol);
+  } catch {
+    return `${cfg.symbol} ${Number(v || 0).toFixed(2)}`;
+  }
+};
 
 /**
  * Normaliza relaciones de PostgREST / Supabase.
@@ -61,12 +87,22 @@ export function rel<T>(value: T | T[] | null | undefined): T | null {
 
 export type ModalType = "contact" | "loan" | "payment" | "account" | "movement" | null;
 
+export interface ModalPresetOptions {
+  loanId?: string;
+  contactId?: string;
+  monto?: number;
+  tasa?: number;
+  diaPago?: number;
+  nombre?: string;
+}
+
 interface DashboardContextValue {
   contactos: Contacto[];
   cuentas: Cuenta[];
   prestamos: Prestamo[];
   pagos: Pago[];
   movimientos: Movimiento[];
+  categorias: Categoria[];
   totals: {
     available: number;
     pending: number;
@@ -76,6 +112,8 @@ interface DashboardContextValue {
     incomes?: number;
     interestPaid?: number;
     lateCount: number;
+    dueTodayCount: number;
+    dueSoonCount: number;
     paidLoansCount: number;
     activeLoansCount: number;
   };
@@ -83,7 +121,8 @@ interface DashboardContextValue {
   error: string | null;
   loadData: () => Promise<void>;
   modal: ModalType;
-  openModal: (m: ModalType) => void;
+  modalPreset: ModalPresetOptions | null;
+  openModal: (m: ModalType, preset?: ModalPresetOptions) => void;
   closeModal: () => void;
   showImportModal: boolean;
   setShowImportModal: (show: boolean) => void;
@@ -116,10 +155,12 @@ export function DashboardProvider({
   const [prestamos, setPrestamos] = useState<Prestamo[]>([]);
   const [pagos, setPagos] = useState<Pago[]>([]);
   const [movimientos, setMovimientos] = useState<Movimiento[]>([]);
+  const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const [modal, setModal] = useState<ModalType>(null);
+  const [modalPreset, setModalPreset] = useState<ModalPresetOptions | null>(null);
   const [showImportModal, setShowImportModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [successNotice, setSuccessNotice] = useState<string | null>(null);
@@ -147,12 +188,13 @@ export function DashboardProvider({
     if (!espacioId) return;
     setError(null);
     try {
-      const [c, cu, p, pg, m, prefs] = await Promise.all([
+      const [c, cu, p, pg, m, cats, prefs] = await Promise.all([
         getContactos(espacioId),
         getCuentasConSaldo(espacioId),
         getPrestamos(espacioId),
         getPagos(espacioId),
         getMovimientos(espacioId),
+        getCategorias(espacioId),
         getPreferencias(),
       ]);
 
@@ -161,6 +203,7 @@ export function DashboardProvider({
       setPrestamos(p);
       setPagos(pg);
       setMovimientos(m);
+      setCategorias(cats);
       setPreferencias(prefs);
       if (prefs?.colorAcento) {
         setSessionAccent(prefs.colorAcento);
@@ -233,18 +276,40 @@ export function DashboardProvider({
     const collected = pagos.reduce((sum, p) => sum + Number(p.monto_total), 0);
     const interestPaid = pagos.reduce((sum, p) => sum + Number(p.monto_interes), 0);
     const lateCount = prestamos.filter((p) => p.estado === "atrasado").length;
+    const dueTodayCount = activeLoans.filter((p) => p.vence_hoy).length;
+    const nowTime = Date.now();
+    const dueSoonCount = activeLoans.filter((p) => {
+      if (p.vence_hoy || p.estado === "atrasado" || !p.fecha_proximo_pago) return false;
+      const diffDays = Math.ceil((new Date(`${p.fecha_proximo_pago}T00:00:00`).getTime() - nowTime) / (1000 * 60 * 60 * 24));
+      return diffDays >= 1 && diffDays <= 5;
+    }).length;
     const paidLoansCount = prestamos.filter((p) => p.estado === "pagado").length;
     const activeLoansCount = activeLoans.length;
-    return { available, pending, collected, interest, interestPaid, expenses, incomes, lateCount, paidLoansCount, activeLoansCount };
+    return {
+      available,
+      pending,
+      collected,
+      interest,
+      interestPaid,
+      expenses,
+      incomes,
+      lateCount,
+      dueTodayCount,
+      dueSoonCount,
+      paidLoansCount,
+      activeLoansCount,
+    };
   }, [cuentas, prestamos, movimientos, pagos]);
 
-  const openModal = (m: ModalType) => {
+  const openModal = (m: ModalType, preset?: ModalPresetOptions) => {
     setFormError(null);
+    setModalPreset(preset ?? null);
     setModal(m);
   };
 
   const closeModal = () => {
     setFormError(null);
+    setModalPreset(null);
     setModal(null);
   };
 
@@ -271,6 +336,7 @@ export function DashboardProvider({
         "Error al guardar. Revisa los campos obligatorios.";
       setFormError(firstError);
     } else {
+      const tipoMov = fd.get("tipo");
       const msg =
         modal === "account"
           ? "¡Cuenta creada correctamente!"
@@ -281,7 +347,9 @@ export function DashboardProvider({
           : modal === "payment"
           ? "¡Cobro registrado correctamente!"
           : modal === "movement"
-          ? "¡Movimiento registrado correctamente!"
+          ? tipoMov === "transferencia"
+            ? "¡Transferencia entre cuentas realizada!"
+            : "¡Movimiento registrado correctamente!"
           : "¡Guardado correctamente!";
       setSuccessNotice(msg);
       window.setTimeout(() => setSuccessNotice(null), 3500);
@@ -298,11 +366,13 @@ export function DashboardProvider({
         prestamos,
         pagos,
         movimientos,
+        categorias,
         totals,
         loading,
         error,
         loadData,
         modal,
+        modalPreset,
         openModal,
         closeModal,
         showImportModal,
