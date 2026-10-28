@@ -14,11 +14,11 @@ export default async function DashboardLayout({ children }: { children: ReactNod
     redirect("/iniciar-sesion");
   }
 
-  let espaciosDisponibles: { id: string; nombre: string; zona_horaria?: string }[] = [];
+  let espaciosDisponibles: { id: string; nombre: string; zona_horaria?: string; codigo_moneda?: string }[] = [];
   try {
     const { data: rawEspacios } = await supabase
       .from("espacios_trabajo")
-      .select("id, nombre, zona_horaria")
+      .select("id, nombre, zona_horaria, codigo_moneda")
       .order("created_at", { ascending: true });
 
     if (rawEspacios) {
@@ -26,6 +26,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
         id: e.id,
         nombre: e.nombre,
         zona_horaria: e.zona_horaria ?? "America/La_Paz",
+        codigo_moneda: e.codigo_moneda ?? "BOB",
       }));
     }
   } catch {
@@ -40,4 +41,3 @@ export default async function DashboardLayout({ children }: { children: ReactNod
     </DashboardProvider>
   );
 }
-

@@ -7,6 +7,7 @@ import type { CSSProperties } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   ArrowLeftRight,
+  Bell,
   ChevronDown,
   FileSpreadsheet,
   FolderOpen,
@@ -25,13 +26,23 @@ import {
   FileBarChart2,
   Menu,
   Check,
-  ChevronRight,
-  ChevronLeft,
   PanelLeftClose,
   PanelLeftOpen,
+  Tag,
 } from "lucide-react";
 import { useEspacio } from "@/lib/espacio-context";
-import { useDashboard, money, loanBalance, monthlyInterest, rel, type Contacto, type Cuenta, type Prestamo } from "@/lib/dashboard-context";
+import {
+  useDashboard,
+  money,
+  loanBalance,
+  monthlyInterest,
+  rel,
+  type Contacto,
+  type Cuenta,
+  type Prestamo,
+  type Categoria,
+  type ModalPresetOptions,
+} from "@/lib/dashboard-context";
 import { FinPalLogo } from "@/components/finpal-logo";
 import { ImportModal } from "@/features/importacion/import-modal";
 import { signOut } from "@/app/(auth)/actions";
@@ -39,7 +50,14 @@ import { formatDateEs, getLocalDateString } from "@/lib/format-date";
 import { InactivityMonitor } from "@/components/inactivity-monitor";
 import { DeudorPrestamoPicker } from "@/components/deudor-prestamo-picker";
 import { NotificationToast } from "@/components/notification-toast";
-import { ACCENT_PALETTES, type AccentColorKey, applyCustomAccent, resetGlobalThemeColors, clearSessionAccent, getSessionAccent } from "@/lib/theme-utils";
+import {
+  ACCENT_PALETTES,
+  type AccentColorKey,
+  applyCustomAccent,
+  resetGlobalThemeColors,
+  clearSessionAccent,
+  getSessionAccent,
+} from "@/lib/theme-utils";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { DashboardRouteSkeleton } from "@/components/dashboard-skeletons";
@@ -58,8 +76,6 @@ const navItems = [
 import { SlideToConfirm, type SlideToConfirmProps } from "@/components/slide-to-confirm";
 export { SlideToConfirm, type SlideToConfirmProps };
 
-
-
 export function DashboardShell({
   children,
   userEmail,
@@ -67,17 +83,19 @@ export function DashboardShell({
 }: {
   children: ReactNode;
   userEmail: string;
-  espaciosDisponibles?: { id: string; nombre: string; zona_horaria?: string }[];
+  espaciosDisponibles?: { id: string; nombre: string; zona_horaria?: string; codigo_moneda?: string }[];
 }) {
   const pathname = usePathname();
-  const { espacioId, espacioNombre, setEspacio } = useEspacio();
+  const { espacioId, espacioNombre, codigoMoneda, setEspacio, setCodigoMoneda } = useEspacio();
   const {
     contactos,
     cuentas,
     prestamos,
+    categorias,
     totals,
     loadData,
     modal,
+    modalPreset,
     openModal,
     closeModal,
     showImportModal,
@@ -88,10 +106,10 @@ export function DashboardShell({
     setSuccessNotice,
     handleSubmitModal,
     preferencias,
-    guardarPreferencias,
   } = useDashboard();
 
   const [showWorkspaceDropdown, setShowWorkspaceDropdown] = useState(false);
+  const [showAlertsDropdown, setShowAlertsDropdown] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [optimisticPath, setOptimisticPath] = useState<string | null>(null);
@@ -101,6 +119,16 @@ export function DashboardShell({
   const formRef = useRef<HTMLFormElement>(null);
   const workspaceDropdownDesktopRef = useRef<HTMLDivElement>(null);
   const workspaceDropdownMobileRef = useRef<HTMLDivElement>(null);
+  const alertsDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Sincronizar moneda del espacio activo desde la lista de espacios disponibles
+  useEffect(() => {
+    if (!espacioId || !espaciosDisponibles.length) return;
+    const found = espaciosDisponibles.find((e) => e.id === espacioId);
+    if (found?.codigo_moneda && found.codigo_moneda !== codigoMoneda) {
+      setCodigoMoneda(found.codigo_moneda);
+    }
+  }, [espacioId, espaciosDisponibles, codigoMoneda, setCodigoMoneda]);
 
   // Cargar preferencia de barra lateral minimizada desde localStorage
   useEffect(() => {
@@ -126,25 +154,34 @@ export function DashboardShell({
     });
   }, []);
 
-  // Cerrar selector de espacios si se hace clic fuera o se presiona Escape
+  // Cerrar selector de espacios o alertas si se hace clic fuera o se presiona Escape
   useEffect(() => {
-    if (!showWorkspaceDropdown) return;
+    if (!showWorkspaceDropdown && !showAlertsDropdown) return;
 
     const handleClickOutside = (event: MouseEvent | TouchEvent) => {
       const target = event.target as Node | null;
       if (!target) return;
 
-      const isInsideDesktop = workspaceDropdownDesktopRef.current?.contains(target);
-      const isInsideMobile = workspaceDropdownMobileRef.current?.contains(target);
+      if (showWorkspaceDropdown) {
+        const isInsideDesktop = workspaceDropdownDesktopRef.current?.contains(target);
+        const isInsideMobile = workspaceDropdownMobileRef.current?.contains(target);
+        if (!isInsideDesktop && !isInsideMobile) {
+          setShowWorkspaceDropdown(false);
+        }
+      }
 
-      if (!isInsideDesktop && !isInsideMobile) {
-        setShowWorkspaceDropdown(false);
+      if (showAlertsDropdown) {
+        const isInsideAlerts = alertsDropdownRef.current?.contains(target);
+        if (!isInsideAlerts) {
+          setShowAlertsDropdown(false);
+        }
       }
     };
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         setShowWorkspaceDropdown(false);
+        setShowAlertsDropdown(false);
       }
     };
 
@@ -157,14 +194,35 @@ export function DashboardShell({
       document.removeEventListener("touchstart", handleClickOutside);
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [showWorkspaceDropdown]);
+  }, [showWorkspaceDropdown, showAlertsDropdown]);
 
-  const handleSwitchWorkspace = (id: string, nombre: string, zona?: string) => {
+  const handleSwitchWorkspace = (id: string, nombre: string, zona?: string, moneda?: string) => {
     setShowWorkspaceDropdown(false);
     setMobileNavOpen(false);
     if (id === espacioId) return;
-    setEspacio(id, nombre, zona);
+    setEspacio(id, nombre, zona, moneda);
   };
+
+  // Alertas de vencimientos para la campana del header
+  const alertLoans = useMemo(() => {
+    const active = prestamos.filter((p) => p.estado === "activo" || p.estado === "atrasado");
+    const late = active.filter((p) => p.estado === "atrasado");
+    const today = active.filter((p) => p.vence_hoy && p.estado !== "atrasado");
+    const nowTime = Date.now();
+    const soon = active.filter((p) => {
+      if (p.vence_hoy || p.estado === "atrasado" || !p.fecha_proximo_pago) return false;
+      const diffDays = Math.ceil(
+        (new Date(`${p.fecha_proximo_pago}T00:00:00`).getTime() - nowTime) / (1000 * 60 * 60 * 24),
+      );
+      return diffDays >= 1 && diffDays <= 5;
+    });
+    return {
+      late,
+      today,
+      soon,
+      total: late.length + today.length + soon.length,
+    };
+  }, [prestamos]);
 
   // Advertencia antes de cerrar pestaña con formulario incompleto
   useEffect(() => {
@@ -208,17 +266,18 @@ export function DashboardShell({
     setMobileNavOpen(false);
     setOptimisticPath(null);
     setShowWorkspaceDropdown(false);
+    setShowAlertsDropdown(false);
   }, [pathname]);
 
   const isRouteLoading = optimisticPath !== null && pathname !== optimisticPath;
   const activePath = isRouteLoading ? optimisticPath : pathname;
   const avatarLetters = userEmail ? userEmail.slice(0, 2).toUpperCase() : "FP";
 
-
   const isCustomAccent = preferencias.colorAcento && preferencias.colorAcento !== "verde";
-  const customAccent = isCustomAccent && preferencias.colorAcento in ACCENT_PALETTES
-    ? ACCENT_PALETTES[preferencias.colorAcento as AccentColorKey]
-    : null;
+  const customAccent =
+    isCustomAccent && preferencias.colorAcento in ACCENT_PALETTES
+      ? ACCENT_PALETTES[preferencias.colorAcento as AccentColorKey]
+      : null;
 
   const themeStyle = customAccent
     ? ({
@@ -363,7 +422,9 @@ export function DashboardShell({
                           <button
                             key={esp.id}
                             type="button"
-                            onClick={() => handleSwitchWorkspace(esp.id, esp.nombre, esp.zona_horaria)}
+                            onClick={() =>
+                              handleSwitchWorkspace(esp.id, esp.nombre, esp.zona_horaria, esp.codigo_moneda)
+                            }
                             className={`w-full text-left px-2.5 py-2 text-xs font-semibold rounded-xl flex items-center justify-between transition-colors cursor-pointer ${
                               isSelected
                                 ? "bg-primary/10 text-primary font-bold"
@@ -372,7 +433,9 @@ export function DashboardShell({
                           >
                             <div className="flex items-center gap-2 truncate">
                               <FolderOpen
-                                className={`w-3.5 h-3.5 shrink-0 ${isSelected ? "text-primary" : "text-on-surface-variant"}`}
+                                className={`w-3.5 h-3.5 shrink-0 ${
+                                  isSelected ? "text-primary" : "text-on-surface-variant"
+                                }`}
                               />
                               <span className="truncate">{esp.nombre}</span>
                             </div>
@@ -407,7 +470,6 @@ export function DashboardShell({
             {navItems.map((item) => {
               const IconComp = item.icon;
               const isActive = activePath === item.path;
-
 
               return (
                 <Link
@@ -491,7 +553,6 @@ export function DashboardShell({
             }`}
           >
             {sidebarCollapsed ? (
-              /* En modo minimizado: Logo de FinPal que al pasar el mouse se transforma en botón de maximizar menú (estilo Gemini) */
               <button
                 type="button"
                 onClick={toggleSidebarCollapse}
@@ -499,18 +560,14 @@ export function DashboardShell({
                 title="Expandir barra lateral"
                 aria-label="Expandir barra lateral"
               >
-                {/* Logo visible por defecto, se desvanece y reduce al hover */}
                 <div className="absolute inset-0 flex items-center justify-center transition-all duration-200 group-hover:opacity-0 group-hover:scale-75 pointer-events-none">
                   <FinPalLogo size={36} className="w-9 h-9 shrink-0" colorAcento={preferencias.colorAcento} priority />
                 </div>
-
-                {/* Ícono de expandir menú lateral estilo Google Gemini que emerge al hacer hover */}
                 <div className="absolute inset-0 flex items-center justify-center text-primary opacity-0 scale-75 group-hover:opacity-100 group-hover:scale-100 transition-all duration-200 pointer-events-none">
                   <PanelLeftOpen className="w-5 h-5" />
                 </div>
               </button>
             ) : (
-              /* En modo expandido: Logo y marca a la izquierda, botón de minimizar a la derecha */
               <div className="w-full flex items-center justify-between min-w-0">
                 <Link
                   href="/inicio"
@@ -595,7 +652,7 @@ export function DashboardShell({
                 >
                   <div className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant flex items-center justify-between">
                     <span>Espacios de trabajo</span>
-                    <span className="text-[10px] text-primary font-medium">FinPal</span>
+                    <span className="text-[10px] text-primary font-medium">{codigoMoneda}</span>
                   </div>
 
                   {espaciosDisponibles && espaciosDisponibles.length > 0 && (
@@ -606,7 +663,9 @@ export function DashboardShell({
                           <button
                             key={esp.id}
                             type="button"
-                            onClick={() => handleSwitchWorkspace(esp.id, esp.nombre, esp.zona_horaria)}
+                            onClick={() =>
+                              handleSwitchWorkspace(esp.id, esp.nombre, esp.zona_horaria, esp.codigo_moneda)
+                            }
                             className={`w-full text-left px-2.5 py-2 text-xs font-semibold rounded-xl flex items-center justify-between transition-colors cursor-pointer ${
                               isSelected
                                 ? "bg-primary/10 text-primary font-bold"
@@ -615,7 +674,9 @@ export function DashboardShell({
                           >
                             <div className="flex items-center gap-2 truncate">
                               <FolderOpen
-                                className={`w-3.5 h-3.5 shrink-0 ${isSelected ? "text-primary" : "text-on-surface-variant"}`}
+                                className={`w-3.5 h-3.5 shrink-0 ${
+                                  isSelected ? "text-primary" : "text-on-surface-variant"
+                                }`}
                               />
                               <span className="truncate max-w-[125px]">{esp.nombre}</span>
                             </div>
@@ -784,7 +845,7 @@ export function DashboardShell({
         <header
           className={`fixed top-0 left-0 ${
             sidebarCollapsed ? "md:left-[4.5rem]" : "md:left-60"
-          } right-0 h-16 bg-surface-container-lowest/90 backdrop-blur-md shadow-[0_1px_4px_rgba(0,0,0,0.03)] border-b border-surface-container-high/60 z-30 flex items-center justify-between px-3 sm:px-8 max-w-full overflow-hidden transition-[left] duration-300 ease-in-out`}
+          } right-0 h-16 bg-surface-container-lowest/90 backdrop-blur-md shadow-[0_1px_4px_rgba(0,0,0,0.03)] border-b border-surface-container-high/60 z-30 flex items-center justify-between px-3 sm:px-8 max-w-full transition-[left] duration-300 ease-in-out`}
         >
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             {/* Botón menú móvil */}
@@ -797,16 +858,19 @@ export function DashboardShell({
               <Menu className="w-5 h-5 text-on-surface" />
             </button>
 
-
-
             {/* Logo en versión móvil */}
             <div className="flex items-center gap-2 md:hidden min-w-0">
               <FinPalLogo size={32} className="w-8 h-8 shrink-0" colorAcento={preferencias.colorAcento} priority />
-              <span className="font-heading font-extrabold text-base tracking-tight text-on-surface truncate">Fin<span className="text-primary">Pal</span></span>
+              <span className="font-heading font-extrabold text-base tracking-tight text-on-surface truncate">
+                Fin<span className="text-primary">Pal</span>
+              </span>
             </div>
 
             {/* Fecha en versión desktop / tablet */}
-            <div suppressHydrationWarning className="hidden lg:flex items-center gap-2 text-xs font-semibold text-on-surface-variant bg-surface-container-low px-3 py-1.5 rounded-lg border border-surface-container-high/40">
+            <div
+              suppressHydrationWarning
+              className="hidden lg:flex items-center gap-2 text-xs font-semibold text-on-surface-variant bg-surface-container-low px-3 py-1.5 rounded-lg border border-surface-container-high/40"
+            >
               <Calendar className="w-4 h-4 text-primary" />
               <span className="capitalize" suppressHydrationWarning>
                 {new Date().toLocaleDateString("es-BO", {
@@ -819,16 +883,202 @@ export function DashboardShell({
             </div>
           </div>
 
-          <div className="flex items-center gap-1.5 sm:gap-4 shrink-0">
+          <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
+            {/* Botón Importar Excel / CSV */}
+            <button
+              type="button"
+              onClick={() => setShowImportModal(true)}
+              className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-surface-container-low hover:bg-surface-container text-on-surface text-xs font-semibold border border-surface-container-high/50 transition-colors cursor-pointer"
+              title="Importar contactos, préstamos o movimientos desde Excel o CSV"
+            >
+              <FileSpreadsheet className="w-4 h-4 text-primary shrink-0" />
+              <span className="hidden sm:inline">Importar</span>
+            </button>
+
+            {/* Campana de Centro de Vencimientos y Alertas */}
+            <div ref={alertsDropdownRef} className="relative">
+              <button
+                type="button"
+                onClick={() => setShowAlertsDropdown((v) => !v)}
+                className="relative p-2 rounded-xl bg-surface-container-low hover:bg-surface-container text-on-surface border border-surface-container-high/50 transition-colors cursor-pointer"
+                title="Centro de vencimientos y alertas de cartera"
+                aria-label="Centro de alertas"
+              >
+                <Bell className="w-4 h-4 text-on-surface-variant" />
+                {alertLoans.total > 0 && (
+                  <span
+                    className={`absolute -top-1 -right-1 min-w-[17px] h-[17px] px-1 rounded-full text-[10px] font-extrabold flex items-center justify-center ring-2 ring-surface-container-lowest ${
+                      alertLoans.late.length > 0
+                        ? "bg-error text-on-error"
+                        : "bg-amber-500 text-white"
+                    }`}
+                  >
+                    {alertLoans.total > 9 ? "9+" : alertLoans.total}
+                  </span>
+                )}
+              </button>
+
+              <AnimatePresence>
+                {showAlertsDropdown && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 8, scale: 0.98 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 8, scale: 0.98 }}
+                    transition={{ duration: 0.15 }}
+                    className="fixed sm:absolute right-3 sm:right-0 top-16 sm:top-11 w-[calc(100vw-1.5rem)] sm:w-88 max-w-sm bg-surface-container-lowest border border-surface-container-high/80 rounded-2xl shadow-2xl z-50 overflow-hidden"
+                  >
+                    <div className="px-4 py-3 border-b border-surface-container-low flex items-center justify-between bg-surface-container-low/50">
+                      <div>
+                        <h3 className="font-heading text-xs font-extrabold text-on-surface uppercase tracking-wider">
+                          Vencimientos de Cartera
+                        </h3>
+                        <p className="text-[11px] text-on-surface-variant">
+                          Préstamos atrasados, de hoy y próximos 5 días
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setShowAlertsDropdown(false)}
+                        className="p-1 rounded-lg text-on-surface-variant hover:text-on-surface cursor-pointer"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    <div className="max-h-80 overflow-y-auto divide-y divide-surface-container-low p-2 space-y-1">
+                      {alertLoans.total === 0 ? (
+                        <div className="py-8 px-4 text-center space-y-1.5">
+                          <div className="w-9 h-9 rounded-full bg-primary/10 text-primary flex items-center justify-center mx-auto">
+                            <Check className="w-5 h-5" />
+                          </div>
+                          <p className="text-xs font-bold text-on-surface">¡Cartera al día!</p>
+                          <p className="text-[11px] text-on-surface-variant">
+                            No tienes préstamos en mora ni vencimientos en los próximos 5 días.
+                          </p>
+                        </div>
+                      ) : (
+                        <>
+                          {alertLoans.late.map((p) => {
+                            const deudor = rel(p.contactos)?.nombre ?? "Deudor";
+                            return (
+                              <div
+                                key={p.id}
+                                className="p-2.5 rounded-xl hover:bg-surface-container-low transition-colors flex items-center justify-between gap-2"
+                              >
+                                <div className="min-w-0">
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="w-2 h-2 rounded-full bg-error shrink-0" />
+                                    <p className="text-xs font-bold text-on-surface truncate">{deudor}</p>
+                                  </div>
+                                  <p className="text-[11px] text-on-surface-variant truncate">{p.nombre}</p>
+                                  <p className="text-[10px] font-bold text-error mt-0.5">
+                                    Atrasado ({p.dias_atraso}d) · Saldo: {money(loanBalance(p))}
+                                  </p>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setShowAlertsDropdown(false);
+                                    openModal("payment", { loanId: p.id });
+                                  }}
+                                  className="px-2.5 py-1.5 rounded-lg bg-primary text-on-primary text-[11px] font-bold shrink-0 hover:bg-primary-container transition-colors cursor-pointer"
+                                >
+                                  Cobrar
+                                </button>
+                              </div>
+                            );
+                          })}
+
+                          {alertLoans.today.map((p) => {
+                            const deudor = rel(p.contactos)?.nombre ?? "Deudor";
+                            return (
+                              <div
+                                key={p.id}
+                                className="p-2.5 rounded-xl hover:bg-surface-container-low transition-colors flex items-center justify-between gap-2"
+                              >
+                                <div className="min-w-0">
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
+                                    <p className="text-xs font-bold text-on-surface truncate">{deudor}</p>
+                                  </div>
+                                  <p className="text-[11px] text-on-surface-variant truncate">{p.nombre}</p>
+                                  <p className="text-[10px] font-bold text-amber-600 dark:text-amber-400 mt-0.5">
+                                    ¡Vence hoy! · Cuota est.: {money(monthlyInterest(p) || loanBalance(p))}
+                                  </p>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setShowAlertsDropdown(false);
+                                    openModal("payment", { loanId: p.id });
+                                  }}
+                                  className="px-2.5 py-1.5 rounded-lg bg-primary text-on-primary text-[11px] font-bold shrink-0 hover:bg-primary-container transition-colors cursor-pointer"
+                                >
+                                  Cobrar
+                                </button>
+                              </div>
+                            );
+                          })}
+
+                          {alertLoans.soon.map((p) => {
+                            const deudor = rel(p.contactos)?.nombre ?? "Deudor";
+                            return (
+                              <div
+                                key={p.id}
+                                className="p-2.5 rounded-xl hover:bg-surface-container-low transition-colors flex items-center justify-between gap-2"
+                              >
+                                <div className="min-w-0">
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="w-2 h-2 rounded-full bg-primary shrink-0" />
+                                    <p className="text-xs font-bold text-on-surface truncate">{deudor}</p>
+                                  </div>
+                                  <p className="text-[11px] text-on-surface-variant truncate">{p.nombre}</p>
+                                  <p className="text-[10px] text-on-surface-variant mt-0.5">
+                                    Vence: {formatDateEs(p.fecha_proximo_pago)}
+                                  </p>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setShowAlertsDropdown(false);
+                                    openModal("payment", { loanId: p.id });
+                                  }}
+                                  className="px-2.5 py-1.5 rounded-lg bg-surface-container hover:bg-surface-container-high text-on-surface text-[11px] font-semibold shrink-0 transition-colors cursor-pointer"
+                                >
+                                  Cobrar
+                                </button>
+                              </div>
+                            );
+                          })}
+                        </>
+                      )}
+                    </div>
+
+                    <div className="px-3 py-2 border-t border-surface-container-low bg-surface-container-low/40 text-center">
+                      <Link
+                        href="/prestamos"
+                        onClick={() => setShowAlertsDropdown(false)}
+                        className="text-[11px] font-bold text-primary hover:underline"
+                      >
+                        Ver toda la cartera de préstamos →
+                      </Link>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
             <ThemeToggle />
-            {/* Oculto temporalmente de la vista: botón de importar/exportar Excel o Sheets */}
+
             <div className="flex items-center gap-1.5 sm:gap-2.5 pl-1.5 sm:pl-2 border-l border-surface-container-low shrink-0">
               <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-on-surface text-surface-container-lowest flex items-center justify-center font-bold text-[11px] sm:text-xs ring-2 ring-primary/20 shrink-0">
                 {avatarLetters}
               </div>
               <div className="hidden md:flex flex-col text-left max-w-[140px] lg:max-w-[180px]">
                 <span className="text-xs font-bold text-on-surface leading-tight truncate">{userEmail}</span>
-                <span className="text-[11px] text-on-surface-variant leading-tight truncate">{espacioNombre}</span>
+                <span className="text-[11px] text-on-surface-variant leading-tight truncate">
+                  {espacioNombre} ({codigoMoneda})
+                </span>
               </div>
             </div>
           </div>
@@ -840,12 +1090,8 @@ export function DashboardShell({
         </main>
       </div>
 
-      {/* Modals Compartidos */}
       {/* Notificación Circular Animada Estilo Móvil con Timbre Armónico */}
-      <NotificationToast
-        message={successNotice}
-        onClose={() => setSuccessNotice(null)}
-      />
+      <NotificationToast message={successNotice} onClose={() => setSuccessNotice(null)} />
 
       <AnimatePresence>
         {modal && (
@@ -868,17 +1114,26 @@ export function DashboardShell({
               className="space-y-4"
             >
               {modal === "contact" && <ContactoForm />}
-              {modal === "account" && <CuentaForm />}
+              {modal === "account" && <CuentaForm codigoMoneda={codigoMoneda} />}
               {modal === "loan" && (
                 <PrestamoForm
                   contactos={contactos}
                   cuentas={cuentas}
                   tasaPredeterminada={preferencias.tasaInteresPredeterminada}
+                  preset={modalPreset}
                   onCreateAccount={() => openModal("account")}
                 />
               )}
-              {modal === "payment" && <PagoForm prestamos={prestamos} cuentas={cuentas} />}
-              {modal === "movement" && <MovimientoForm cuentas={cuentas} />}
+              {modal === "payment" && (
+                <PagoForm
+                  prestamos={prestamos}
+                  cuentas={cuentas}
+                  initialLoanId={modalPreset?.loanId}
+                />
+              )}
+              {modal === "movement" && (
+                <MovimientoForm cuentas={cuentas} categorias={categorias} />
+              )}
 
               {formError && (
                 <p className="text-xs text-error flex items-center gap-1">
@@ -989,7 +1244,6 @@ export function DashboardShell({
 
 export { DashboardRouteSkeleton } from "@/components/dashboard-skeletons";
 
-
 // ─── Contenedor Modal (Envoltorio) ──────────────────────────────────────────
 
 function ModalWrapper({
@@ -1060,10 +1314,7 @@ function DateField({
 
   return (
     <div className="relative">
-      <div
-        className={`${inputCls} flex items-center select-none`}
-        aria-hidden="true"
-      >
+      <div className={`${inputCls} flex items-center select-none`} aria-hidden="true">
         {formatDateEs(currentValue)}
       </div>
       <input
@@ -1100,13 +1351,18 @@ function ContactoForm() {
         <input type="email" name="email" className={inputCls} placeholder="correo@ejemplo.com" />
       </FormField>
       <FormField label="Notas (opcional)">
-        <textarea name="notas" rows={2} className={`${inputCls} h-auto py-2.5`} placeholder="Información adicional..." />
+        <textarea
+          name="notas"
+          rows={2}
+          className={`${inputCls} h-auto py-2.5`}
+          placeholder="Información adicional..."
+        />
       </FormField>
     </>
   );
 }
 
-function CuentaForm() {
+function CuentaForm({ codigoMoneda = "BOB" }: { codigoMoneda?: string }) {
   return (
     <>
       <FormField label="Nombre de la cuenta *">
@@ -1121,10 +1377,10 @@ function CuentaForm() {
           <option value="otra">Otra</option>
         </select>
       </FormField>
-      <FormField label="Saldo inicial (Bs) (opcional)">
+      <FormField label={`Saldo inicial (${codigoMoneda}) (opcional)`}>
         <input type="number" name="saldo_inicial" defaultValue={0} min={0} step="0.01" className={inputCls} />
       </FormField>
-      <input type="hidden" name="codigo_moneda" value="BOB" />
+      <input type="hidden" name="codigo_moneda" value={codigoMoneda} />
     </>
   );
 }
@@ -1133,20 +1389,23 @@ function PrestamoForm({
   contactos,
   cuentas,
   tasaPredeterminada,
+  preset,
   onCreateAccount,
 }: {
   contactos: Contacto[];
   cuentas: Cuenta[];
   tasaPredeterminada: number;
+  preset?: ModalPresetOptions | null;
   onCreateAccount: () => void;
 }) {
-  const [cobraInteres, setCobraInteres] = useState(tasaPredeterminada > 0);
-  const [tasaInteres, setTasaInteres] = useState<number | string>(tasaPredeterminada);
-  const [contactoSeleccionado, setContactoSeleccionado] = useState("");
+  const initialRate = preset?.tasa !== undefined ? preset.tasa : tasaPredeterminada;
+  const [cobraInteres, setCobraInteres] = useState(initialRate > 0);
+  const [tasaInteres, setTasaInteres] = useState<number | string>(initialRate);
+  const [contactoSeleccionado, setContactoSeleccionado] = useState(preset?.contactId ?? "");
   const [fechaInicio, setFechaInicio] = useState(() => getLocalDateString());
-  const [diaPago, setDiaPago] = useState(new Date().getDate());
-
+  const [diaPago, setDiaPago] = useState(preset?.diaPago ?? new Date().getDate());
   const [metodoEntrega, setMetodoEntrega] = useState("");
+
   return (
     <>
       <FormField label="Deudor *">
@@ -1158,7 +1417,9 @@ function PrestamoForm({
         >
           <option value="">— Nuevo deudor —</option>
           {contactos.map((c) => (
-            <option key={c.id} value={c.id}>{c.nombre}</option>
+            <option key={c.id} value={c.id}>
+              {c.nombre}
+            </option>
           ))}
         </select>
       </FormField>
@@ -1180,12 +1441,21 @@ function PrestamoForm({
         <input
           type="text"
           name="nombre"
+          defaultValue={preset?.nombre ?? ""}
           className={inputCls}
           placeholder="Ej. Préstamo personal, Moto, Capital de trabajo..."
         />
       </FormField>
-      <FormField label="Monto principal (Bs) *">
-        <input type="number" name="monto_principal" required min={1} step="0.01" className={inputCls} />
+      <FormField label="Monto principal *">
+        <input
+          type="number"
+          name="monto_principal"
+          required
+          min={1}
+          step="0.01"
+          defaultValue={preset?.monto ?? ""}
+          className={inputCls}
+        />
       </FormField>
       <div className="rounded-xl border border-outline/15 bg-surface-container-low/50 p-3 space-y-2">
         <div className="flex items-start justify-between gap-3">
@@ -1254,7 +1524,16 @@ function PrestamoForm({
           />
         </FormField>
         <FormField label="Día de pago *">
-          <input type="number" name="dia_pago" required min={1} max={31} className={inputCls} value={diaPago} onChange={(event) => setDiaPago(Number(event.target.value))} />
+          <input
+            type="number"
+            name="dia_pago"
+            required
+            min={1}
+            max={31}
+            className={inputCls}
+            value={diaPago}
+            onChange={(event) => setDiaPago(Number(event.target.value))}
+          />
         </FormField>
       </div>
       <div className="space-y-1.5">
@@ -1262,7 +1541,9 @@ function PrestamoForm({
           <select name="cuenta_dinero_id" required className={selectCls}>
             <option value="">— Selecciona cuenta —</option>
             {cuentas.map((c) => (
-              <option key={c.id} value={c.id}>{c.nombre} ({money(c.saldo)})</option>
+              <option key={c.id} value={c.id}>
+                {c.nombre} ({money(c.saldo)})
+              </option>
             ))}
           </select>
         </FormField>
@@ -1331,21 +1612,38 @@ function PrestamoForm({
   );
 }
 
-function PagoForm({ prestamos, cuentas }: { prestamos: Prestamo[]; cuentas: Cuenta[] }) {
+function PagoForm({
+  prestamos,
+  cuentas,
+  initialLoanId,
+}: {
+  prestamos: Prestamo[];
+  cuentas: Cuenta[];
+  initialLoanId?: string;
+}) {
   // Solo préstamos que tienen deuda pendiente activa (> 0.01) y no están saldados ni cancelados
   const prestamosPendientes = useMemo(() => {
     return prestamos.filter(
-      (p) => p.estado !== "pagado" && p.estado !== "cancelado" && loanBalance(p) > 0.01
+      (p) => p.estado !== "pagado" && p.estado !== "cancelado" && loanBalance(p) > 0.01,
     );
   }, [prestamos]);
 
-  const [prestamoId, setPrestamoId] = useState<string>(prestamosPendientes[0]?.id ?? "");
+  const defaultLoan = useMemo(() => {
+    if (initialLoanId) {
+      const found = prestamosPendientes.find((p) => p.id === initialLoanId);
+      if (found) return found;
+    }
+    return prestamosPendientes[0] ?? null;
+  }, [prestamosPendientes, initialLoanId]);
+
+  const [prestamoId, setPrestamoId] = useState<string>(defaultLoan?.id ?? "");
   const [total, setTotal] = useState<number | "">("");
   const [principal, setPrincipal] = useState<number | "">("");
+  const [metodoPago, setMetodoPago] = useState("");
   const [useCustomFecha, setUseCustomFecha] = useState(false);
   const [fechaEsperada, setFechaEsperada] = useState(
-    prestamosPendientes[0]?.periodos_sugeridos?.[0]?.fecha ??
-      prestamosPendientes[0]?.fecha_proximo_pago ??
+    defaultLoan?.periodos_sugeridos?.[0]?.fecha ??
+      defaultLoan?.fecha_proximo_pago ??
       getLocalDateString(),
   );
 
@@ -1362,7 +1660,7 @@ function PagoForm({ prestamos, cuentas }: { prestamos: Prestamo[]; cuentas: Cuen
         setFechaEsperada(primerSugerido);
       }
     }
-  }, [prestamoId]);
+  }, [prestamoId, prestamoSeleccionado]);
 
   const capitalPendiente = prestamoSeleccionado ? loanBalance(prestamoSeleccionado) : 0;
   const numTotal = typeof total === "number" ? total : 0;
@@ -1401,14 +1699,12 @@ function PagoForm({ prestamos, cuentas }: { prestamos: Prestamo[]; cuentas: Cuen
 
   return (
     <>
-      {/* Selector inteligente y buscador de deudores con desambiguación completa */}
       <DeudorPrestamoPicker
         prestamos={prestamos}
         selectedId={prestamoId}
         onSelect={handleSelectPrestamo}
       />
 
-      {/* Tarjeta de estado de cuenta del deudor e historial de cuotas */}
       {prestamoSeleccionado && (
         <div className="rounded-2xl border border-primary/20 bg-primary/5 p-3.5 space-y-2.5">
           <div className="flex items-center justify-between gap-2">
@@ -1439,7 +1735,8 @@ function PagoForm({ prestamos, cuentas }: { prestamos: Prestamo[]; cuentas: Cuen
               {prestamoSeleccionado.ultimo_pago ? (
                 <div className="mt-0.5">
                   <p className="text-xs font-bold text-on-surface">
-                    {money(prestamoSeleccionado.ultimo_pago.monto_total)} · {formatDateEs(prestamoSeleccionado.ultimo_pago.recibido_en)}
+                    {money(prestamoSeleccionado.ultimo_pago.monto_total)} ·{" "}
+                    {formatDateEs(prestamoSeleccionado.ultimo_pago.recibido_en)}
                   </p>
                   <span className="block text-[10px] text-primary font-medium">
                     Cubrió: {prestamoSeleccionado.ultimo_mes_cubierto || "Período anterior"}
@@ -1453,7 +1750,9 @@ function PagoForm({ prestamos, cuentas }: { prestamos: Prestamo[]; cuentas: Cuen
             <div className="bg-surface-container-lowest/80 rounded-xl p-2.5 border border-surface-container-high/40">
               <span className="text-[10px] text-on-surface-variant block font-medium">Próximo vencimiento adeudado</span>
               <p className="text-xs font-bold text-on-surface mt-0.5">
-                {prestamoSeleccionado.fecha_proximo_pago ? formatDateEs(prestamoSeleccionado.fecha_proximo_pago) : "Al día"}
+                {prestamoSeleccionado.fecha_proximo_pago
+                  ? formatDateEs(prestamoSeleccionado.fecha_proximo_pago)
+                  : "Al día"}
               </p>
               {prestamoSeleccionado.dias_atraso > 0 && (
                 <span className="text-[10px] text-error font-bold block">
@@ -1465,7 +1764,6 @@ function PagoForm({ prestamos, cuentas }: { prestamos: Prestamo[]; cuentas: Cuen
         </div>
       )}
 
-      {/* Selector de Período / Cuota Correspondiente */}
       <FormField label="Período / Cuota a la que corresponde este cobro *">
         {prestamoSeleccionado &&
         prestamoSeleccionado.periodos_sugeridos &&
@@ -1492,7 +1790,9 @@ function PagoForm({ prestamos, cuentas }: { prestamos: Prestamo[]; cuentas: Cuen
             </select>
             <input type="hidden" name="fecha_esperada" value={fechaEsperada} />
             <div className="flex items-center justify-between text-[11px] text-on-surface-variant px-1">
-              <span>Período a saldar: <strong className="text-primary">{formatDateEs(fechaEsperada)}</strong></span>
+              <span>
+                Período a saldar: <strong className="text-primary">{formatDateEs(fechaEsperada)}</strong>
+              </span>
               <button
                 type="button"
                 onClick={() => setUseCustomFecha(true)}
@@ -1504,12 +1804,7 @@ function PagoForm({ prestamos, cuentas }: { prestamos: Prestamo[]; cuentas: Cuen
           </div>
         ) : (
           <div className="space-y-1">
-            <DateField
-              name="fecha_esperada"
-              required
-              value={fechaEsperada}
-              onChange={setFechaEsperada}
-            />
+            <DateField name="fecha_esperada" required value={fechaEsperada} onChange={setFechaEsperada} />
             {prestamoSeleccionado?.periodos_sugeridos &&
               prestamoSeleccionado.periodos_sugeridos.length > 0 && (
                 <button
@@ -1529,7 +1824,7 @@ function PagoForm({ prestamos, cuentas }: { prestamos: Prestamo[]; cuentas: Cuen
       </FormField>
 
       <div className="space-y-1.5">
-        <FormField label="Monto total cobrado (Bs) *">
+        <FormField label="Monto total cobrado *">
           <input
             type="number"
             name="monto_total"
@@ -1543,7 +1838,6 @@ function PagoForm({ prestamos, cuentas }: { prestamos: Prestamo[]; cuentas: Cuen
           />
         </FormField>
 
-        {/* Botones de autocompletado rápido de montos */}
         {prestamoSeleccionado && (
           <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
             <span className="text-[10px] text-on-surface-variant font-medium">Llenado rápido:</span>
@@ -1568,16 +1862,15 @@ function PagoForm({ prestamos, cuentas }: { prestamos: Prestamo[]; cuentas: Cuen
                 type="button"
                 onClick={handleFillFullBalance}
                 className="px-2.5 py-1 rounded-lg text-[11px] font-bold badge-neutral hover:opacity-90 transition-opacity cursor-pointer border border-primary/30"
-                title="Permite liquidar el préstamo completo aunque no hayan pasado 30 días, cobrando el capital total más el interés mensual pactado"
               >
-                ⚡ Liquidar todo (Capital + Interés mensual: {money(capitalPendiente + interesEstimado)})
+                ⚡ Liquidar todo ({money(capitalPendiente + interesEstimado)})
               </button>
             )}
           </div>
         )}
       </div>
 
-      <FormField label={`Capital abonado (Bs) · Interés calculado: ${money(interes)}`}>
+      <FormField label={`Capital abonado · Interés calculado: ${money(interes)}`}>
         <input
           type="number"
           name="monto_principal"
@@ -1594,7 +1887,8 @@ function PagoForm({ prestamos, cuentas }: { prestamos: Prestamo[]; cuentas: Cuen
       <input type="hidden" name="monto_interes" value={interes} />
 
       <p className="text-[11px] text-on-surface-variant bg-surface-container-low rounded-xl px-3 py-2 leading-relaxed">
-        Cada abono descuenta el capital pendiente y acumula los intereses correspondientes en el historial. Saldo deudor pendiente: <strong className="font-mono text-on-surface">{money(capitalPendiente)}</strong>.
+        Cada abono descuenta el capital pendiente y acumula los intereses correspondientes en el historial. Saldo deudor pendiente:{" "}
+        <strong className="font-mono text-on-surface">{money(capitalPendiente)}</strong>.
       </p>
 
       <FormField label="Cuenta de destino del dinero *">
@@ -1609,50 +1903,207 @@ function PagoForm({ prestamos, cuentas }: { prestamos: Prestamo[]; cuentas: Cuen
       </FormField>
 
       <FormField label="Método de pago (opcional)">
-        <input type="text" name="metodo_pago" className={inputCls} placeholder="Efectivo, transferencia bancaria, QR..." />
+        <div className="space-y-1.5">
+          <input
+            type="text"
+            name="metodo_pago"
+            className={inputCls}
+            value={metodoPago}
+            onChange={(e) => setMetodoPago(e.target.value)}
+            placeholder="Efectivo, transferencia bancaria, QR..."
+          />
+          <div className="flex flex-wrap items-center gap-1.5">
+            {["Efectivo", "Transferencia bancaria", "Pago QR", "Depósito"].map((m) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => setMetodoPago(m)}
+                className={`text-[11px] px-2.5 py-0.5 rounded-lg border transition-all cursor-pointer ${
+                  metodoPago === m
+                    ? "bg-primary text-on-primary border-primary font-semibold"
+                    : "bg-surface-container-low text-on-surface-variant hover:text-on-surface border-outline/15"
+                }`}
+              >
+                {m}
+              </button>
+            ))}
+          </div>
+        </div>
+      </FormField>
+
+      <FormField label="Notas del cobro (opcional)">
+        <textarea
+          name="notas"
+          rows={2}
+          className={`${inputCls} h-auto py-2.5`}
+          placeholder="Ej. Pagó en efectivo, comprobante #1234..."
+        />
       </FormField>
     </>
   );
 }
 
-function MovimientoForm({ cuentas }: { cuentas: Cuenta[] }) {
+const SUGERENCIAS_CATEGORIA_INGRESO = [
+  "Sueldo / Honorarios",
+  "Ventas / Negocio",
+  "Aporte de capital",
+  "Rendimientos",
+  "Otros ingresos",
+];
+
+const SUGERENCIAS_CATEGORIA_GASTO = [
+  "Operativo / Negocio",
+  "Servicios básicos",
+  "Alimentación",
+  "Transporte",
+  "Impuestos / Comisiones",
+  "Personal / Hogar",
+];
+
+function MovimientoForm({
+  cuentas,
+  categorias = [],
+}: {
+  cuentas: Cuenta[];
+  categorias?: Categoria[];
+}) {
   const [tipo, setTipo] = useState("ingreso");
+  const [cuentaOrigenId, setCuentaOrigenId] = useState(cuentas[0]?.id ?? "");
+  const [categoriaNombre, setCategoriaNombre] = useState("");
+
+  const categoriasDelTipo = useMemo(() => {
+    return categorias.filter((c) => c.tipo === tipo);
+  }, [categorias, tipo]);
+
+  const sugerenciasRapidas = useMemo(() => {
+    const base = tipo === "ingreso" ? SUGERENCIAS_CATEGORIA_INGRESO : SUGERENCIAS_CATEGORIA_GASTO;
+    const customNames = categoriasDelTipo.map((c) => c.nombre);
+    return Array.from(new Set([...customNames, ...base]));
+  }, [tipo, categoriasDelTipo]);
+
   return (
     <>
-      <FormField label="Tipo *">
-        <select name="tipo" required className={selectCls} value={tipo} onChange={(event) => setTipo(event.target.value)}>
-          <option value="ingreso">Ingreso</option>
-          <option value="gasto">Gasto</option>
-          <option value="ajuste">Ajuste</option>
+      <FormField label="Tipo de movimiento *">
+        <select
+          name="tipo"
+          required
+          className={selectCls}
+          value={tipo}
+          onChange={(event) => {
+            setTipo(event.target.value);
+            setCategoriaNombre("");
+          }}
+        >
+          <option value="ingreso">Ingreso de dinero</option>
+          <option value="gasto">Gasto / Salida</option>
+          <option value="transferencia">Transferencia entre mis cuentas</option>
+          <option value="ajuste">Ajuste contable de saldo</option>
         </select>
       </FormField>
+
       {tipo === "ajuste" && (
         <FormField label="Efecto del ajuste *">
           <select name="ajuste_sentido" required className={selectCls} defaultValue="">
-            <option value="" disabled>— Selecciona —</option>
+            <option value="" disabled>
+              — Selecciona —
+            </option>
             <option value="sumar">Sumar dinero a la cuenta</option>
             <option value="restar">Restar dinero de la cuenta</option>
           </select>
         </FormField>
       )}
       {tipo !== "ajuste" && <input type="hidden" name="ajuste_sentido" value="" />}
-      <FormField label="Monto (Bs) *">
-        <input type="number" name="monto" required min={0.01} step="0.01" className={inputCls} />
+
+      <FormField label="Monto *">
+        <input type="number" name="monto" required min={0.01} step="0.01" className={inputCls} placeholder="0.00" />
       </FormField>
+
       <FormField label="Fecha *">
         <DateField name="ocurrido_en" required defaultValue={getLocalDateString()} />
       </FormField>
 
-      <FormField label="Cuenta *">
-        <select name="cuenta_dinero_id" required className={selectCls}>
+      <FormField label={tipo === "transferencia" ? "Cuenta de origen (de donde sale) *" : "Cuenta *"}>
+        <select
+          name="cuenta_dinero_id"
+          required
+          className={selectCls}
+          value={cuentaOrigenId}
+          onChange={(e) => setCuentaOrigenId(e.target.value)}
+        >
           <option value="">— Selecciona cuenta —</option>
           {cuentas.map((c) => (
-            <option key={c.id} value={c.id}>{c.nombre}</option>
+            <option key={c.id} value={c.id}>
+              {c.nombre} (Saldo: {money(c.saldo)})
+            </option>
           ))}
         </select>
       </FormField>
-      <FormField label={tipo === "ajuste" ? "Justificación (obligatoria) *" : "Descripción (opcional)"}>
-        <input type="text" name="descripcion" required={tipo === "ajuste"} className={inputCls} placeholder={tipo === "ajuste" ? "Ej. Corregí un saldo digitado por error" : "Descripción del movimiento..."} />
+
+      {tipo === "transferencia" && (
+        <FormField label="Cuenta de destino (a donde entra) *">
+          <select name="cuenta_destino_id" required className={selectCls} defaultValue="">
+            <option value="" disabled>
+              — Selecciona cuenta de destino —
+            </option>
+            {cuentas
+              .filter((c) => c.id !== cuentaOrigenId)
+              .map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.nombre} (Saldo: {money(c.saldo)})
+                </option>
+              ))}
+          </select>
+        </FormField>
+      )}
+
+      {(tipo === "ingreso" || tipo === "gasto") && (
+        <FormField label="Categoría (opcional)">
+          <div className="space-y-1.5">
+            <div className="relative">
+              <Tag className="w-3.5 h-3.5 text-on-surface-variant absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                type="text"
+                name="categoria_nombre"
+                value={categoriaNombre}
+                onChange={(e) => setCategoriaNombre(e.target.value)}
+                className={`${inputCls} pl-8`}
+                placeholder="Elige abajo o escribe una categoría..."
+              />
+            </div>
+            <div className="flex flex-wrap items-center gap-1.5">
+              {sugerenciasRapidas.slice(0, 6).map((cat) => (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => setCategoriaNombre(cat === categoriaNombre ? "" : cat)}
+                  className={`text-[11px] px-2.5 py-0.5 rounded-lg border transition-all cursor-pointer ${
+                    categoriaNombre === cat
+                      ? "bg-primary text-on-primary border-primary font-semibold"
+                      : "bg-surface-container-low text-on-surface-variant hover:text-on-surface border-outline/15"
+                  }`}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
+          </div>
+        </FormField>
+      )}
+
+      <FormField label={tipo === "ajuste" ? "Justificación (obligatoria) *" : "Descripción / Nota (opcional)"}>
+        <input
+          type="text"
+          name="descripcion"
+          required={tipo === "ajuste"}
+          className={inputCls}
+          placeholder={
+            tipo === "ajuste"
+              ? "Ej. Corregí un saldo digitado por error"
+              : tipo === "transferencia"
+              ? "Ej. Retiro de cajero o fondeo de cuenta..."
+              : "Descripción del movimiento..."
+          }
+        />
       </FormField>
     </>
   );
