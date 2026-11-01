@@ -111,6 +111,7 @@ export function DashboardShell({
   const [showWorkspaceDropdown, setShowWorkspaceDropdown] = useState(false);
   const [showAlertsDropdown, setShowAlertsDropdown] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [mobileQuickActionOpen, setMobileQuickActionOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [optimisticPath, setOptimisticPath] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -264,6 +265,7 @@ export function DashboardShell({
   // Cerrar menú móvil, dropdown de espacios y sincronizar ruta optimista automáticamente al navegar
   useEffect(() => {
     setMobileNavOpen(false);
+    setMobileQuickActionOpen(false);
     setOptimisticPath(null);
     setShowWorkspaceDropdown(false);
     setShowAlertsDropdown(false);
@@ -1085,10 +1087,240 @@ export function DashboardShell({
         </header>
 
         {/* Children Rendered Instantly */}
-        <main className="w-full max-w-full min-w-0 pt-20 px-3 sm:px-8 pb-12 min-h-[calc(100dvh-4rem)] overflow-x-hidden">
+        <main className="w-full max-w-full min-w-0 pt-20 px-3 sm:px-8 pb-24 md:pb-12 min-h-[calc(100dvh-4rem)] overflow-x-hidden">
           {isRouteLoading ? <DashboardRouteSkeleton path={optimisticPath} /> : children}
         </main>
       </div>
+
+      {/* Telón de fondo para menú de acción rápida móvil */}
+      <AnimatePresence>
+        {mobileQuickActionOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-xs z-40 md:hidden"
+            onClick={() => setMobileQuickActionOpen(false)}
+            aria-hidden="true"
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Menú Flotante de Acción Rápida Móvil */}
+      <AnimatePresence>
+        {mobileQuickActionOpen && (
+          <motion.div
+            initial={{ opacity: 0, y: 20, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 15, scale: 0.95 }}
+            transition={{ duration: 0.18, ease: "easeOut" }}
+            className="fixed bottom-20 left-4 right-4 z-50 md:hidden bg-surface-container-lowest/95 backdrop-blur-md border border-surface-container-high/80 rounded-2xl p-2.5 shadow-2xl space-y-1"
+          >
+            <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant flex items-center justify-between border-b border-surface-container-low mb-1">
+              <span>Acción rápida</span>
+              <span className="text-primary font-semibold">FinPal</span>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                setMobileQuickActionOpen(false);
+                openModal("loan");
+              }}
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-surface-container-low text-on-surface text-xs font-semibold cursor-pointer transition-colors"
+            >
+              <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                <HandCoins className="w-4 h-4" />
+              </div>
+              <div className="text-left">
+                <span className="block font-bold">Nuevo préstamo</span>
+                <span className="block text-[10px] text-on-surface-variant font-normal">Registrar capital otorgado y cuotas</span>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setMobileQuickActionOpen(false);
+                openModal("payment");
+              }}
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-surface-container-low text-on-surface text-xs font-semibold cursor-pointer transition-colors"
+            >
+              <div className="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                <ReceiptText className="w-4 h-4" />
+              </div>
+              <div className="text-left">
+                <span className="block font-bold">Registrar cobro</span>
+                <span className="block text-[10px] text-on-surface-variant font-normal">Abonar capital o cobrar cuota de interés</span>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setMobileQuickActionOpen(false);
+                openModal("movement");
+              }}
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-surface-container-low text-on-surface text-xs font-semibold cursor-pointer transition-colors"
+            >
+              <div className="w-8 h-8 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
+                <ArrowLeftRight className="w-4 h-4" />
+              </div>
+              <div className="text-left">
+                <span className="block font-bold">Registrar movimiento</span>
+                <span className="block text-[10px] text-on-surface-variant font-normal">Ingreso, gasto o transferencia entre cuentas</span>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setMobileQuickActionOpen(false);
+                openModal("contact");
+              }}
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-surface-container-low text-on-surface text-xs font-semibold cursor-pointer transition-colors"
+            >
+              <div className="w-8 h-8 rounded-lg bg-purple-500/10 text-purple-600 dark:text-purple-400 flex items-center justify-center shrink-0">
+                <UsersRound className="w-4 h-4" />
+              </div>
+              <div className="text-left">
+                <span className="block font-bold">Nuevo contacto</span>
+                <span className="block text-[10px] text-on-surface-variant font-normal">Añadir deudor o cliente al directorio</span>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setMobileQuickActionOpen(false);
+                openModal("account");
+              }}
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-surface-container-low text-on-surface text-xs font-semibold cursor-pointer transition-colors"
+            >
+              <div className="w-8 h-8 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+                <WalletCards className="w-4 h-4" />
+              </div>
+              <div className="text-left">
+                <span className="block font-bold">Nueva cuenta de dinero</span>
+                <span className="block text-[10px] text-on-surface-variant font-normal">Efectivo, banco o billetera digital</span>
+              </div>
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Dock / Barra de Navegación Móvil Inferior */}
+      <nav
+        aria-label="Navegación principal móvil"
+        className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-surface-container-lowest/90 backdrop-blur-md border-t border-surface-container-high/60 px-2 py-1.5 flex items-center justify-around shadow-[0_-4px_24px_rgba(0,0,0,0.06)]"
+      >
+        {/* Inicio */}
+        <Link
+          href="/inicio"
+          prefetch={true}
+          onClick={() => {
+            setOptimisticPath("/inicio");
+            setMobileQuickActionOpen(false);
+          }}
+          className={`flex flex-col items-center gap-0.5 py-1 px-2.5 rounded-xl transition-all cursor-pointer ${
+            activePath === "/inicio"
+              ? "text-primary font-bold"
+              : "text-on-surface-variant hover:text-on-surface"
+          }`}
+        >
+          <div className="relative">
+            <LayoutDashboard className="w-5 h-5" />
+            {activePath === "/inicio" && (
+              <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-primary" />
+            )}
+          </div>
+          <span className="text-[10px]">Inicio</span>
+        </Link>
+
+        {/* Préstamos */}
+        <Link
+          href="/prestamos"
+          prefetch={true}
+          onClick={() => {
+            setOptimisticPath("/prestamos");
+            setMobileQuickActionOpen(false);
+          }}
+          className={`flex flex-col items-center gap-0.5 py-1 px-2.5 rounded-xl transition-all cursor-pointer ${
+            activePath === "/prestamos"
+              ? "text-primary font-bold"
+              : "text-on-surface-variant hover:text-on-surface"
+          }`}
+        >
+          <div className="relative">
+            <HandCoins className="w-5 h-5" />
+            {activePath === "/prestamos" && (
+              <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-primary" />
+            )}
+          </div>
+          <span className="text-[10px]">Préstamos</span>
+        </Link>
+
+        {/* Botón Central de Acción Rápida (+) */}
+        <button
+          type="button"
+          onClick={() => setMobileQuickActionOpen((v) => !v)}
+          className={`-mt-5 w-11 h-11 rounded-2xl flex items-center justify-center shadow-lg transition-all duration-200 cursor-pointer ${
+            mobileQuickActionOpen
+              ? "bg-on-surface text-surface-container-lowest rotate-45 scale-105"
+              : "bg-primary text-on-primary hover:bg-primary-container shadow-primary/25 hover:scale-105"
+          }`}
+          aria-label={mobileQuickActionOpen ? "Cerrar menú rápido" : "Acción rápida"}
+        >
+          <Plus className="w-6 h-6 transition-transform" />
+        </button>
+
+        {/* Movimientos */}
+        <Link
+          href="/movimientos"
+          prefetch={true}
+          onClick={() => {
+            setOptimisticPath("/movimientos");
+            setMobileQuickActionOpen(false);
+          }}
+          className={`flex flex-col items-center gap-0.5 py-1 px-2.5 rounded-xl transition-all cursor-pointer ${
+            activePath === "/movimientos"
+              ? "text-primary font-bold"
+              : "text-on-surface-variant hover:text-on-surface"
+          }`}
+        >
+          <div className="relative">
+            <ArrowLeftRight className="w-5 h-5" />
+            {activePath === "/movimientos" && (
+              <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-primary" />
+            )}
+          </div>
+          <span className="text-[10px]">Movimientos</span>
+        </Link>
+
+        {/* Contactos */}
+        <Link
+          href="/contactos"
+          prefetch={true}
+          onClick={() => {
+            setOptimisticPath("/contactos");
+            setMobileQuickActionOpen(false);
+          }}
+          className={`flex flex-col items-center gap-0.5 py-1 px-2.5 rounded-xl transition-all cursor-pointer ${
+            activePath === "/contactos"
+              ? "text-primary font-bold"
+              : "text-on-surface-variant hover:text-on-surface"
+          }`}
+        >
+          <div className="relative">
+            <UsersRound className="w-5 h-5" />
+            {activePath === "/contactos" && (
+              <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-primary" />
+            )}
+          </div>
+          <span className="text-[10px]">Contactos</span>
+        </Link>
+      </nav>
 
       {/* Notificación Circular Animada Estilo Móvil con Timbre Armónico */}
       <NotificationToast message={successNotice} onClose={() => setSuccessNotice(null)} />
