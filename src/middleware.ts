@@ -34,6 +34,7 @@ export async function middleware(request: NextRequest) {
       pathname.startsWith("/logo") ||
       pathname.startsWith("/api") ||
       pathname === "/mantenimiento" ||
+      (pathname.startsWith("/google") && pathname.endsWith(".html")) ||
       request.nextUrl.searchParams.has("bypass");
 
     if (!isExcluded) {
@@ -56,7 +57,8 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith("/favicon") ||
     pathname === "/robots.txt" ||
     pathname === "/sitemap.xml" ||
-    pathname === "/manifest.webmanifest";
+    pathname === "/manifest.webmanifest" ||
+    (pathname.startsWith("/google") && pathname.endsWith(".html"));
 
   // ── 3. Optimización Anti-Sobrecosto (Denial of Wallet Defense) ────────────
   // Si es una ruta pública y el visitante no tiene ninguna cookie de sesión de Supabase ('sb-'),
@@ -165,6 +167,6 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|html|txt|xml)$).*)",
   ],
 };
