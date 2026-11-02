@@ -316,7 +316,7 @@ export function DashboardShell({
     return (
       <div
         style={themeStyle}
-        className="min-h-screen w-full max-w-full overflow-x-hidden bg-surface text-on-surface antialiased flex flex-col selection:bg-primary-fixed selection:text-on-primary-fixed"
+        className="h-screen max-h-screen w-full max-w-full overflow-hidden bg-surface text-on-surface antialiased flex flex-col selection:bg-primary-fixed selection:text-on-primary-fixed"
       >
         {children}
         <InactivityMonitor />
@@ -1338,11 +1338,13 @@ export function DashboardShell({
               }[modal]
             }
             close={handleSafeCloseModal}
+            isDirty={isFormDirty}
           >
             <form
               ref={formRef}
               onSubmit={handleSubmitModal}
               onChange={() => setIsFormDirty(true)}
+              onInput={() => setIsFormDirty(true)}
               className="space-y-4"
             >
               {modal === "contact" && <ContactoForm />}
@@ -1482,26 +1484,95 @@ function ModalWrapper({
   title,
   close,
   children,
+  isDirty = false,
 }: {
   title: string;
   close: () => void;
   children: ReactNode;
+  isDirty?: boolean;
 }) {
+  const [shake, setShake] = useState(false);
+  const [showProtectedNotice, setShowProtectedNotice] = useState(false);
+  const pointerDownOnBackdrop = useRef(false);
+
+  // Cerrar con Escape respetando comprobación segura
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        close();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [close]);
+
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    pointerDownOnBackdrop.current = e.target === e.currentTarget;
+  };
+
+  const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    // Si el clic no se inició directamente sobre el fondo oscuro (ej: arrastre para seleccionar texto), ignorar
+    if (!pointerDownOnBackdrop.current || e.target !== e.currentTarget) {
+      return;
+    }
+    pointerDownOnBackdrop.current = false;
+
+    // Si el usuario está escribiendo o modificó el formulario:
+    // NO disparar el diálogo de confirmación de descarte y NO cerrar el modal.
+    // Protegemos al usuario de clics accidentales fuera del formulario.
+    if (isDirty) {
+      setShake(true);
+      setShowProtectedNotice(true);
+      setTimeout(() => setShake(false), 350);
+      setTimeout(() => setShowProtectedNotice(false), 2200);
+      return;
+    }
+
+    // Si el formulario no ha sido modificado, se puede cerrar limpiamente
+    close();
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-xs p-0 sm:p-4"
-      onClick={close}
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-xs p-0 sm:p-4 select-none"
+      onPointerDown={handlePointerDown}
+      onClick={handleBackdropClick}
     >
       <motion.div
         initial={{ y: 20, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
+        animate={
+          shake
+            ? {
+                y: 0,
+                opacity: 1,
+                x: [0, -6, 6, -4, 4, -2, 2, 0],
+                transition: { duration: 0.32, ease: "easeInOut" },
+              }
+            : { y: 0, opacity: 1 }
+        }
         exit={{ y: 20, opacity: 0 }}
-        className="bg-surface-container-lowest rounded-t-3xl sm:rounded-2xl border border-surface-container-high/80 shadow-2xl w-full max-w-lg max-h-[92dvh] sm:max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain p-5 sm:p-6 relative"
+        className="bg-surface-container-lowest rounded-t-3xl sm:rounded-2xl border border-surface-container-high/80 shadow-2xl w-full max-w-lg max-h-[92dvh] sm:max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain p-5 sm:p-6 relative select-text"
         onClick={(e) => e.stopPropagation()}
       >
+        {/* Aviso flotante sutil al hacer clic fuera mientras se edita */}
+        <AnimatePresence>
+          {showProtectedNotice && (
+            <motion.div
+              initial={{ opacity: 0, y: -6, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -6, scale: 0.95 }}
+              transition={{ duration: 0.16 }}
+              className="absolute top-2.5 left-1/2 -translate-x-1/2 z-20 bg-surface-container-highest/95 backdrop-blur-md text-on-surface text-[11px] font-semibold px-3 py-1 rounded-full shadow-lg border border-primary/30 flex items-center gap-1.5 pointer-events-none whitespace-nowrap text-primary"
+            >
+              <AlertCircle className="w-3.5 h-3.5 shrink-0 text-primary" />
+              <span>Formulario en edición · Usa la ✕ o Cancelar para salir</span>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         <button
           type="button"
           onClick={close}
@@ -1727,20 +1798,27 @@ function PrestamoForm({
         </div>
       </div>
       {cobraInteres && (
-        <FormField label="Tasa mensual (%)">
-          <input
-            type="number"
-            name="tasa_interes_mensual"
-            required
-            min={0}
-            max={100}
-            step="0.01"
-            className={inputCls}
-            value={tasaInteres}
-            onChange={(e) => setTasaInteres(e.target.value)}
-            placeholder="0 para sin interés o ej. 3"
-          />
-        </FormField>
+        <div>
+          <FormField label="Tasa mensual (%)">
+            <input
+              type="number"
+              name="tasa_interes_mensual"
+              required
+              min={0}
+              max={100}
+              step="0.01"
+              className={inputCls}
+              value={tasaInteres}
+              onChange={(e) => setTasaInteres(e.target.value)}
+              placeholder="0 para sin interés o ej. 3"
+            />
+          </FormField>
+          {Number(tasaInteres) > 3 && (
+            <p className="mt-1.5 text-[11px] text-amber-600 dark:text-amber-400 font-medium leading-tight">
+              ⚠️ <b>Nota legal (Bolivia):</b> El Art. 409 del Código Civil fija como tope convencional el 3% mensual. FinPal solo registra cálculos; el ingreso de tasas superiores es bajo tu exclusiva responsabilidad (Términos §2).
+            </p>
+          )}
+        </div>
       )}
       {!cobraInteres && <input type="hidden" name="tasa_interes_mensual" value="0" />}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

@@ -2,27 +2,25 @@
 
 import Link from "next/link";
 import { motion, AnimatePresence } from "motion/react";
-import { useEffect, useState, type MouseEvent } from "react";
+import { useEffect, useState, useMemo, type MouseEvent } from "react";
 import { FinPalLogo } from "@/components/finpal-logo";
 import { ContactAvatar } from "@/components/contact-avatar";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { MODO_MANTENIMIENTO } from "@/config/mantenimiento";
 import { PantallaMantenimiento } from "@/components/pantalla-mantenimiento";
-import { resetGlobalThemeColors, clearSessionAccent } from "@/lib/theme-utils";
+import { clearSessionAccent } from "@/lib/theme-utils";
 import {
   TERMINOS_DE_SERVICIO,
   POLITICA_DE_PRIVACIDAD,
   LEGAL_VERSION,
 } from "@/config/legal-content";
 import {
+  ArrowRight,
   ArrowUp,
   Banknote,
-  CalendarDays,
   Check,
   ChevronDown,
-  CircleDollarSign,
   Code2,
-  Copy,
   ExternalLink,
   Handshake,
   HelpCircle,
@@ -30,15 +28,26 @@ import {
   LogIn,
   Percent,
   Plus,
-  Terminal,
+  ShieldCheck,
+  Sparkles,
   WalletCards,
   X,
-  ShieldCheck,
+  Calculator,
+  FileSpreadsheet,
+  ArrowLeftRight,
+  ReceiptText,
+  Clock,
+  TrendingUp,
+  CheckCircle2,
+  Wallet,
+  BadgePercent,
+  UserCheck,
+  Scale,
+  AlertTriangle,
 } from "lucide-react";
 
 const githubUrl = "https://github.com/chacaejosue/finpal.git";
 const githubWebUrl = "https://github.com/chacaejosue/finpal";
-const cloneCommand = "git clone https://github.com/chacaejosue/finpal.git";
 
 const borrowers = [
   {
@@ -50,7 +59,6 @@ const borrowers = [
     date: "15 Oct 2024",
     status: "Al día",
     late: false,
-    color: "bg-primary-fixed text-on-primary-fixed",
   },
   {
     initials: "MV",
@@ -61,7 +69,6 @@ const borrowers = [
     date: "Ayer (10 Oct)",
     status: "Con atraso (1 d)",
     late: true,
-    color: "bg-secondary-container text-on-secondary-container",
   },
   {
     initials: "JP",
@@ -72,34 +79,53 @@ const borrowers = [
     date: "28 Oct 2024",
     status: "Al día",
     late: false,
-    color: "bg-surface-container text-on-surface",
   },
 ];
 
 const features = [
   {
-    title: "Cuentas y transferencias",
-    description: "Separa espacios de trabajo, administra saldos y transfiere entre cuentas en un solo paso con historial auditado.",
-    icon: Landmark,
-    bgColor: "kpi-icon-blue",
+    title: "Cuentas y Billeteras",
+    description: "Controla saldos de efectivo, bancos y billeteras con transferencias inmediatas y trazabilidad.",
+    tag: "Billeteras",
+    icon: Wallet,
+    accentColor: "text-cyan-600 dark:text-cyan-400",
+    bgGradient: "from-cyan-500/15 via-blue-500/10 to-indigo-500/5",
+    borderColor: "border-cyan-500/20",
+    glowColor: "bg-cyan-500/20",
+    badgeBg: "bg-cyan-500/10 text-cyan-600 dark:text-cyan-400",
   },
   {
-    title: "Simulador y frecuencias",
-    description: "Proyecta cuotas con abono fijo o Sistema Francés y configura préstamos mensuales, quincenales o semanales.",
-    icon: Percent,
-    bgColor: "kpi-icon-teal",
+    title: "Intereses y Cuotas",
+    description: "Calcula cobros de interés mensual fijo o cuotas con amortización a capital (Sistema Francés).",
+    tag: "Francés & Fijo",
+    icon: BadgePercent,
+    accentColor: "text-teal-600 dark:text-teal-400",
+    bgGradient: "from-teal-500/15 via-emerald-500/10 to-teal-500/5",
+    borderColor: "border-teal-500/20",
+    glowColor: "bg-teal-500/20",
+    badgeBg: "bg-teal-500/10 text-teal-600 dark:text-teal-400",
   },
   {
-    title: "Cobros y recibos digitales",
-    description: "Registra abonos parciales o solo interés, emite comprobantes listos para imprimir y revierte cobros con seguridad.",
-    icon: CalendarDays,
-    bgColor: "kpi-icon-amber",
+    title: "Recibos Digitales",
+    description: "Emite comprobantes con folio y desglose claro, listos para compartir o imprimir en PDF.",
+    tag: "PDF & Folio",
+    icon: ReceiptText,
+    accentColor: "text-amber-600 dark:text-amber-400",
+    bgGradient: "from-amber-500/15 via-orange-500/10 to-amber-500/5",
+    borderColor: "border-amber-500/20",
+    glowColor: "bg-amber-500/20",
+    badgeBg: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
   },
   {
-    title: "Expediente y Ficha 360°",
-    description: "Consulta el kardex de cada préstamo, amplía capital y evalúa el indicador de puntualidad de cada deudor.",
-    icon: WalletCards,
-    bgColor: "kpi-icon-emerald",
+    title: "Kardex de Deudores",
+    description: "Monitorea el historial de cobros, saldos pendientes y el semáforo de puntualidad de cada cliente.",
+    tag: "Semáforo 360°",
+    icon: UserCheck,
+    accentColor: "text-violet-600 dark:text-violet-400",
+    bgGradient: "from-violet-500/15 via-purple-500/10 to-violet-500/5",
+    borderColor: "border-violet-500/20",
+    glowColor: "bg-violet-500/20",
+    badgeBg: "bg-violet-500/10 text-violet-600 dark:text-violet-400",
   },
 ];
 
@@ -107,373 +133,478 @@ const faqs = [
   {
     pregunta: "¿Qué es FinPal y para qué sirve?",
     respuesta:
-      "FinPal es una plataforma web creada para el control inteligente de préstamos personales, cobro programado de intereses mensuales fijos o porcentuales, gestión de amortizaciones a capital y balance centralizado de cuentas de dinero (efectivo, bancos y billeteras móviles).",
+      "Es una plataforma web para registrar préstamos personales, calcular intereses, emitir recibos y controlar el saldo de tus cuentas en un solo lugar.",
   },
   {
-    pregunta: "¿Cómo calcula FinPal los intereses mensuales y amortizaciones?",
+    pregunta: "¿Cómo calcula los intereses y amortizaciones?",
     respuesta:
-      "Calcula el interés aplicando el porcentaje pactado sobre el capital vigente. Puedes registrar cobros de interés mensual, abonos parciales o amortizaciones a capital, recalculando automáticamente el saldo deudor y la cuota esperada para el siguiente período sin perder el historial.",
+      "Puedes elegir entre cobro de solo interés mensual fijo o cuotas con amortización a capital bajo Sistema Francés. El sistema recalcula saldos y genera comprobantes automáticamente.",
   },
   {
-    pregunta: "¿Cómo me ayuda a evitar olvidos y atrasos en los cobros?",
+    pregunta: "¿Qué pasa si un deudor se atrasa en su pago?",
     respuesta:
-      "Cada préstamo define su fecha de inicio y su día mensual de cobro. FinPal categoriza de forma automática los cobros al día, los próximos a vencer y los atrasados, mostrándote alertas visuales y el número exacto de días transcurridos para un control puntual.",
+      "FinPal activa una alerta visual automática con semáforo de puntualidad y contabiliza los días exactos de mora sin cargos ocultos.",
   },
   {
-    pregunta: "¿Mis datos financieros y de mis contactos están protegidos?",
+    pregunta: "¿Mis datos financieros están seguros?",
     respuesta:
-      "Sí. FinPal prioriza la privacidad absoluta: no vende ni comparte tus datos con terceros. Opera sobre Supabase con Row Level Security (RLS) estricto por usuario y cifrado criptográfico AES-256 en servidor para datos sensibles como teléfonos de contacto y notas personales.",
+      "Sí. Aplicamos cifrado AES-256 en servidor sobre nombres, teléfonos y notas, y aislamiento estricto por usuario mediante políticas RLS en base de datos.",
   },
   {
-    pregunta: "¿Puedo separar mis finanzas en diferentes espacios de trabajo?",
+    pregunta: "¿Puedo separar finanzas personales de préstamos?",
     respuesta:
-      "Sí. FinPal te permite crear múltiples espacios de trabajo independientes (por ejemplo: 'Préstamos Personales', 'Proyectos', 'Finanzas del Hogar'), cada uno con sus propias cuentas, saldos, movimientos y configuración de moneda.",
+      "Sí. Puedes crear múltiples espacios de trabajo independientes para separar negocios, préstamos a familiares o cuentas personales.",
   },
   {
-    pregunta: "¿Tiene algún costo o requiere tarjeta de crédito?",
+    pregunta: "¿Tiene algún costo o suscripción?",
     respuesta:
-      "FinPal es de libre acceso y de código abierto en GitHub. Puedes registrarte de inmediato con tu correo electrónico y utilizar todas las funciones del sistema sin ingresar tarjetas de crédito ni suscripciones ocultas.",
+      "No. FinPal es un proyecto independiente de código abierto, libre de suscripciones y sin publicidad invasiva.",
   },
 ];
 
-function handleLandingNavigation(event: MouseEvent<HTMLElement>) {
-  if (
-    event.defaultPrevented ||
-    event.button !== 0 ||
-    event.metaKey ||
-    event.ctrlKey ||
-    event.shiftKey ||
-    event.altKey
-  )
-    return;
-  const anchor = event.target instanceof Element ? event.target.closest("a") : null;
-  const href = anchor?.getAttribute("href");
-  if (!href?.startsWith("#") || href.length < 2) return;
-  const section = document.querySelector(href);
-  if (!section) return;
-  event.preventDefault();
-  section.scrollIntoView({ behavior: "smooth", block: "start" });
-  window.history.pushState({}, "", href);
-}
+const metrics = [
+  { value: "100%", label: "Libre de suscripciones", highlight: false },
+  { value: "AES-256", label: "Cifrado en servidor", highlight: true },
+  { value: "En la nube", label: "PC, tablet y móvil", highlight: false },
+  { value: "Multi-espacio", label: "Carteras separadas", highlight: false },
+];
 
 export default function Home() {
-  if (MODO_MANTENIMIENTO) {
-    return <PantallaMantenimiento />;
-  }
-
-  const [copied, setCopied] = useState(false);
-  const [showBackToTop, setShowBackToTop] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const [legalModal, setLegalModal] = useState<"terminos" | "privacidad" | null>(null);
-  const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0);
-  const [mesActualLanding, setMesActualLanding] = useState("Mes Actual");
+  const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(null);
+  const [mockTab, setMockTab] = useState<"resumen" | "prestamos" | "recibo">("resumen");
+
+  // Estado del Mini-Simulador Interactivo
+  const [simMonto, setSimMonto] = useState<number>(1000);
+  const [simTasa, setSimTasa] = useState<number>(3);
+  const [simPlazo, setSimPlazo] = useState<number>(6);
+  const [simModalidad, setSimModalidad] = useState<"solo_interes" | "frances">("solo_interes");
+
+  const [showScrollTop, setShowScrollTop] = useState(false);
 
   useEffect(() => {
-    const meses = [
-      "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
-      "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
-    ];
-    setMesActualLanding(meses[new Date().getMonth()]);
-  }, []);
-
-  useEffect(() => {
-    clearSessionAccent();
-    const onScroll = () => setShowBackToTop(window.scrollY > 350);
+    setMounted(true);
+    const onScroll = () => setShowScrollTop(window.scrollY > 350);
     window.addEventListener("scroll", onScroll, { passive: true });
     onScroll();
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  const copyCommand = async () => {
+  const mesActualLanding = useMemo(() => {
     try {
-      await navigator.clipboard?.writeText(cloneCommand);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 2000);
+      const hoy = new Date();
+      const txt = hoy.toLocaleDateString("es-ES", { month: "long" });
+      return txt.charAt(0).toUpperCase() + txt.slice(1);
     } catch {
-      setCopied(false);
+      return "Octubre";
     }
-  };
+  }, []);
+
+  // Cálculos matemáticos en vivo del simulador
+  const simResultado = useMemo(() => {
+    const P = Math.max(1, simMonto);
+    const r = Math.max(0.1, simTasa) / 100;
+    const n = Math.max(1, simPlazo);
+
+    if (simModalidad === "solo_interes") {
+      const interesMensual = P * r;
+      const interesTotal = interesMensual * n;
+      const totalRecuperar = P + interesTotal;
+      return {
+        cuota: interesMensual,
+        cuotaLabel: "Interés mensual a cobrar",
+        interesTotal,
+        totalRecuperar,
+        abonoCapital: 0,
+      };
+    } else {
+      // Sistema Francés: Cuota = P * [r * (1 + r)^n] / [(1 + r)^n - 1]
+      const factor = Math.pow(1 + r, n);
+      const cuotaFrancesa = (P * (r * factor)) / (factor - 1);
+      const totalRecuperar = cuotaFrancesa * n;
+      const interesTotal = totalRecuperar - P;
+      return {
+        cuota: cuotaFrancesa,
+        cuotaLabel: "Cuota fija mensual (Capital + Interés)",
+        interesTotal,
+        totalRecuperar,
+        abonoCapital: P / n,
+      };
+    }
+  }, [simMonto, simTasa, simPlazo, simModalidad]);
+
+  if (!mounted) {
+    return (
+      <div className="min-h-screen bg-surface flex items-center justify-center">
+        <div className="w-8 h-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+      </div>
+    );
+  }
+
+  if (MODO_MANTENIMIENTO) {
+    return <PantallaMantenimiento />;
+  }
 
   return (
-    <div
-      className="bg-surface font-sans text-on-surface antialiased min-h-screen selection:bg-primary-fixed selection:text-on-primary-fixed relative overflow-x-hidden w-full max-w-full"
-      onClick={handleLandingNavigation}
-    >
-      {/* Barra de navegación superior fija */}
-      <header className="fixed top-0 w-full z-50 bg-surface-container-lowest/85 backdrop-blur-xl border-b border-surface-container-high/60 shadow-[0_1px_8px_rgba(0,0,0,0.04)]">
-        <div className="h-16 max-w-7xl mx-auto px-4 sm:px-6 lg:px-12 flex items-center justify-between gap-2">
-          <Link href="/" className="flex items-center gap-2 sm:gap-2.5 text-on-surface hover:opacity-90 transition-opacity shrink-0">
-            <FinPalLogo size={36} className="w-9 h-9 sm:w-10 sm:h-10 shrink-0" priority />
-            <div className="flex items-baseline tracking-tight font-heading text-xl sm:text-2xl">
-              <span className="font-extrabold text-on-surface">Fin</span>
-              <span className="font-extrabold text-primary">Pal</span>
-            </div>
+    <div className="min-h-screen bg-surface text-on-surface antialiased flex flex-col selection:bg-primary-container selection:text-on-primary-container">
+      {/* ─── NAVEGACIÓN SUPERIOR CONCISA ─── */}
+      <header className="fixed top-0 left-0 right-0 h-16 bg-surface-container-lowest/80 backdrop-blur-md border-b border-surface-container-high/60 z-40 transition-colors">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-12 h-full flex items-center justify-between">
+          <Link
+            href="/"
+            onClick={(e) => {
+              clearSessionAccent();
+              e.preventDefault();
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            }}
+            className="flex items-center gap-2 group cursor-pointer focus:outline-none"
+            aria-label="FinPal Inicio"
+          >
+            <FinPalLogo size={32} className="w-8 h-8 transition-transform group-hover:scale-105" />
+            <span className="font-heading text-xl font-bold tracking-tight text-on-surface">
+              Fin<span className="text-primary font-black">Pal</span>
+            </span>
           </Link>
 
-          <nav className="hidden md:flex items-center gap-8">
-            <a
-              className="text-on-surface-variant hover:text-primary text-sm font-medium transition-colors"
-              href="#vista-sistema"
-            >
-              Vista del sistema
+          <nav className="hidden md:flex items-center gap-7">
+            <a className="text-on-surface-variant hover:text-primary text-sm font-medium transition-colors" href="#simulador">
+              Simulador
             </a>
-            <a
-              className="text-on-surface-variant hover:text-primary text-sm font-medium transition-colors"
-              href="#alcance"
-            >
-              Características
+            <a className="text-on-surface-variant hover:text-primary text-sm font-medium transition-colors" href="#vista-sistema">
+              Sistema
             </a>
-            <a
-              className="text-on-surface-variant hover:text-primary text-sm font-medium transition-colors"
-              href="#faq"
-            >
-              Preguntas frecuentes
+            <a className="text-on-surface-variant hover:text-primary text-sm font-medium transition-colors" href="#centralizar">
+              Por qué FinPal
             </a>
-            <a
-              className="text-on-surface-variant hover:text-primary text-sm font-medium transition-colors"
-              href={githubUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              GitHub
+            <a className="text-on-surface-variant hover:text-primary text-sm font-medium transition-colors" href="#alcance">
+              Funciones
+            </a>
+            <a className="text-on-surface-variant hover:text-primary text-sm font-medium transition-colors" href="#faq">
+              Preguntas
             </a>
           </nav>
 
-          <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
-            {/* Botón de cambio de Modo Oscuro */}
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             <ThemeToggle />
 
-            {/* Botón de Iniciar Sesión adaptado a móvil */}
             <Link
               href="/iniciar-sesion"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl bg-primary text-on-primary text-xs sm:text-sm font-semibold hover:bg-primary-container transition-all cursor-pointer shadow-xs active:scale-95 shrink-0"
+              className="hidden xs:inline-flex items-center gap-1.5 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl text-on-surface hover:bg-surface-container text-xs sm:text-sm font-semibold transition-colors"
             >
               <LogIn className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               <span>Iniciar sesión</span>
             </Link>
+
+            <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+              <Link
+                href="/registrarse"
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 sm:px-4 sm:py-2 rounded-xl bg-primary text-on-primary text-xs sm:text-sm font-semibold hover:bg-primary-container transition-all cursor-pointer shadow-xs shrink-0"
+              >
+                <span>Empezar gratis</span>
+                <ArrowRight className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              </Link>
+            </motion.div>
           </div>
         </div>
       </header>
 
       <main className="w-full pt-16 bg-surface overflow-x-hidden">
-        {/* Hero Area */}
-        <div className="relative w-full overflow-hidden border-b border-surface-container-high/40">
-          {/* Subtle top accent glow */}
-          <div className="absolute -top-32 left-1/2 -translate-x-1/2 w-[780px] max-w-[100vw] h-[380px] bg-gradient-to-b from-primary-fixed/35 via-secondary-container/20 to-transparent blur-3xl pointer-events-none rounded-full" />
+        {/* ─── HERO AREA DINÁMICA & EQUILIBRADA ─── */}
+        <div className="relative w-full overflow-hidden border-b border-surface-container-high/40 bg-surface">
+          {/* Luces ambientales sutiles */}
+          <div className="absolute -top-32 left-1/2 -translate-x-1/2 w-[850px] max-w-[100vw] h-[420px] bg-gradient-to-b from-primary/20 via-primary/5 to-transparent blur-3xl pointer-events-none rounded-full" />
+          <div className="absolute top-1/4 right-0 w-[400px] h-[300px] bg-teal-500/10 blur-[100px] pointer-events-none rounded-full" />
 
-          {/* Project context strip */}
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-12 pt-6 pb-4 flex flex-wrap items-center justify-between gap-3 relative z-10">
-            <div className="flex items-center gap-2">
-              <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full badge-emerald font-mono text-xs font-semibold shadow-2xs">
-                <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                <span>Proyecto personal en desarrollo</span>
-              </span>
-            </div>
-            <div className="flex items-center gap-3">
-              <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-surface-container-low text-xs font-mono text-on-surface-variant border border-surface-container-high/40">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Disponible en la web
-              </span>
-              <a
-                className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg bg-surface-container-lowest text-on-surface shadow-xs hover:bg-surface-container border border-surface-container-high/60 transition-all text-xs font-semibold"
-                href={githubUrl}
-                rel="noopener noreferrer"
-                target="_blank"
-              >
-                <Code2 className="w-4 h-4 text-primary" />
-                <span>Ver en GitHub</span>
-              </a>
-            </div>
-          </div>
+          {/* Patrón de matriz sutil con máscara radial */}
+          <div className="absolute inset-0 bg-[linear-gradient(to_right,#8080800a_1px,transparent_1px),linear-gradient(to_bottom,#8080800a_1px,transparent_1px)] bg-[size:28px_28px] [mask-image:radial-gradient(ellipse_70%_60%_at_50%_25%,#000_60%,transparent_100%)] pointer-events-none" />
 
-          {/* Contenido principal del Hero */}
-          <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-12 pt-4 sm:pt-6 pb-12 sm:pb-16 relative z-10">
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
-              {/* Columna izquierda: Descripción y Acciones */}
+          <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-12 pt-8 sm:pt-14 pb-14 sm:pb-20 relative z-10">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-12 xl:gap-14 items-center">
+              {/* Columna izquierda: 6 columnas */}
               <motion.div
-                className="lg:col-span-7 flex flex-col items-start space-y-6"
+                className="lg:col-span-6 flex flex-col items-start space-y-6"
                 initial={{ opacity: 0, y: 16 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5 }}
+                transition={{ duration: 0.5, ease: "easeOut" }}
               >
-                <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full badge-teal text-xs font-semibold">
-                  <Handshake className="w-4 h-4 text-teal-600 dark:text-teal-400" />
-                  <span>Control de Préstamos Personales y Finanzas • FinPal</span>
+                <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full badge-emerald text-xs font-semibold shadow-2xs">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <span>Control de préstamos simple · Cifrado AES-256</span>
                 </div>
 
-                {/* Título principal H1 */}
-                <h1 className="font-heading text-3xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight leading-[1.12] text-on-surface text-balance break-words">
-                  Control inteligente de préstamos y cobro de intereses:{" "}
-                  <motion.span
-                    className="relative inline-block text-primary font-bold"
-                    initial="hidden"
-                    animate="visible"
-                    variants={{
-                      hidden: { opacity: 0 },
-                      visible: { opacity: 1, transition: { delay: 0.35, duration: 0.3 } },
-                    }}
-                  >
-                    todo en un solo lugar
-                    <span className="absolute left-0 right-0 -bottom-1 h-1 overflow-hidden rounded-full bg-primary/15">
+                {/* H1 con línea animada de vida */}
+                <h1 className="font-heading text-3xl sm:text-5xl lg:text-5xl xl:text-6xl font-extrabold tracking-tight leading-[1.12] text-on-surface text-balance">
+                  Préstamos personales y cobro de intereses,{" "}
+                  <span className="relative inline-block text-primary font-bold">
+                    simplificados.
+                    <span className="absolute left-0 right-0 -bottom-1.5 h-1 overflow-hidden rounded-full bg-primary/20">
                       <motion.span
-                        className="absolute inset-y-0 w-1/2 rounded-full bg-primary/60"
+                        className="absolute inset-y-0 w-1/2 rounded-full bg-primary"
                         initial={{ x: "-100%" }}
                         animate={{ x: "200%" }}
                         transition={{ duration: 2.2, ease: "easeInOut", repeat: Infinity, repeatDelay: 1.2 }}
                       />
                     </span>
-                    <span className="absolute left-0 right-0 -bottom-1 h-1 rounded-full border-b-2 border-primary/25" />
-                  </motion.span>
+                    <span className="absolute left-0 right-0 -bottom-1.5 h-1 rounded-full border-b-2 border-primary/30" />
+                  </span>
                 </h1>
 
-                {/* Párrafo descriptivo */}
-                <p className="text-sm sm:text-lg text-on-surface-variant max-w-2xl leading-relaxed">
-                  FinPal centraliza el registro de préstamos personales, cálculo de intereses mensuales, amortizaciones
-                  a capital, cobros programados y cuentas de dinero. Olvídate de dispersar registros entre hojas de cálculo:
-                  mantén tu balance claro, privado y accesible en tiempo real.
+                <p className="text-sm sm:text-base lg:text-lg text-on-surface-variant max-w-xl leading-relaxed">
+                  Registra préstamos, calcula intereses al instante y cobra a tiempo con recibos digitales. Sin hojas de cálculo ni desorden.
                 </p>
 
-                {/* Botones de acción principales (CTAs) */}
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-2 w-full sm:w-auto">
-                  <a
-                    className="inline-flex items-center justify-center gap-2 px-5 py-3 sm:px-6 sm:py-3.5 rounded-xl bg-primary hover:bg-primary-container text-on-primary font-semibold text-sm sm:text-base shadow-md hover:shadow-lg transition-all active:scale-[0.99] text-center"
-                    href={githubUrl}
-                    rel="noopener noreferrer"
-                    target="_blank"
-                  >
-                    <Code2 className="w-5 h-5 shrink-0" />
-                    <span>Ver en GitHub</span>
-                  </a>
-                  <a
-                    className="inline-flex items-center justify-center gap-2 px-5 py-3 sm:px-6 sm:py-3.5 rounded-xl bg-surface-container-lowest text-on-surface hover:bg-surface-container border border-surface-container-high/80 font-semibold text-sm sm:text-base shadow-xs transition-colors text-center"
-                    href="#vista-sistema"
-                  >
-                    <span>Ver la vista del sistema</span>
-                  </a>
+                {/* Botones de acción principales */}
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-1 w-full sm:w-auto">
+                  <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                    <Link
+                      className="inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-primary hover:bg-primary-container text-on-primary font-semibold text-sm sm:text-base shadow-md hover:shadow-lg transition-all text-center w-full"
+                      href="/registrarse"
+                    >
+                      <span>Empezar gratis</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </Link>
+                  </motion.div>
+                  <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                    <a
+                      className="inline-flex items-center justify-center gap-2 px-5 py-3.5 rounded-xl bg-surface-container-lowest text-on-surface hover:bg-surface-container border border-surface-container-high/80 font-semibold text-sm sm:text-base shadow-xs transition-colors text-center w-full"
+                      href="#simulador"
+                    >
+                      <Calculator className="w-4 h-4 text-primary" />
+                      <span>Simular préstamo</span>
+                    </a>
+                  </motion.div>
                 </div>
 
-                {/* Quick Clone Box */}
-                <div className="w-full max-w-lg mt-2 px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl bg-surface-container-low border border-surface-container-high/50 text-on-surface flex items-center justify-between gap-2 sm:gap-3 shadow-xs">
-                  <div className="flex items-center gap-2 overflow-hidden min-w-0 flex-1">
-                    <Terminal className="w-4 h-4 text-primary shrink-0" />
-                    <span className="font-mono text-[11px] sm:text-xs text-on-surface-variant truncate">{cloneCommand}</span>
-                  </div>
-                  <button
-                    className="px-2.5 sm:px-3 py-1.5 text-xs font-semibold rounded-lg bg-surface-container hover:bg-surface-container-high text-on-surface transition-colors shrink-0 flex items-center gap-1.5 cursor-pointer"
-                    type="button"
-                    onClick={copyCommand}
-                  >
-                    {copied ? (
-                      <>
-                        <Check className="w-3.5 h-3.5 text-primary" />
-                        <span>¡Copiado!</span>
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="w-3.5 h-3.5" />
-                        <span>Copiar</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-
-                {/* Micro specs badges */}
-                <div className="flex flex-wrap items-center gap-3 sm:gap-4 pt-2 text-on-surface-variant text-xs font-medium">
-                  <span className="flex items-center gap-1.5">
-                    <Check className="w-4 h-4 text-primary stroke-[3]" /> Next.js 16 App Router
+                {/* Beneficios directos */}
+                <div className="flex flex-wrap items-center gap-2.5 sm:gap-3 text-on-surface-variant text-xs pt-1">
+                  <span className="flex items-center gap-1.5 font-medium text-on-surface">
+                    <Check className="w-3.5 h-3.5 text-primary stroke-[3]" /> Gratis sin tarjeta
                   </span>
                   <span className="text-outline-variant">•</span>
-                  <span className="flex items-center gap-1.5">
-                    <Check className="w-4 h-4 text-primary stroke-[3]" /> Supabase (PostgreSQL + RLS)
+                  <span className="flex items-center gap-1.5 font-medium text-on-surface">
+                    <Check className="w-3.5 h-3.5 text-primary stroke-[3]" /> Celular y PC
                   </span>
                   <span className="text-outline-variant">•</span>
-                  <span className="flex items-center gap-1.5">
-                    <Check className="w-4 h-4 text-primary stroke-[3]" /> Accesible desde tus dispositivos
+                  <span className="flex items-center gap-1.5 font-medium text-on-surface">
+                    <Check className="w-3.5 h-3.5 text-primary stroke-[3]" /> Cifrado en servidor
                   </span>
                 </div>
               </motion.div>
 
-              {/* Columna derecha: Maqueta visual e interfaz destacada */}
+              {/* Columna derecha: 6 columnas, espaciosa, centrada y con Pestañas Interactivas */}
               <motion.div
-                className="lg:col-span-5 relative flex flex-col items-center lg:-translate-y-6 w-full overflow-hidden"
+                className="lg:col-span-6 relative flex flex-col items-center justify-center w-full"
                 initial={{ opacity: 0, scale: 0.96 }}
                 animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.5, delay: 0.1 }}
+                transition={{ duration: 0.5, delay: 0.1, ease: "easeOut" }}
               >
-                <div className="relative w-full rounded-2xl bg-surface-container-lowest border border-surface-container-high/70 p-3 sm:p-4 shadow-xl overflow-hidden">
-                  <div className="flex items-center justify-between gap-2 pb-3 px-1 border-b border-surface-container-low mb-3">
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      <span className="w-2.5 h-2.5 rounded-full bg-rose-500/80 shrink-0" />
-                      <span className="w-2.5 h-2.5 rounded-full bg-amber-400/80 shrink-0" />
-                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-500/80 shrink-0" />
-                      <span className="ml-1 sm:ml-2 font-mono text-[10px] sm:text-xs text-outline truncate max-w-[110px] xs:max-w-[140px] sm:max-w-none">
-                        finpal.local/prestamos
+                {/* Floating Chip 1: Notificación de cobro con flotación continua */}
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: [0, -6, 0] }}
+                  transition={{
+                    opacity: { delay: 0.4, duration: 0.4 },
+                    y: { repeat: Infinity, duration: 4, ease: "easeInOut", delay: 0.4 },
+                  }}
+                  className="hidden sm:flex absolute -top-3.5 -right-2 z-20 items-center gap-1.5 px-3 py-1.5 rounded-full bg-surface-container-highest/95 backdrop-blur-md border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-xs font-semibold shadow-lg pointer-events-none"
+                >
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <span>Cobro registrado +$200.00</span>
+                </motion.div>
+
+                {/* Floating Chip 2: Privacidad y Cifrado con flotación continua */}
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: [0, 6, 0] }}
+                  transition={{
+                    opacity: { delay: 0.5, duration: 0.4 },
+                    y: { repeat: Infinity, duration: 4.5, ease: "easeInOut", delay: 0.8 },
+                  }}
+                  className="hidden sm:flex absolute -bottom-3 -left-3 z-20 items-center gap-1.5 px-3 py-1.5 rounded-full bg-surface-container-highest/95 backdrop-blur-md border border-surface-container-high/80 text-on-surface text-xs font-semibold shadow-lg pointer-events-none"
+                >
+                  <ShieldCheck className="w-3.5 h-3.5 text-primary" />
+                  <span>Cifrado AES-256 en servidor</span>
+                </motion.div>
+
+                {/* Contenedor Mockup Ventana */}
+                <div className="relative w-full rounded-2xl bg-surface-container-lowest border border-surface-container-high/80 p-4 sm:p-5 shadow-2xl">
+                  {/* Barra de cabecera con pestañas */}
+                  <div className="flex items-center justify-between gap-2 pb-3 px-1 border-b border-surface-container-low mb-3.5">
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1.5">
+                        <span className="w-2.5 h-2.5 rounded-full bg-rose-500/80" />
+                        <span className="w-2.5 h-2.5 rounded-full bg-amber-400/80" />
+                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-500/80" />
+                      </div>
+                      <span className="ml-1 font-mono text-[11px] text-outline hidden xs:inline">
+                        finpal.app/panel
                       </span>
                     </div>
-                    <span className="inline-flex items-center gap-1.5 text-[10px] sm:text-xs font-semibold badge-emerald px-2 sm:px-2.5 py-0.5 rounded-full shrink-0">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Espacio: Préstamos
-                    </span>
+
+                    {/* Selector de pestañas dinámico con indicador animado */}
+                    <div className="relative inline-flex rounded-lg bg-surface-container-low p-0.5 border border-surface-container-high/40 text-[11px] font-semibold">
+                      {(["resumen", "prestamos", "recibo"] as const).map((tabKey) => {
+                        const labels = { resumen: "Resumen", prestamos: "Préstamos", recibo: "Recibo" };
+                        const isActive = mockTab === tabKey;
+                        return (
+                          <button
+                            key={tabKey}
+                            type="button"
+                            onClick={() => setMockTab(tabKey)}
+                            className={`relative px-2.5 py-1 rounded-md transition-colors cursor-pointer z-10 ${
+                              isActive ? "text-primary font-bold" : "text-on-surface-variant hover:text-on-surface"
+                            }`}
+                          >
+                            {isActive && (
+                              <motion.span
+                                layoutId="mockTabPill"
+                                className="absolute inset-0 rounded-md bg-surface-container-lowest shadow-xs -z-10"
+                                transition={{ type: "spring", stiffness: 450, damping: 32 }}
+                              />
+                            )}
+                            {labels[tabKey]}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
 
-                  <div className="overflow-hidden rounded-xl bg-surface-container-low border border-surface-container-high/30 shadow-inner p-3.5 space-y-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <FinPalLogo size={28} className="w-7 h-7 shrink-0" priority />
-                        <div className="min-w-0">
-                          <p className="font-heading text-xs font-bold text-on-surface truncate">Resumen Financiero 360°</p>
-                          <p className="text-[10px] text-on-surface-variant truncate">Ciclo activo • Trazabilidad en vivo</p>
-                        </div>
-                      </div>
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-primary/12 text-primary font-mono text-[10px] font-bold shrink-0">
-                        <ShieldCheck className="w-3 h-3" /> AES-256
-                      </span>
-                    </div>
-
-                    <div className="grid grid-cols-3 gap-2">
-                      <div className="rounded-lg bg-surface-container-lowest border border-surface-container-high/40 p-2.5">
-                        <p className="text-[9px] font-semibold uppercase tracking-wider text-on-surface-variant">Saldo total</p>
-                        <p className="mt-1 font-heading text-xs sm:text-sm font-extrabold text-on-surface">$4,825.00</p>
-                        <p className="mt-0.5 font-mono text-[9px] font-semibold text-primary">+12.4% mes</p>
-                      </div>
-                      <div className="rounded-lg bg-surface-container-lowest border border-primary/25 p-2.5">
-                        <p className="text-[9px] font-semibold uppercase tracking-wider text-on-surface-variant">Por cobrar</p>
-                        <p className="mt-1 font-heading text-xs sm:text-sm font-extrabold text-primary">$1,950.00</p>
-                        <p className="mt-0.5 text-[9px] text-on-surface-variant">3 préstamos</p>
-                      </div>
-                      <div className="rounded-lg bg-surface-container-lowest border border-surface-container-high/40 p-2.5">
-                        <p className="text-[9px] font-semibold uppercase tracking-wider text-on-surface-variant">Interés mes</p>
-                        <p className="mt-1 font-heading text-xs sm:text-sm font-extrabold text-on-surface">+$93.00</p>
-                        <p className="mt-0.5 text-[9px] text-emerald-600 dark:text-emerald-400 font-medium">94% puntual</p>
-                      </div>
-                    </div>
-
-                    <div className="rounded-lg bg-surface-container-lowest border border-surface-container-high/40 p-3 space-y-2.5">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[11px] font-bold text-on-surface">Expedientes y actividad reciente</span>
-                        <span className="font-mono text-[10px] font-semibold text-primary">Kardex 360°</span>
-                      </div>
-                      <div className="space-y-2">
-                        <div className="p-2 rounded-lg bg-surface-container-low/70 border border-surface-container-high/30">
-                          <div className="flex items-center justify-between text-xs">
-                            <span className="font-semibold text-on-surface">Carlos Ramírez • Mensual</span>
-                            <span className="font-mono text-[10px] font-bold text-primary">75% pagado</span>
-                          </div>
-                          <div className="mt-1.5 h-1.5 w-full rounded-full bg-surface-container-high overflow-hidden">
-                            <div className="h-full w-3/4 rounded-full bg-primary" />
-                          </div>
-                        </div>
-
-                        <div className="flex items-center justify-between gap-2 px-1 pt-0.5">
-                          <div className="flex items-center gap-2 min-w-0">
-                            <div className="w-6 h-6 rounded-md bg-primary/15 text-primary flex items-center justify-center shrink-0">
-                              <Check className="w-3.5 h-3.5" />
+                  {/* Cuerpo de la Maqueta con transición animada suave */}
+                  <div className="rounded-xl bg-surface-container-low border border-surface-container-high/30 p-3.5 min-h-[260px] flex flex-col justify-between overflow-hidden">
+                    <AnimatePresence mode="wait">
+                      {/* TAB 1: RESUMEN */}
+                      {mockTab === "resumen" && (
+                        <motion.div
+                          key="resumen"
+                          initial={{ opacity: 0, y: 6 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -6 }}
+                          transition={{ duration: 0.22, ease: "easeOut" }}
+                          className="space-y-3"
+                        >
+                          <div className="grid grid-cols-3 gap-2.5">
+                            <div className="rounded-xl bg-surface-container-lowest border border-surface-container-high/40 p-2.5">
+                              <p className="text-[10px] font-semibold uppercase text-on-surface-variant">Saldo total</p>
+                              <p className="mt-1 font-heading text-sm sm:text-base font-extrabold text-on-surface">$4,825.00</p>
+                              <span className="text-[9px] font-mono text-primary font-semibold">+12.4% mes</span>
                             </div>
-                            <div className="min-w-0">
-                              <p className="text-[11px] font-semibold text-on-surface truncate">Recibo #FP-842 • Abono parcial</p>
-                              <p className="text-[9px] text-on-surface-variant truncate">Acreditado en Cuenta Principal</p>
+                            <div className="rounded-xl bg-surface-container-lowest border border-primary/25 p-2.5">
+                              <p className="text-[10px] font-semibold uppercase text-on-surface-variant">Por cobrar</p>
+                              <p className="mt-1 font-heading text-sm sm:text-base font-extrabold text-primary">$1,950.00</p>
+                              <span className="text-[9px] text-on-surface-variant">3 préstamos</span>
+                            </div>
+                            <div className="rounded-xl bg-surface-container-lowest border border-surface-container-high/40 p-2.5">
+                              <p className="text-[10px] font-semibold uppercase text-on-surface-variant">Interés mes</p>
+                              <p className="mt-1 font-heading text-sm sm:text-base font-extrabold text-emerald-600 dark:text-emerald-400">+$93.00</p>
+                              <span className="text-[9px] text-emerald-600 dark:text-emerald-400 font-semibold">94% puntual</span>
                             </div>
                           </div>
-                          <span className="font-mono text-[10px] font-bold text-emerald-600 dark:text-emerald-400 shrink-0">+$200.00</span>
-                        </div>
-                      </div>
+
+                          <div className="rounded-xl bg-surface-container-lowest border border-surface-container-high/40 p-3 space-y-2">
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="font-semibold text-on-surface">Carlos Ramírez • Mensual</span>
+                              <span className="font-mono text-[11px] font-bold text-primary">75% al día</span>
+                            </div>
+                            <div className="h-2 w-full rounded-full bg-surface-container-high overflow-hidden">
+                              <motion.div
+                                className="h-full rounded-full bg-primary"
+                                initial={{ width: 0 }}
+                                animate={{ width: "75%" }}
+                                transition={{ duration: 0.8, ease: "easeOut" }}
+                              />
+                            </div>
+                            <div className="flex items-center justify-between pt-1 text-xs">
+                              <span className="text-on-surface-variant flex items-center gap-1.5">
+                                <CheckCircle2 className="w-3.5 h-3.5 text-primary" />
+                                Abono reciente #FP-842
+                              </span>
+                              <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">+$200.00</span>
+                            </div>
+                          </div>
+                        </motion.div>
+                      )}
+
+                      {/* TAB 2: PRÉSTAMOS */}
+                      {mockTab === "prestamos" && (
+                        <motion.div
+                          key="prestamos"
+                          initial={{ opacity: 0, y: 6 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -6 }}
+                          transition={{ duration: 0.22, ease: "easeOut" }}
+                          className="space-y-2"
+                        >
+                          {borrowers.map((b) => (
+                            <div
+                              key={b.name}
+                              className="flex items-center justify-between p-2.5 rounded-xl bg-surface-container-lowest border border-surface-container-high/40 text-xs"
+                            >
+                              <div className="flex items-center gap-2.5">
+                                <ContactAvatar name={b.name} size={30} className="rounded-full shrink-0" />
+                                <div>
+                                  <p className="font-semibold text-on-surface">{b.name}</p>
+                                  <p className="text-[10px] text-on-surface-variant">{b.detail}</p>
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <p className="font-mono font-bold text-on-surface">{b.capital}</p>
+                                <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold ${b.late ? "badge-atrasado" : "badge-al-dia"}`}>
+                                  {b.status}
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                        </motion.div>
+                      )}
+
+                      {/* TAB 3: RECIBO DIGITAL */}
+                      {mockTab === "recibo" && (
+                        <motion.div
+                          key="recibo"
+                          initial={{ opacity: 0, y: 6 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -6 }}
+                          transition={{ duration: 0.22, ease: "easeOut" }}
+                          className="p-3.5 rounded-xl bg-surface-container-lowest border border-dashed border-surface-container-high text-xs space-y-2.5"
+                        >
+                          <div className="flex items-center justify-between border-b border-surface-container-low pb-2">
+                            <div className="flex items-center gap-2">
+                              <FinPalLogo size={22} className="w-5 h-5 shrink-0" />
+                              <span className="font-bold text-on-surface">Recibo Digital #FP-842</span>
+                            </div>
+                            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold">
+                              Cobrado
+                            </span>
+                          </div>
+                          <div className="space-y-1 text-[11px]">
+                            <div className="flex justify-between">
+                              <span className="text-on-surface-variant">Deudor:</span>
+                              <span className="font-semibold text-on-surface">Carlos Ramírez</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-on-surface-variant">Concepto:</span>
+                              <span className="font-semibold text-on-surface">Préstamo personal (Abono mensual)</span>
+                            </div>
+                            <div className="flex justify-between font-bold text-xs pt-1 border-t border-surface-container-low">
+                              <span className="text-on-surface">Total cobrado:</span>
+                              <span className="text-primary font-extrabold">$200.00</span>
+                            </div>
+                          </div>
+                          <div className="pt-2 flex items-center justify-between text-[10px] text-on-surface-variant border-t border-surface-container-low">
+                            <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-medium">
+                              <Check className="w-3 h-3" /> Formato digital listo para compartir o imprimir
+                            </span>
+                            <span className="font-mono">Folio verificado</span>
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+
+                    {/* Mini pie de maqueta */}
+                    <div className="pt-2 flex items-center justify-between text-[11px] text-on-surface-variant border-t border-surface-container-high/40">
+                      <span>Espacio de trabajo: <b>Principal</b></span>
+                      <span className="font-semibold text-primary">Sincronizado</span>
                     </div>
                   </div>
                 </div>
@@ -482,149 +613,357 @@ export default function Home() {
           </section>
         </div>
 
-        {/* Product view */}
-        <motion.section
-          className="w-full py-16 scroll-mt-20"
-          id="vista-sistema"
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, amount: 0.15 }}
-          transition={{ duration: 0.5 }}
-        >
+        {/* ─── CINTILLO DINÁMICO DE MÉTRICAS RÁPIDAS ─── */}
+        <section className="w-full py-6 bg-surface-container-lowest border-b border-surface-container-high/40">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-12">
-            <div className="flex flex-col md:flex-row md:items-end justify-between mb-8 sm:mb-10 gap-4 border-b border-surface-container-high/40 pb-6">
-              <div>
-                <span className="font-mono text-primary font-bold text-xs tracking-wider uppercase">
-                  Tablero Simple y Práctico
-                </span>
-                {/* Normalized H2 */}
-                <h2 className="font-heading text-2xl sm:text-4xl font-bold text-on-surface mt-1.5">
-                  Tu balance centralizado en segundos
-                </h2>
-                <p className="text-sm sm:text-base text-on-surface-variant mt-2 max-w-xl">
-                  Registra préstamos, abonos parciales y visualiza el saldo de tus cuentas sin curvas de aprendizaje.
-                </p>
-              </div>
-              <div className="flex flex-wrap items-center gap-3">
-                <a
-                  className="px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl bg-surface-container-lowest border border-surface-container-high/60 text-xs sm:text-sm font-semibold text-on-surface shadow-xs hover:bg-surface-container transition-colors"
-                  href={githubUrl}
-                  rel="noopener noreferrer"
-                  target="_blank"
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+              {metrics.map((metric, i) => (
+                <motion.div
+                  key={metric.label}
+                  initial={{ opacity: 0, y: 12 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ duration: 0.4, delay: i * 0.08 }}
+                  whileHover={{ y: -2, transition: { duration: 0.2 } }}
+                  className="p-2 rounded-xl transition-colors hover:bg-surface-container-low/40"
                 >
-                  Repositorio GitHub
-                </a>
-                <Link
-                  className="px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl bg-primary text-on-primary text-xs sm:text-sm font-semibold shadow-xs flex items-center gap-2 hover:bg-primary-container transition-colors"
-                  href="/registrarse"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>Nuevo Préstamo</span>
-                </Link>
-              </div>
+                  <p className={`font-heading text-xl sm:text-2xl font-extrabold ${metric.highlight ? "text-primary" : "text-on-surface"}`}>
+                    {metric.value}
+                  </p>
+                  <p className="text-xs text-on-surface-variant font-medium mt-0.5">{metric.label}</p>
+                </motion.div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* ─── SECCIÓN: MINI-SIMULADOR EN VIVO (CON BARRA VISUAL DINÁMICA) ─── */}
+        <motion.section
+          className="w-full py-14 sm:py-16 bg-surface-container-low/40 border-b border-surface-container-high/40 scroll-mt-20"
+          id="simulador"
+          initial={{ opacity: 0, y: 16 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: "-40px" }}
+          transition={{ duration: 0.5, ease: "easeOut" }}
+        >
+          <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="text-center mb-8">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full badge-emerald text-xs font-semibold mb-2">
+                <Calculator className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                <span>Simulador en vivo</span>
+              </span>
+              <h2 className="font-heading text-2xl sm:text-3xl font-extrabold text-on-surface tracking-tight">
+                Proyecta tu cobro en segundos
+              </h2>
+              <p className="text-xs sm:text-sm text-on-surface-variant mt-1.5">
+                Ajusta monto, tasa y plazo para ver tu ganancia al instante.
+              </p>
             </div>
 
-            {/* Cuadrícula Bento */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-              {/* Tabla interactiva de préstamos y movimientos (Ocupa 8 columnas) */}
-              <div className="lg:col-span-8 bg-surface-container-lowest border border-surface-container-high/70 rounded-2xl p-4 sm:p-6 shadow-xs flex flex-col justify-between overflow-hidden">
-                <div>
-                  <div className="flex flex-wrap items-center justify-between gap-2 pb-4 border-b border-surface-container-low mb-4">
-                    <div className="flex items-center gap-2.5">
-                      <WalletCards className="w-5 h-5 text-primary shrink-0" />
-                      <h3 className="font-heading text-base sm:text-lg font-bold text-on-surface">
-                        Deudores y Préstamos Recientes
-                      </h3>
-                    </div>
-                    <span className="px-2.5 sm:px-3 py-1 rounded-full bg-surface-container text-on-surface-variant font-mono text-[11px] sm:text-xs font-semibold border border-surface-container-high/40 shrink-0">
-                      Espacio: Préstamos
-                    </span>
-                  </div>
+            <div className="bg-surface-container-lowest border border-surface-container-high/80 rounded-3xl p-5 sm:p-7 shadow-lg grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
+              {/* Controles de Simulación */}
+              <div className="md:col-span-7 space-y-4 sm:space-y-5">
+                <div className="grid grid-cols-2 gap-2 p-1 bg-surface-container-low rounded-xl">
+                  <button
+                    type="button"
+                    onClick={() => setSimModalidad("solo_interes")}
+                    className={`py-1.5 px-2.5 rounded-lg text-xs font-semibold transition-all cursor-pointer text-center ${
+                      simModalidad === "solo_interes"
+                        ? "bg-surface-container-lowest text-primary shadow-xs font-bold"
+                        : "text-on-surface-variant hover:text-on-surface"
+                    }`}
+                  >
+                    Solo Interés Mensual
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSimModalidad("frances")}
+                    className={`py-1.5 px-2.5 rounded-lg text-xs font-semibold transition-all cursor-pointer text-center ${
+                      simModalidad === "frances"
+                        ? "bg-surface-container-lowest text-primary shadow-xs font-bold"
+                        : "text-on-surface-variant hover:text-on-surface"
+                    }`}
+                  >
+                    Cuota Fija (Francés)
+                  </button>
+                </div>
 
-                  <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
-                    <table className="w-full text-left text-sm min-w-[500px]">
-                      <thead>
-                        <tr className="bg-surface-container-low/70 text-on-surface-variant text-xs font-semibold uppercase tracking-wider">
-                          <th className="py-3 px-3.5 rounded-l-lg">Contacto</th>
-                          <th className="py-3 px-3.5">Capital</th>
-                          <th className="py-3 px-3.5">Interés</th>
-                          <th className="py-3 px-3.5">Próximo Pago</th>
-                          <th className="py-3 px-3.5 rounded-r-lg text-right">Estado</th>
-                        </tr>
-                      </thead>
-                      <tbody className="text-on-surface divide-y divide-surface-container-low">
-                        {borrowers.map((borrower) => (
-                          <tr
-                            key={borrower.name}
-                            className="hover:bg-surface-container-low/40 transition-colors"
+                <div>
+                  <div className="flex justify-between text-xs font-semibold mb-1">
+                    <span className="text-on-surface">Capital prestado:</span>
+                    <span className="font-heading text-primary font-bold">${simMonto.toLocaleString("en-US")}</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="100"
+                    max="10000"
+                    step="50"
+                    value={simMonto}
+                    onChange={(e) => setSimMonto(Number(e.target.value))}
+                    className="w-full accent-primary h-1.5 bg-surface-container-high rounded-lg cursor-pointer"
+                  />
+                  {/* Presets rápidos de monto */}
+                  <div className="flex items-center gap-1.5 mt-2">
+                    {[500, 1000, 2500, 5000].map((preset) => (
+                      <motion.button
+                        key={preset}
+                        type="button"
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => setSimMonto(preset)}
+                        className={`px-2 py-0.5 rounded-md text-[10px] font-mono font-semibold transition-colors cursor-pointer ${
+                          simMonto === preset
+                            ? "bg-primary text-on-primary font-bold"
+                            : "bg-surface-container text-on-surface-variant hover:text-on-surface"
+                        }`}
+                      >
+                        ${preset}
+                      </motion.button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex flex-wrap items-center justify-between gap-1 text-xs font-semibold mb-1.5">
+                    <span className="text-on-surface">Tasa de interés mensual:</span>
+                    <div className="flex items-center gap-2">
+                      {simTasa <= 3 ? (
+                        <span className="text-[10px] font-mono font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1 bg-emerald-500/10 px-2 py-0.5 rounded-md">
+                          <Check className="w-3 h-3 stroke-[3]" />
+                          Tope legal Bolivia (≤ 3% mes)
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-mono font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1 bg-amber-500/10 px-2 py-0.5 rounded-md">
+                          <AlertTriangle className="w-3 h-3" />
+                          &gt; 3% mes (Excede límite legal)
+                        </span>
+                      )}
+                      <span className="font-heading text-primary font-extrabold text-sm">{simTasa}% mes</span>
+                    </div>
+                  </div>
+                  <input
+                    type="range"
+                    min="1"
+                    max="20"
+                    step="0.5"
+                    value={simTasa}
+                    onChange={(e) => setSimTasa(Number(e.target.value))}
+                    className="w-full accent-primary h-1.5 bg-surface-container-high rounded-lg cursor-pointer"
+                  />
+
+                  {/* Aviso legal sintético y conciso (Bolivia Art. 409) */}
+                  <AnimatePresence>
+                    {simTasa > 3 && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0, y: -4 }}
+                        animate={{ opacity: 1, height: "auto", y: 0 }}
+                        exit={{ opacity: 0, height: 0, y: -4 }}
+                        transition={{ duration: 0.25, ease: "easeOut" }}
+                        className="overflow-hidden mt-2.5"
+                      >
+                        <div className="rounded-xl p-2.5 bg-amber-500/10 border border-amber-500/25 text-amber-900 dark:text-amber-200 text-xs flex flex-wrap sm:flex-nowrap items-center justify-between gap-2.5">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <Scale className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                            <p className="text-[11px] leading-snug">
+                              <span className="font-bold">Límite legal en Bolivia:</span> El Art. 409 del Código Civil fija como tope máx. el <b>3% mensual</b>. FinPal solo calcula; tasas mayores son responsabilidad del usuario (
+                              <button
+                                type="button"
+                                onClick={() => setLegalModal("terminos")}
+                                className="underline font-bold hover:text-amber-950 dark:hover:text-amber-100 cursor-pointer"
+                              >
+                                Términos §2
+                              </button>
+                              ).
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setSimTasa(3)}
+                            className="shrink-0 px-2.5 py-1 rounded-lg text-[10px] font-mono font-bold bg-amber-500/20 hover:bg-amber-500/30 text-amber-900 dark:text-amber-200 transition-colors cursor-pointer"
                           >
-                            <td className="py-3.5 px-3.5 flex items-center gap-3">
-                              <ContactAvatar
-                                name={borrower.name}
-                                size={36}
-                                className="rounded-full shadow-2xs shrink-0"
-                              />
-                              <div>
-                                <p className="font-semibold text-sm leading-snug">{borrower.name}</p>
-                                <p className="text-xs text-on-surface-variant">{borrower.detail}</p>
-                              </div>
-                            </td>
-                            <td className="py-3.5 px-3.5 font-mono font-semibold text-sm">{borrower.capital}</td>
-                            <td className="py-3.5 px-3.5 font-mono text-xs text-primary font-medium">
-                              {borrower.interest}
-                            </td>
-                            <td
-                              className={`py-3.5 px-3.5 text-xs ${
-                                borrower.late ? "text-error font-semibold" : "text-on-surface-variant"
-                              }`}
-                            >
-                              {borrower.date}
-                            </td>
-                            <td className="py-3.5 px-3.5 text-right">
-                              {borrower.late ? (
-                                <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold badge-atrasado">
-                                  {borrower.status}
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold badge-al-dia">
-                                  {borrower.status}
-                                </span>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                            Fijar al 3%
+                          </button>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+
+                <div>
+                  <span className="block text-xs font-semibold text-on-surface mb-1.5">Plazo:</span>
+                  <div className="grid grid-cols-4 gap-1.5">
+                    {[3, 6, 12, 24].map((meses) => (
+                      <motion.button
+                        key={meses}
+                        type="button"
+                        whileHover={{ scale: 1.04 }}
+                        whileTap={{ scale: 0.96 }}
+                        onClick={() => setSimPlazo(meses)}
+                        className={`py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                          simPlazo === meses
+                            ? "bg-primary text-on-primary font-bold"
+                            : "bg-surface-container text-on-surface-variant hover:text-on-surface"
+                        }`}
+                      >
+                        {meses} m
+                      </motion.button>
+                    ))}
                   </div>
                 </div>
               </div>
 
-              {/* Lado derecho: Mini gráfico y resumen de flujo de fondos (Ocupa 4 columnas) */}
-              <div className="lg:col-span-4 flex flex-col gap-6">
-                <div className="bg-surface-container-lowest border border-surface-container-high/70 rounded-2xl p-4 sm:p-6 shadow-xs">
-                  <span className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider font-mono">
-                    Flujo Neto Esperado ({mesActualLanding})
-                  </span>
-                  <div className="flex items-baseline gap-2 mt-2">
-                    <span className="font-heading text-2xl sm:text-3xl font-extrabold text-on-surface">$2,154.50</span>
-                    <span className="text-xs font-semibold text-primary inline-flex items-center gap-0.5">
-                      ↑ Cobros programados
+              {/* Resultados con barra dinámica de proporciones */}
+              <div className="md:col-span-5 bg-surface-container-low p-4 sm:p-5 rounded-2xl border border-surface-container-high/60 space-y-3">
+                <div className="p-3 rounded-xl bg-surface-container-lowest border border-surface-container-high/40">
+                  <p className="text-[11px] text-on-surface-variant font-medium">{simResultado.cuotaLabel}</p>
+                  <p className="font-heading text-2xl font-extrabold text-on-surface mt-0.5">
+                    ${simResultado.cuota.toFixed(2)}
+                  </p>
+                </div>
+
+                <div className="space-y-1.5 text-xs">
+                  <div className="flex justify-between">
+                    <span className="text-on-surface-variant">Interés total a ganar:</span>
+                    <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                      +${simResultado.interesTotal.toFixed(2)}
                     </span>
                   </div>
+                  <div className="flex justify-between font-bold pt-1 border-t border-surface-container-high/40">
+                    <span className="text-on-surface">Total a recuperar:</span>
+                    <span className="text-primary">${simResultado.totalRecuperar.toFixed(2)}</span>
+                  </div>
+                </div>
 
-                  {/* Inline SVG Sparkline */}
-                  <div className="mt-4 h-16 w-full">
+                {/* Barra visual dinámica de proporción capital vs interés */}
+                <div className="pt-1 space-y-1">
+                  <div className="h-2 w-full rounded-full bg-surface-container-high overflow-hidden flex">
+                    <div
+                      className="h-full bg-primary transition-all duration-300"
+                      style={{ width: `${(simMonto / simResultado.totalRecuperar) * 100}%` }}
+                    />
+                    <div
+                      className="h-full bg-emerald-500 transition-all duration-300"
+                      style={{ width: `${(simResultado.interesTotal / simResultado.totalRecuperar) * 100}%` }}
+                    />
+                  </div>
+                  <div className="flex justify-between text-[10px] text-on-surface-variant font-mono">
+                    <span className="flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-primary" /> Cap: ${simMonto}
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Int: +${simResultado.interesTotal.toFixed(0)}
+                    </span>
+                  </div>
+                </div>
+
+                <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                  <Link
+                    href="/registrarse"
+                    className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-primary hover:bg-primary-container text-on-primary font-semibold text-xs transition-all cursor-pointer text-center mt-1"
+                  >
+                    <span>Registrar este préstamo</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </Link>
+                </motion.div>
+              </div>
+            </div>
+          </div>
+        </motion.section>
+
+        {/* ─── SECCIÓN: VISTA DEL SISTEMA (CONCISA) ─── */}
+        <motion.section
+          className="w-full py-14 sm:py-16 scroll-mt-20"
+          id="vista-sistema"
+          initial={{ opacity: 0, y: 16 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, amount: 0.15 }}
+          transition={{ duration: 0.5, ease: "easeOut" }}
+        >
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-12">
+            <div className="flex flex-col sm:flex-row sm:items-end justify-between mb-8 gap-3 border-b border-surface-container-high/40 pb-5">
+              <div>
+                <span className="font-mono text-primary font-bold text-xs uppercase tracking-wider">
+                  Tablero en vivo
+                </span>
+                <h2 className="font-heading text-2xl sm:text-3xl font-bold text-on-surface mt-1">
+                  Tu balance en un vistazo
+                </h2>
+              </div>
+              <Link
+                className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline"
+                href="/registrarse"
+              >
+                <span>Probar con tus datos</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </Link>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+              {/* Tabla interactiva */}
+              <div className="lg:col-span-8 bg-surface-container-lowest border border-surface-container-high/70 rounded-2xl p-4 sm:p-5 shadow-xs overflow-hidden">
+                <div className="flex items-center justify-between gap-2 pb-3 border-b border-surface-container-low mb-3">
+                  <div className="flex items-center gap-2">
+                    <WalletCards className="w-4 h-4 text-primary shrink-0" />
+                    <h3 className="font-heading text-sm sm:text-base font-bold text-on-surface">
+                      Préstamos y Cobros Recientes
+                    </h3>
+                  </div>
+                  <span className="text-[11px] font-mono font-semibold text-on-surface-variant">
+                    3 activos
+                  </span>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs sm:text-sm min-w-[460px]">
+                    <thead>
+                      <tr className="bg-surface-container-low/60 text-on-surface-variant text-[11px] font-semibold uppercase tracking-wider">
+                        <th className="py-2.5 px-3 rounded-l-lg">Contacto</th>
+                        <th className="py-2.5 px-3">Capital</th>
+                        <th className="py-2.5 px-3">Interés</th>
+                        <th className="py-2.5 px-3">Cobro</th>
+                        <th className="py-2.5 px-3 rounded-r-lg text-right">Estado</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-surface-container-low">
+                      {borrowers.map((borrower) => (
+                        <tr key={borrower.name} className="hover:bg-surface-container-low/30 transition-colors">
+                          <td className="py-3 px-3 flex items-center gap-2.5">
+                            <ContactAvatar name={borrower.name} size={32} className="rounded-full shrink-0" />
+                            <div>
+                              <p className="font-semibold text-xs leading-tight">{borrower.name}</p>
+                              <p className="text-[11px] text-on-surface-variant">{borrower.detail}</p>
+                            </div>
+                          </td>
+                          <td className="py-3 px-3 font-mono font-semibold text-xs">{borrower.capital}</td>
+                          <td className="py-3 px-3 font-mono text-xs text-primary">{borrower.interest}</td>
+                          <td className={`py-3 px-3 text-xs ${borrower.late ? "text-error font-semibold" : "text-on-surface-variant"}`}>
+                            {borrower.date}
+                          </td>
+                          <td className="py-3 px-3 text-right">
+                            <span className={`inline-flex px-2 py-0.5 rounded-full text-[11px] font-bold ${borrower.late ? "badge-atrasado" : "badge-al-dia"}`}>
+                              {borrower.status}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Lado derecho: Flujo y Cuentas */}
+              <div className="lg:col-span-4 flex flex-col gap-4">
+                <div className="bg-surface-container-lowest border border-surface-container-high/70 rounded-2xl p-4 shadow-xs">
+                  <span className="text-[11px] font-semibold text-on-surface-variant uppercase font-mono">
+                    Cobros de {mesActualLanding}
+                  </span>
+                  <div className="flex items-baseline gap-2 mt-1">
+                    <span className="font-heading text-2xl font-extrabold text-on-surface">$2,154.50</span>
+                    <span className="text-xs font-semibold text-primary">↑ Programado</span>
+                  </div>
+
+                  <div className="mt-3 h-12 w-full">
                     <svg className="w-full h-full text-primary" preserveAspectRatio="none" viewBox="0 0 300 70">
-                      <defs>
-                        <linearGradient id="chartGrad" x1="0" x2="0" y1="0" y2="1">
-                          <stop offset="0%" stopColor="currentColor" stopOpacity="0.3" />
-                          <stop offset="100%" stopColor="currentColor" stopOpacity="0.0" />
-                        </linearGradient>
-                      </defs>
-                      <path
-                        d="M 0,55 Q 30,50 60,35 T 120,40 T 180,25 T 240,15 T 300,5 L 300,70 L 0,70 Z"
-                        fill="url(#chartGrad)"
-                      />
                       <path
                         d="M 0,55 Q 30,50 60,35 T 120,40 T 180,25 T 240,15 T 300,5"
                         fill="none"
@@ -634,77 +973,181 @@ export default function Home() {
                       />
                     </svg>
                   </div>
-
-                  <div className="mt-3 pt-3 border-t border-surface-container-low flex items-center justify-between text-xs text-on-surface-variant">
-                    <span>
-                      Capital Recuperado: <b className="text-on-surface font-semibold">$1,850</b>
-                    </span>
-                    <span>
-                      Intereses: <b className="text-primary font-bold">$304.50</b>
-                    </span>
-                  </div>
                 </div>
 
-                {/* Cuentas de dinero simples */}
-                <div className="bg-surface-container-lowest border border-surface-container-high/70 rounded-2xl p-4 sm:p-6 shadow-xs flex flex-col justify-between">
-                  <div>
-                    <div className="flex items-center justify-between mb-3">
-                      <h3 className="font-heading text-base font-bold text-on-surface">Cuentas Disponibles</h3>
-                      <span className="text-xs font-mono text-primary font-medium">Impacto automático</span>
+                <div className="bg-surface-container-lowest border border-surface-container-high/70 rounded-2xl p-4 shadow-xs space-y-2">
+                  <div className="flex items-center justify-between text-xs font-bold text-on-surface pb-1 border-b border-surface-container-low">
+                    <span>Cuentas de dinero</span>
+                    <span className="text-[11px] font-mono text-primary font-normal">Impacto directo</span>
+                  </div>
+                  <div className="space-y-1.5 text-xs">
+                    <div className="flex items-center justify-between p-2 rounded-lg bg-surface-container-low/60">
+                      <span className="flex items-center gap-2 text-on-surface font-medium">
+                        <Banknote className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" /> Efectivo
+                      </span>
+                      <span className="font-mono font-bold">$380.00</span>
                     </div>
-                    <div className="space-y-2.5 text-xs">
-                      <div className="flex items-center justify-between p-2.5 rounded-xl bg-surface-container-low/70">
-                        <span className="flex items-center gap-2 text-on-surface font-medium">
-                          <Banknote className="w-4 h-4 text-emerald-600 dark:text-emerald-400" /> Efectivo en mano
-                        </span>
-                        <span className="font-mono font-bold text-sm">$380.00</span>
-                      </div>
-                      <div className="flex items-center justify-between p-2.5 rounded-xl bg-surface-container-low/70">
-                        <span className="flex items-center gap-2 text-on-surface font-medium">
-                          <Landmark className="w-4 h-4 text-teal-600 dark:text-teal-400" /> Banco Principal
-                        </span>
-                        <span className="font-mono font-bold text-sm">$2,840.00</span>
-                      </div>
-                      <div className="flex items-center justify-between p-2.5 rounded-xl bg-surface-container-low/70">
-                        <span className="flex items-center gap-2 text-on-surface font-medium">
-                          <WalletCards className="w-4 h-4 text-blue-600 dark:text-blue-400" /> Billetera Móvil
-                        </span>
-                        <span className="font-mono font-bold text-sm">$125.00</span>
-                      </div>
+                    <div className="flex items-center justify-between p-2 rounded-lg bg-surface-container-low/60">
+                      <span className="flex items-center gap-2 text-on-surface font-medium">
+                        <Landmark className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" /> Banco Principal
+                      </span>
+                      <span className="font-mono font-bold">$2,840.00</span>
                     </div>
                   </div>
-                  <a
-                    className="mt-4 inline-flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-surface-container text-on-surface text-xs font-semibold hover:bg-surface-container-high transition-colors border border-surface-container-high/40"
-                    href={githubUrl}
-                    rel="noopener noreferrer"
-                    target="_blank"
-                  >
-                    <span>Ver en GitHub</span>
-                    <ExternalLink className="w-4 h-4 text-on-surface-variant" />
-                  </a>
                 </div>
               </div>
             </div>
           </div>
         </motion.section>
 
-        {/* SECCIÓN: Alcance del MVP (Hecho para lo que realmente necesitas) */}
-        <section className="w-full py-16 bg-surface-container-low/40 border-y border-surface-container-high/40 scroll-mt-20" id="alcance">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-12">
-            <div className="flex flex-col md:flex-row md:items-end justify-between mb-10 gap-4">
-              <div>
-                <span className="font-mono text-primary font-bold text-xs tracking-wider uppercase">
-                  Esencial &amp; Sin Complejidad
-                </span>
-                {/* Normalized H2 */}
-                <h2 className="font-heading text-3xl sm:text-4xl font-bold text-on-surface mt-1.5">
-                  Todo lo que hoy puedes centralizar
-                </h2>
-              </div>
-              <p className="text-base text-on-surface-variant max-w-md">
-                Una base sencilla para consultar tu información financiera desde un mismo sistema.
+        {/* ─── SECCIÓN: DE LA DISPERSIÓN A UN SOLO SISTEMA (NEUTRO, SIN BORDES OSCUROS) ─── */}
+        <section
+          className="w-full py-14 sm:py-16 bg-surface-container-low/40 border-y border-surface-container-high/40 scroll-mt-20"
+          id="centralizar"
+        >
+          <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+            <motion.div
+              className="text-center mb-8 sm:mb-10"
+              initial={{ opacity: 0, y: 14 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.45 }}
+            >
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full badge-teal text-xs font-semibold mb-2">
+                <ArrowLeftRight className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
+                <span>Nacido de una necesidad real</span>
+              </span>
+              <h2 className="font-heading text-2xl sm:text-3xl font-extrabold text-on-surface tracking-tight">
+                ¿Cuentas y cobros repartidos en varias apps y notas?
+              </h2>
+              <p className="text-xs sm:text-sm text-on-surface-variant mt-1.5 max-w-xl mx-auto leading-relaxed">
+                FinPal nació para resolver exactamente eso: dejar de saltar entre múltiples aplicaciones, hojas de cálculo y libretas para tener todo tu dinero bajo control en un solo lugar.
               </p>
+            </motion.div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5 items-stretch">
+              {/* Tarjeta 1: La dispersión habitual */}
+              <motion.div
+                initial={{ opacity: 0, y: 16 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.45 }}
+                whileHover={{ y: -3, transition: { duration: 0.2 } }}
+                className="bg-surface-container-lowest border border-surface-container-high/80 rounded-2xl p-5 sm:p-6 shadow-xs flex flex-col justify-between hover:border-surface-container-highest transition-colors"
+              >
+                <div>
+                  <div className="flex items-center justify-between mb-4 pb-2.5 border-b border-surface-container-low">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-rose-500" />
+                      <span className="font-heading text-sm font-bold text-on-surface">El problema de tener todo disperso</span>
+                    </div>
+                    <span className="text-[10px] font-mono uppercase tracking-wider text-rose-600 dark:text-rose-400 font-semibold px-2 py-0.5 rounded-full bg-rose-500/10">
+                      Fragmentado
+                    </span>
+                  </div>
+                  <div className="space-y-3 text-xs text-on-surface-variant">
+                    <div className="flex items-start gap-2.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0 mt-1.5" />
+                      <div>
+                        <p className="font-semibold text-on-surface">Información fragmentada</p>
+                        <p className="text-[11px]">Saldos en una app de banco, préstamos en notas y cobros en mensajes.</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-2.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0 mt-1.5" />
+                      <div>
+                        <p className="font-semibold text-on-surface">Riesgo de olvidos y descontrol</p>
+                        <p className="text-[11px]">Fechas de pago que se pasan y cobros que se vuelven incómodos de reclamar.</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-2.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0 mt-1.5" />
+                      <div>
+                        <p className="font-semibold text-on-surface">Cálculos manuales y confusos</p>
+                        <p className="text-[11px]">Recalcular intereses, abonos a capital y saldos pendientes a mano.</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-4 mt-4 border-t border-surface-container-low text-[11px] text-on-surface-variant">
+                  <span>Resultado: falta de claridad sobre cuánto tienes y cuánto te deben.</span>
+                </div>
+              </motion.div>
+
+              {/* Tarjeta 2: La solución con FinPal (Sin borde oscuro, estilo natural y parejo) */}
+              <motion.div
+                initial={{ opacity: 0, y: 16 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.45, delay: 0.1 }}
+                whileHover={{ y: -3, transition: { duration: 0.2 } }}
+                className="bg-surface-container-lowest border border-surface-container-high/80 rounded-2xl p-5 sm:p-6 shadow-xs flex flex-col justify-between hover:border-surface-container-highest transition-colors"
+              >
+                <div>
+                  <div className="flex items-center justify-between mb-4 pb-2.5 border-b border-surface-container-low">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                      <span className="font-heading text-sm font-bold text-on-surface">Con FinPal: Todo unificado</span>
+                    </div>
+                    <span className="text-[10px] font-mono uppercase tracking-wider text-emerald-600 dark:text-emerald-400 font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10">
+                      Centralizado
+                    </span>
+                  </div>
+                  <div className="space-y-3 text-xs">
+                    <div className="flex items-start gap-2.5">
+                      <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+                      <div>
+                        <p className="font-semibold text-on-surface">Un solo tablero centralizado</p>
+                        <p className="text-on-surface-variant text-[11px]">Cuentas de dinero, préstamos activos y movimientos en vivo.</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-2.5">
+                      <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+                      <div>
+                        <p className="font-semibold text-on-surface">Alertas automáticas de cobro</p>
+                        <p className="text-on-surface-variant text-[11px]">Semáforo de puntualidad y días exactos de atraso sin tener que recordar.</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-2.5">
+                      <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+                      <div>
+                        <p className="font-semibold text-on-surface">Recálculo automático y recibos con folio</p>
+                        <p className="text-on-surface-variant text-[11px]">Amortizaciones matemáticas y comprobantes digitales listos para compartir.</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-4 mt-4 border-t border-surface-container-low text-xs flex items-center justify-between">
+                  <span className="text-on-surface-variant text-[11px]">¿Tienes archivos previos (.xlsx o .csv)?</span>
+                  <Link href="/registrarse" className="font-semibold text-primary hover:underline text-xs flex items-center gap-1">
+                    <span>Usa el importador asistido</span>
+                    <ArrowRight className="w-3 h-3" />
+                  </Link>
+                </div>
+              </motion.div>
             </div>
+          </div>
+        </section>
+
+        {/* ─── SECCIÓN: CARACTERÍSTICAS MODERNIZADAS (SIN RECUADROS ANTIGUOS) ─── */}
+        <section className="w-full py-14 sm:py-16 scroll-mt-20" id="alcance">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-12">
+            <motion.div
+              className="text-center max-w-xl mx-auto mb-10 sm:mb-12"
+              initial={{ opacity: 0, y: 14 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.45 }}
+            >
+              <span className="font-mono text-primary font-bold text-xs uppercase tracking-wider">
+                Funciones clave
+              </span>
+              <h2 className="font-heading text-2xl sm:text-3xl font-bold text-on-surface mt-1">
+                Todo lo que necesitas, sin complicaciones
+              </h2>
+            </motion.div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
               {features.map((feature, index) => {
@@ -712,19 +1155,34 @@ export default function Home() {
                 return (
                   <motion.div
                     key={feature.title}
-                    className="bg-surface-container-lowest p-6 rounded-2xl shadow-xs border border-surface-container-high/60 flex flex-col justify-between hover:border-primary/40 hover:shadow-md transition-all"
-                    initial={{ opacity: 0, y: 14 }}
+                    className="group relative bg-surface-container-lowest/90 backdrop-blur-xs p-6 rounded-3xl shadow-xs border border-surface-container-high/60 hover:border-surface-container-highest transition-all duration-300 flex flex-col justify-between overflow-hidden"
+                    initial={{ opacity: 0, y: 16 }}
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true }}
-                    transition={{ delay: index * 0.08 }}
+                    whileHover={{ y: -5, transition: { duration: 0.2 } }}
+                    transition={{ delay: index * 0.08, duration: 0.4 }}
                   >
                     <div>
-                      <div className={`w-10 h-10 rounded-xl ${feature.bgColor} flex items-center justify-center mb-4`}>
-                        <IconComponent className="w-5 h-5" />
+                      {/* Aura flotante y moderna del icono (Adiós al recuadro tosco antiguo) */}
+                      <div className="relative mb-5 flex items-center justify-between">
+                        <div className="relative">
+                          <div className={`absolute -inset-1 rounded-2xl ${feature.glowColor} blur-sm opacity-0 group-hover:opacity-100 transition-opacity duration-300`} />
+                          <div className={`relative w-12 h-12 rounded-2xl bg-gradient-to-br ${feature.bgGradient} border ${feature.borderColor} ${feature.accentColor} flex items-center justify-center transition-transform duration-300 group-hover:scale-105`}>
+                            <IconComponent className="w-5 h-5" />
+                          </div>
+                        </div>
+
+                        <span className={`text-[10px] font-mono font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${feature.badgeBg}`}>
+                          {feature.tag}
+                        </span>
                       </div>
-                      {/* Normalized H3 */}
-                      <h3 className="font-heading text-lg font-bold text-on-surface mb-2">{feature.title}</h3>
-                      <p className="text-sm text-on-surface-variant leading-relaxed">{feature.description}</p>
+
+                      <h3 className="font-heading text-base font-bold text-on-surface mb-2 tracking-tight">
+                        {feature.title}
+                      </h3>
+                      <p className="text-xs text-on-surface-variant leading-relaxed">
+                        {feature.description}
+                      </p>
                     </div>
                   </motion.div>
                 );
@@ -733,63 +1191,77 @@ export default function Home() {
           </div>
         </section>
 
-        {/* SECCIÓN: Preguntas Frecuentes (FAQ) optimizada para SEO y Schema.org */}
+        {/* ─── SECCIÓN: PREGUNTAS FRECUENTES (CON ACORDEÓN ANIMADO FLUIDO) ─── */}
         <section
-          className="w-full py-16 sm:py-20 bg-surface-container-low/60 border-t border-surface-container-high/40 scroll-mt-20"
+          className="w-full py-14 sm:py-16 bg-surface-container-low/60 border-t border-surface-container-high/40 scroll-mt-20"
           id="faq"
         >
-          <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="text-center mb-10 sm:mb-12">
-              <span className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full badge-emerald text-xs font-semibold mb-3">
-                <HelpCircle className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                <span>Respuestas y Guía de Uso</span>
-              </span>
-              <h2 className="font-heading text-2xl sm:text-4xl font-extrabold text-on-surface tracking-tight">
-                Preguntas Frecuentes sobre FinPal
+          <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
+            <motion.div
+              className="text-center mb-8"
+              initial={{ opacity: 0, y: 14 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.45 }}
+            >
+              <h2 className="font-heading text-2xl sm:text-3xl font-extrabold text-on-surface tracking-tight">
+                Preguntas frecuentes
               </h2>
-              <p className="text-sm sm:text-base text-on-surface-variant mt-3 max-w-xl mx-auto leading-relaxed">
-                Todo lo que necesitas saber sobre el control de préstamos personales, cálculo de intereses mensuales y seguridad de tus datos.
+              <p className="text-xs sm:text-sm text-on-surface-variant mt-1">
+                Respuestas directas sobre el uso de FinPal.
               </p>
-            </div>
+            </motion.div>
 
-            <div className="space-y-3.5">
+            <div className="space-y-2.5">
               {faqs.map((faq, index) => {
                 const isOpen = openFaqIndex === index;
                 return (
                   <div
                     key={faq.pregunta}
-                    className="bg-surface-container-lowest border border-surface-container-high/70 rounded-2xl overflow-hidden transition-all duration-200 shadow-2xs hover:border-primary/40"
+                    className="bg-surface-container-lowest border border-surface-container-high/70 rounded-xl overflow-hidden transition-all shadow-2xs hover:border-surface-container-highest"
                   >
                     <button
                       type="button"
-                      className="w-full px-5 sm:px-6 py-4 sm:py-5 text-left flex items-center justify-between gap-4 cursor-pointer focus:outline-none"
+                      className="w-full px-4 sm:px-5 py-3.5 text-left flex items-center justify-between gap-3 cursor-pointer focus:outline-none"
                       onClick={() => setOpenFaqIndex(isOpen ? null : index)}
                       aria-expanded={isOpen}
                     >
-                      <span className="font-heading text-sm sm:text-base font-bold text-on-surface pr-2">
+                      <span className="font-heading text-xs sm:text-sm font-bold text-on-surface pr-2">
                         {faq.pregunta}
                       </span>
-                      <span
-                        className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 transition-transform duration-200 ${
+                      <motion.span
+                        animate={{ rotate: isOpen ? 180 : 0 }}
+                        transition={{ duration: 0.2, ease: "easeInOut" }}
+                        className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${
                           isOpen
-                            ? "bg-primary text-on-primary rotate-180"
+                            ? "bg-primary text-on-primary"
                             : "bg-surface-container text-on-surface-variant"
                         }`}
                       >
-                        <ChevronDown className="w-4 h-4" />
-                      </span>
+                        <ChevronDown className="w-3.5 h-3.5" />
+                      </motion.span>
                     </button>
-                    {isOpen && (
-                      <div className="px-5 sm:px-6 pb-5 pt-1 text-xs sm:text-sm text-on-surface-variant leading-relaxed border-t border-surface-container-low">
-                        {faq.respuesta}
-                      </div>
-                    )}
+                    <AnimatePresence initial={false}>
+                      {isOpen && (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: "auto", opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          transition={{ duration: 0.24, ease: "easeInOut" }}
+                          className="overflow-hidden"
+                        >
+                          <div className="px-4 sm:px-5 pb-4 pt-1 text-xs text-on-surface-variant leading-relaxed border-t border-surface-container-low">
+                            {faq.respuesta}
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                   </div>
                 );
               })}
             </div>
 
-            {/* Marcado Schema.org FAQPage para Rich Snippets en Google */}
+            {/* Schema.org FAQPage para SEO */}
             <script
               type="application/ld+json"
               dangerouslySetInnerHTML={{
@@ -810,228 +1282,130 @@ export default function Home() {
           </div>
         </section>
 
-        {/* Banner de llamada a la acción del proyecto */}
-        <section className="w-full py-20 bg-surface-container relative overflow-hidden">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-12 text-center relative z-10">
-            <div className="max-w-2xl mx-auto flex flex-col items-center">
-              <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full badge-emerald text-xs font-semibold mb-4">
-                <Terminal className="w-4 h-4 text-emerald-600 dark:text-emerald-400" /> Proyecto personal en desarrollo
-              </span>
-              {/* Normalized H2 */}
-              <h2 className="font-heading text-3xl sm:text-4xl font-extrabold text-on-surface tracking-tight">
-                Un solo lugar para consultar tu información
-              </h2>
-              <p className="text-base sm:text-lg text-on-surface-variant mt-4 leading-relaxed">
-                FinPal seguirá creciendo a partir de una necesidad concreta: tener cuentas, movimientos y cobros
-                accesibles desde cualquier dispositivo con internet.
-              </p>
-              <div className="flex flex-wrap items-center justify-center gap-4 mt-8">
-                <a
-                  className="px-6 py-3.5 rounded-xl bg-primary hover:bg-primary-container text-on-primary font-semibold text-base transition-all shadow-md hover:shadow-lg flex items-center gap-2.5 active:scale-[0.99]"
-                  href={githubUrl}
-                  rel="noopener noreferrer"
-                  target="_blank"
+        {/* ─── BANNER FINAL (DIRECTO A LA ACCIÓN CON PULSO AMBIENTAL) ─── */}
+        <motion.section
+          className="w-full py-16 bg-surface-container relative overflow-hidden"
+          initial={{ opacity: 0, y: 16 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.5 }}
+        >
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[250px] bg-primary/10 blur-[90px] rounded-full pointer-events-none" />
+
+          <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative z-10">
+            <h2 className="font-heading text-2xl sm:text-4xl font-extrabold text-on-surface tracking-tight">
+              Toma el control de tus préstamos hoy
+            </h2>
+            <p className="text-sm sm:text-base text-on-surface-variant mt-2 max-w-lg mx-auto">
+              Empieza gratis en 30 segundos. Sin tarjetas ni compromisos.
+            </p>
+            <div className="flex flex-wrap items-center justify-center gap-3 mt-6">
+              <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                <Link
+                  className="px-6 py-3 rounded-xl bg-primary hover:bg-primary-container text-on-primary font-semibold text-sm transition-all shadow-sm flex items-center gap-2"
+                  href="/registrarse"
                 >
-                  <span>Conocer el proyecto</span>
-                </a>
-                <a
-                  className="px-6 py-3.5 rounded-xl bg-surface-container-lowest text-on-surface hover:bg-surface-container-high font-semibold text-base transition-colors shadow-xs flex items-center gap-2.5 border border-surface-container-high/70"
-                  href={githubUrl}
-                  rel="noopener noreferrer"
-                  target="_blank"
+                  <span>Crear cuenta gratis</span>
+                  <ArrowRight className="w-4 h-4" />
+                </Link>
+              </motion.div>
+              <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                <Link
+                  className="px-5 py-3 rounded-xl bg-surface-container-lowest text-on-surface hover:bg-surface-container font-semibold text-sm transition-colors border border-surface-container-high/70"
+                  href="/iniciar-sesion"
                 >
-                  <span>Ver en GitHub</span>
-                </a>
-              </div>
+                  <span>Iniciar sesión</span>
+                </Link>
+              </motion.div>
             </div>
+            <p className="text-[11px] text-on-surface-variant mt-5">
+              Software libre y transparente •{" "}
+              <a href={githubWebUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline font-semibold">
+                Código en GitHub
+              </a>
+            </p>
           </div>
-        </section>
+        </motion.section>
 
-        {/* Cuadrícula de enlaces del pie de página */}
-        <section className="w-full py-14 bg-surface-container-lowest border-t border-surface-container-high/40">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-12">
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-8 lg:gap-16">
-              <div>
-                <h4 className="font-heading text-sm font-bold text-on-surface mb-3 uppercase tracking-wider">
-                  Proyecto
-                </h4>
-                <ul className="space-y-2.5 text-sm text-on-surface-variant">
-                  <li>
-                    <a className="hover:text-primary transition-colors" href="#vista-sistema">
-                      Vista del sistema
-                    </a>
-                  </li>
-                  <li>
-                    <a className="hover:text-primary transition-colors" href="#alcance">
-                      Características
-                    </a>
-                  </li>
-                  <li>
-                    <a className="hover:text-primary transition-colors" href="#faq">
-                      Preguntas frecuentes
-                    </a>
-                  </li>
-                  <li>
-                    <a
-                      className="hover:text-primary transition-colors"
-                      href={githubUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      Repositorio GitHub
-                    </a>
-                  </li>
-                </ul>
-              </div>
-
-              <div>
-                <h4 className="font-heading text-sm font-bold text-on-surface mb-3 uppercase tracking-wider">
-                  Recursos
-                </h4>
-                <ul className="space-y-2.5 text-sm text-on-surface-variant">
-                  <li>
-                    <a
-                      className="hover:text-primary transition-colors inline-flex items-center gap-1.5"
-                      href={githubUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      <span>Código Fuente en GitHub</span>
-                      <ExternalLink className="w-3.5 h-3.5 text-on-surface-variant" />
-                    </a>
-                  </li>
-                  <li>
-                    <a
-                      className="hover:text-primary transition-colors inline-flex items-center gap-1.5"
-                      href={`${githubWebUrl}/issues`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      <span>Reportar un problema (Issues)</span>
-                      <ExternalLink className="w-3.5 h-3.5 text-on-surface-variant" />
-                    </a>
-                  </li>
-                  <li>
-                    <button
-                      type="button"
-                      onClick={() => setLegalModal("privacidad")}
-                      className="hover:text-primary transition-colors text-left cursor-pointer"
-                    >
-                      Privacidad y Soberanía de Datos
-                    </button>
-                  </li>
-                </ul>
-              </div>
-
-              <div>
-                <h4 className="font-heading text-sm font-bold text-on-surface mb-3 uppercase tracking-wider">
-                  Sobre el proyecto
-                </h4>
-                <p className="text-sm text-on-surface-variant leading-relaxed">
-                  Proyecto personal en desarrollo, creado para centralizar información financiera cotidiana y compartir
-                  una posible solución con personas que tengan una situación parecida.
-                </p>
-                <div className="mt-4 flex items-center gap-2">
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-surface-container font-mono text-xs text-on-surface border border-surface-container-high/50">
-                    <span className="w-2 h-2 rounded-full bg-primary" /> FinPal
-                  </span>
-                </div>
-              </div>
+        {/* ─── PIE DE PÁGINA COMPACTO ─── */}
+        <section className="w-full py-10 bg-surface-container-lowest border-t border-surface-container-high/40">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-12 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-on-surface-variant">
+            <div className="flex items-center gap-2">
+              <span className="font-bold text-on-surface">FinPal</span>
+              <span>© 2026 Josué Chacae.</span>
+            </div>
+            <div className="flex items-center gap-5 font-medium">
+              <a className="hover:text-primary transition-colors" href="#simulador">
+                Simulador
+              </a>
+              <a className="hover:text-primary transition-colors" href="#centralizar">
+                Por qué FinPal
+              </a>
+              <button
+                type="button"
+                onClick={() => setLegalModal("terminos")}
+                className="hover:text-primary transition-colors cursor-pointer"
+              >
+                Términos
+              </button>
+              <button
+                type="button"
+                onClick={() => setLegalModal("privacidad")}
+                className="hover:text-primary transition-colors cursor-pointer"
+              >
+                Privacidad
+              </button>
+              <a
+                className="hover:text-primary transition-colors flex items-center gap-1"
+                href={githubWebUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <span>GitHub</span>
+                <ExternalLink className="w-3 h-3" />
+              </a>
             </div>
           </div>
         </section>
       </main>
 
-      {/* Barra de pie de página inferior */}
-      <footer className="w-full bg-surface-container-lowest border-t border-surface-container-high/40 py-8">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-12 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2 text-on-surface-variant text-xs font-medium">
-            <span className="font-bold text-on-surface">FinPal</span>
-            <span>© 2026 FinPal. Josué Chacae.</span>
-          </div>
-          <div className="flex items-center gap-6 text-xs text-on-surface-variant font-medium">
-            <button
-              type="button"
-              onClick={() => setLegalModal("terminos")}
-              className="hover:text-primary transition-colors cursor-pointer"
-            >
-              Términos de servicio
-            </button>
-            <button
-              type="button"
-              onClick={() => setLegalModal("privacidad")}
-              className="hover:text-primary transition-colors cursor-pointer"
-            >
-              Privacidad y datos
-            </button>
-            <a
-              className="hover:text-on-surface transition-colors"
-              href={githubUrl}
-              rel="noopener noreferrer"
-              target="_blank"
-            >
-              GitHub
-            </a>
-          </div>
-        </div>
-      </footer>
-
-      {/* Botón flotante animado para volver arriba */}
-      <AnimatePresence>
-        {showBackToTop && (
-          <motion.button
-            type="button"
-            aria-label="Volver al inicio"
-            initial={{ opacity: 0, scale: 0.5, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.5, y: 20 }}
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.9 }}
-            className="fixed bottom-7 right-7 z-50 p-3.5 rounded-full bg-primary text-on-primary shadow-lg hover:bg-primary-container transition-colors focus:outline-none focus:ring-4 focus:ring-primary/20 flex items-center justify-center group"
-            onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-          >
-            <ArrowUp className="w-5 h-5 group-hover:-translate-y-0.5 transition-transform duration-200" />
-          </motion.button>
-        )}
-      </AnimatePresence>
-
-      {/* Modal Funcional de Términos y Privacidad */}
+      {/* ─── MODAL RÁPIDO: TÉRMINOS & PRIVACIDAD ─── */}
       <AnimatePresence>
         {legalModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in">
             <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 10 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              className="bg-surface-container-lowest border border-surface-container-high/80 rounded-2xl shadow-2xl w-full max-w-lg p-6 relative text-on-surface max-h-[85vh] overflow-y-auto"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-surface-container-lowest border border-surface-container-high/80 rounded-2xl shadow-2xl w-full max-w-lg p-5 sm:p-6 relative text-on-surface max-h-[85vh] overflow-y-auto"
             >
               <button
                 type="button"
                 onClick={() => setLegalModal(null)}
-                className="absolute top-4 right-4 p-1.5 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors cursor-pointer"
+                className="absolute top-4 right-4 p-1.5 text-on-surface-variant hover:text-on-surface rounded-lg hover:bg-surface-container transition-colors cursor-pointer"
                 aria-label="Cerrar modal"
               >
                 <X className="w-5 h-5" />
               </button>
 
-              <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-surface-container-low">
-                <ShieldCheck className="w-6 h-6 text-primary shrink-0" />
+              <div className="flex items-center gap-2 mb-3 pb-2.5 border-b border-surface-container-low">
+                <ShieldCheck className="w-5 h-5 text-primary shrink-0" />
                 <div>
-                  <h3 className="font-heading text-lg font-bold">
+                  <h3 className="font-heading text-base font-bold">
                     {legalModal === "terminos"
-                      ? "Términos de Servicio y Deslinde Legal"
-                      : "Política de Privacidad y Soberanía de Datos"}
+                      ? "Términos de Servicio"
+                      : "Política de Privacidad"}
                   </h3>
                   <p className="text-[11px] text-on-surface-variant">
-                    Versión {LEGAL_VERSION} · Jurisdicción Bolivia &amp; Estándar Internacional
+                    Versión {LEGAL_VERSION}
                   </p>
                 </div>
               </div>
 
               {legalModal === "terminos" ? (
-                <div className="space-y-4 text-xs text-on-surface-variant leading-relaxed">
+                <div className="space-y-3 text-xs text-on-surface-variant leading-relaxed">
                   {TERMINOS_DE_SERVICIO.map((sec) => (
-                    <div key={sec.id} className="space-y-1.5">
+                    <div key={sec.id} className="space-y-1">
                       <p className="font-bold text-on-surface">{sec.titulo}</p>
                       {sec.parrafos.map((p, i) => (
                         <p key={i}>{p}</p>
@@ -1040,9 +1414,9 @@ export default function Home() {
                   ))}
                 </div>
               ) : (
-                <div className="space-y-4 text-xs text-on-surface-variant leading-relaxed">
+                <div className="space-y-3 text-xs text-on-surface-variant leading-relaxed">
                   {POLITICA_DE_PRIVACIDAD.map((sec) => (
-                    <div key={sec.id} className="space-y-1.5">
+                    <div key={sec.id} className="space-y-1">
                       <p className="font-bold text-on-surface">{sec.titulo}</p>
                       {sec.parrafos.map((p, i) => (
                         <p key={i}>{p}</p>
@@ -1052,25 +1426,44 @@ export default function Home() {
                 </div>
               )}
 
-              <div className="mt-6 pt-4 border-t border-surface-container-low flex items-center justify-between gap-3">
+              <div className="mt-5 pt-3 border-t border-surface-container-low flex items-center justify-between gap-3">
                 <Link
                   href={legalModal === "terminos" ? "/terminos" : "/privacidad"}
                   className="text-xs font-semibold text-primary hover:underline inline-flex items-center gap-1"
                   onClick={() => setLegalModal(null)}
                 >
-                  <span>Abrir documento completo en página dedicada</span>
-                  <ExternalLink className="w-3.5 h-3.5" />
+                  <span>Página dedicada</span>
+                  <ExternalLink className="w-3 h-3" />
                 </Link>
                 <button
                   type="button"
                   onClick={() => setLegalModal(null)}
-                  className="px-4 py-2 rounded-xl bg-primary text-on-primary text-xs font-semibold hover:bg-primary-container transition-colors cursor-pointer"
+                  className="px-3.5 py-1.5 rounded-xl bg-primary text-on-primary text-xs font-semibold hover:bg-primary-container transition-colors cursor-pointer"
                 >
                   Entendido
                 </button>
               </div>
             </motion.div>
           </div>
+        )}
+      </AnimatePresence>
+
+      {/* Botón flotante para volver arriba */}
+      <AnimatePresence>
+        {showScrollTop && (
+          <motion.button
+            type="button"
+            aria-label="Volver arriba"
+            initial={{ opacity: 0, scale: 0.8, y: 16 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.8, y: 16 }}
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.9 }}
+            onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+            className="fixed bottom-6 right-6 z-40 w-11 h-11 rounded-full bg-primary text-on-primary shadow-xl hover:bg-primary-container transition-all flex items-center justify-center cursor-pointer focus:outline-none focus:ring-4 focus:ring-primary/20"
+          >
+            <ArrowUp className="w-5 h-5 stroke-[2.5]" />
+          </motion.button>
         )}
       </AnimatePresence>
     </div>
