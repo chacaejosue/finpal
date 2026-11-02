@@ -352,28 +352,24 @@ export function SkeletonPrestamos() {
               <div className="h-5 w-16 bg-surface-container rounded-full" />
             </div>
 
-            <div className="space-y-1">
-              <div className="flex justify-between">
-                <div className="h-2.5 w-16 bg-surface-container rounded" />
-                <div className="h-2.5 w-8 bg-surface-container rounded" />
+            {/* Saldo y micro-barra */}
+            <div className="space-y-1.5 py-1">
+              <div className="flex justify-between items-baseline">
+                <div className="h-2.5 w-20 bg-surface-container rounded" />
+                <div className="h-5 w-28 bg-surface-container-high rounded" />
               </div>
-              <div className="h-2 w-full bg-surface-container rounded-full" />
-            </div>
-
-            <div className="p-3 rounded-xl bg-surface-container-low/50 border border-surface-container-high/40 grid grid-cols-2 gap-2">
-              <div className="space-y-1">
-                <div className="h-2.5 w-16 bg-surface-container rounded" />
-                <div className="h-4 w-20 bg-surface-container-high rounded" />
-              </div>
-              <div className="space-y-1 text-right">
-                <div className="h-2.5 w-16 bg-surface-container rounded ml-auto" />
-                <div className="h-4 w-18 bg-surface-container-high rounded ml-auto" />
+              <div className="h-1.5 w-full bg-surface-container rounded-full" />
+              <div className="flex items-center gap-1.5 pt-1">
+                <div className="h-5 w-20 bg-surface-container-low rounded-md" />
+                <div className="h-5 w-24 bg-surface-container-low rounded-md" />
+                <div className="h-5 w-16 bg-surface-container-low rounded-md" />
               </div>
             </div>
 
-            <div className="flex items-center gap-2 pt-2 border-t border-surface-container-low">
-              <div className="h-8 flex-1 bg-surface-container rounded-xl" />
-              <div className="h-8 flex-1 bg-primary/20 rounded-xl" />
+            {/* Acciones */}
+            <div className="flex items-center justify-between pt-2.5 border-t border-surface-container-high/40">
+              <div className="h-5 w-20 bg-surface-container rounded" />
+              <div className="h-7 w-20 bg-primary/20 rounded-lg ml-auto" />
             </div>
           </div>
         ))}
@@ -421,18 +417,26 @@ export function SkeletonContactos() {
               <div className="h-5 w-16 bg-surface-container rounded-full" />
             </div>
 
-            <div className="p-3 rounded-xl bg-surface-container-low/50 border border-surface-container-high/40 flex justify-between items-center">
-              <div className="space-y-1">
-                <div className="h-2.5 w-16 bg-surface-container rounded" />
-                <div className="h-4 w-20 bg-surface-container-high rounded" />
+            {/* Resumen Deuda Activa */}
+            <div className="space-y-1.5 py-1">
+              <div className="flex justify-between items-baseline">
+                <div className="h-2.5 w-20 bg-surface-container rounded" />
+                <div className="h-5 w-28 bg-surface-container-high rounded" />
               </div>
-              <div className="h-5 w-20 bg-surface-container rounded-md" />
+              <div className="flex items-center gap-1.5 pt-1">
+                <div className="h-5 w-20 bg-surface-container-low rounded-md" />
+                <div className="h-5 w-18 bg-surface-container-low rounded-md" />
+                <div className="h-5 w-24 bg-surface-container-low rounded-md" />
+              </div>
             </div>
 
-            <div className="flex items-center justify-between gap-2 pt-2 border-t border-surface-container-low">
-              <div className="h-8 flex-1 bg-surface-container rounded-xl" />
-              <div className="h-8 w-8 bg-surface-container rounded-xl" />
-              <div className="h-8 flex-1 bg-primary/20 rounded-xl" />
+            {/* Acciones */}
+            <div className="flex items-center justify-between pt-2.5 border-t border-surface-container-high/40">
+              <div className="h-5 w-20 bg-surface-container rounded" />
+              <div className="flex items-center gap-1.5">
+                <div className="h-7 w-7 bg-surface-container rounded-lg" />
+                <div className="h-7 w-20 bg-primary/20 rounded-lg" />
+              </div>
             </div>
           </div>
         ))}
@@ -503,13 +507,13 @@ export function SkeletonCuentas() {
     <div className="w-full max-w-7xl mx-auto space-y-6 skeleton-shimmer" aria-busy="true" aria-label="Cargando cuentas">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-surface-container-high/60">
-        <div>
-          <div className="h-8 w-56 bg-surface-container-high rounded-xl" />
-          <div className="h-3.5 w-80 bg-surface-container rounded-md mt-1.5" />
+        <div className="flex items-center gap-2.5">
+          <div className="h-8 w-52 bg-surface-container-high rounded-xl" />
+          <div className="h-6 w-28 bg-surface-container rounded-lg" />
         </div>
         <div className="flex items-center gap-2">
-          <div className="h-10 w-32 bg-surface-container-lowest border border-surface-container-high/70 rounded-xl" />
-          <div className="h-10 w-36 bg-primary/20 rounded-xl" />
+          <div className="h-9 w-24 bg-surface-container-lowest border border-surface-container-high/70 rounded-xl" />
+          <div className="h-9 w-32 bg-primary/20 rounded-xl" />
         </div>
       </div>
 
@@ -518,21 +522,21 @@ export function SkeletonCuentas() {
         {[1, 2, 3].map((i) => (
           <div
             key={i}
-            className="h-44 bg-surface-container-lowest rounded-2xl border border-surface-container-high/70 p-5 flex flex-col justify-between shadow-2xs"
+            className="h-40 bg-surface-container-lowest/90 rounded-2xl border border-surface-container-high/70 p-4 sm:p-5 flex flex-col justify-between shadow-2xs"
           >
             <div>
-              <div className="flex justify-between items-start">
-                <div className="h-5 w-28 bg-surface-container rounded-full" />
-                <div className="w-7 h-7 rounded-lg bg-surface-container" />
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-surface-container" />
+                  <div className="h-5 w-32 bg-surface-container-high rounded-md" />
+                </div>
+                <div className="h-5 w-12 rounded-md bg-surface-container/70 border border-surface-container-high/60" />
               </div>
-              <div className="h-6 w-40 bg-surface-container-high rounded-lg mt-3" />
+              <div className="h-7 sm:h-8 w-40 bg-surface-container-high rounded-lg mt-3.5" />
             </div>
-            <div className="pt-3 border-t border-surface-container-low flex justify-between items-baseline">
-              <div className="space-y-1">
-                <div className="h-2.5 w-20 bg-surface-container rounded" />
-                <div className="h-7 w-32 bg-surface-container-high rounded-lg" />
-              </div>
-              <div className="h-5 w-12 bg-surface-container rounded-md" />
+            <div className="mt-4 pt-3 border-t border-surface-container-high/40 flex items-center justify-between">
+              <div className="h-5 w-20 rounded-md bg-surface-container" />
+              <div className="h-4 w-16 rounded bg-primary/20" />
             </div>
           </div>
         ))}
@@ -689,37 +693,81 @@ export function SkeletonConfiguracion() {
 // ─────────────────────────────────────────────────────────────────────────────
 export function SkeletonEspacios() {
   return (
-    <div className="w-full max-w-7xl mx-auto space-y-6 skeleton-shimmer" aria-busy="true" aria-label="Cargando espacios">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-surface-container-high/60">
-        <div>
-          <div className="h-8 w-56 bg-surface-container-high rounded-xl" />
-          <div className="h-3.5 w-72 bg-surface-container rounded-md mt-1.5" />
+    <div
+      className="h-screen max-h-screen w-full flex flex-col justify-between overflow-y-auto sm:overflow-hidden relative bg-surface text-on-surface antialiased skeleton-shimmer"
+      aria-busy="true"
+      aria-label="Cargando espacios"
+    >
+      {/* ─── Cabecera superior idéntica a la vista real ─── */}
+      <header className="w-full h-14 shrink-0 border-b border-surface-container-high/60 bg-surface-container-lowest/80 backdrop-blur-md px-3 sm:px-8">
+        <div className="max-w-6xl mx-auto h-full flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-7.5 h-7.5 rounded-xl bg-surface-container" />
+            <div className="h-5 w-20 bg-surface-container-high rounded-md" />
+          </div>
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="w-8 h-8 rounded-xl bg-surface-container" />
+            <div className="h-7 w-32 rounded-full bg-surface-container-low border border-surface-container-high/60 hidden sm:block" />
+            <div className="w-8 h-8 rounded-xl bg-surface-container" />
+          </div>
         </div>
-        <div className="h-10 w-36 bg-primary/20 rounded-xl" />
-      </div>
+      </header>
 
-      {/* Grid de Espacios */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {[1, 2, 3].map((i) => (
-          <div
-            key={i}
-            className="h-40 bg-surface-container-lowest rounded-2xl border border-surface-container-high/70 p-5 flex flex-col justify-between shadow-2xs"
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-surface-container" />
-              <div className="space-y-1.5">
-                <div className="h-5 w-32 bg-surface-container-high rounded" />
-                <div className="h-4 w-12 bg-surface-container rounded" />
+      {/* ─── Main Content (Hero centrado idéntico a la vista real) ─── */}
+      <main className="flex-1 w-full max-w-6xl mx-auto px-3.5 sm:px-6 lg:px-8 py-3 sm:py-5 flex flex-col items-center justify-center overflow-hidden">
+        {/* Centered Hero Section Skeleton */}
+        <div className="text-center max-w-xl mx-auto mb-3 sm:mb-5 px-2 flex flex-col items-center space-y-1.5 w-full">
+          <div className="h-5 w-32 rounded-full bg-primary/10 border border-primary/20" />
+          <div className="h-7 w-64 sm:w-80 max-w-full rounded-xl bg-surface-container-high" />
+          <div className="h-3.5 w-72 sm:w-96 max-w-full rounded bg-surface-container" />
+        </div>
+
+        {/* Centered Workspaces Container Skeleton */}
+        <div className="w-full flex flex-wrap items-stretch justify-center gap-3.5 sm:gap-5 max-w-5xl px-2">
+          {[1, 2].map((i) => (
+            <div
+              key={i}
+              className="bg-surface-container-lowest/90 rounded-2xl border border-surface-container-high/70 p-4 sm:p-5 flex flex-col justify-between w-full max-w-[320px] sm:w-[290px] lg:w-[310px] h-[175px] shadow-2xs"
+            >
+              <div>
+                <div className="flex items-center justify-between">
+                  <div className="w-9 h-9 rounded-xl bg-primary/10 border border-primary/20" />
+                  <div className="h-5 w-12 rounded-md bg-surface-container/70 border border-surface-container-high/60" />
+                </div>
+                <div className="h-5 w-36 rounded-md bg-surface-container-high mt-2.5 mb-2" />
+                <div className="flex items-center gap-1.5">
+                  <div className="h-5 w-24 rounded-md bg-surface-container/60 border border-surface-container-high/50" />
+                  <div className="h-5 w-24 rounded-md bg-surface-container/60 border border-surface-container-high/50" />
+                </div>
+              </div>
+              <div className="pt-2.5 border-t border-surface-container-high/40 flex items-center justify-between">
+                <div className="h-3 w-20 rounded bg-surface-container" />
+                <div className="h-3.5 w-14 rounded bg-primary/20" />
               </div>
             </div>
-            <div className="flex justify-between items-center pt-3 border-t border-surface-container-low">
-              <div className="h-3 w-28 bg-surface-container rounded" />
-              <div className="w-5 h-5 rounded-full bg-surface-container" />
-            </div>
+          ))}
+
+          {/* "+ Crear nuevo espacio" Card Skeleton */}
+          <div className="rounded-2xl border-2 border-dashed border-surface-container-high/80 bg-surface-container-lowest/50 p-4 sm:p-5 flex flex-col items-center justify-center text-center w-full max-w-[320px] sm:w-[290px] lg:w-[310px] h-[175px] shadow-2xs">
+            <div className="w-9 h-9 rounded-xl bg-surface-container mb-2" />
+            <div className="h-4 w-32 rounded bg-surface-container-high mb-1" />
+            <div className="h-3 w-44 rounded bg-surface-container" />
           </div>
-        ))}
-      </div>
+        </div>
+
+        {/* Info Tip Skeleton */}
+        <div className="mt-3.5 flex justify-center px-4 w-full">
+          <div className="h-6 w-80 max-w-full rounded-lg bg-surface-container-low/50 border border-surface-container-high/50" />
+        </div>
+      </main>
+
+      {/* ─── Footer Skeleton ─── */}
+      <footer className="w-full h-9 shrink-0 px-4 sm:px-6 border-t border-surface-container-high/40 bg-surface-container-lowest/80 flex items-center justify-between">
+        <div className="max-w-6xl mx-auto w-full flex items-center justify-between">
+          <div className="h-3 w-48 rounded bg-surface-container" />
+          <div className="h-3 w-36 rounded bg-surface-container hidden sm:block" />
+        </div>
+      </footer>
     </div>
   );
 }

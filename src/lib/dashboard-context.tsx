@@ -143,9 +143,11 @@ const DashboardContext = createContext<DashboardContextValue | null>(null);
 export function DashboardProvider({
   children,
   userEmail,
+  initialColorAcento = "verde",
 }: {
   children: ReactNode;
   userEmail: string;
+  initialColorAcento?: string;
 }) {
   const router = useRouter();
   const { espacioId } = useEspacio();
@@ -167,22 +169,25 @@ export function DashboardProvider({
   const [formError, setFormError] = useState<string | null>(null);
   const [isNavigating, setIsNavigating] = useState(false);
   const [preferencias, setPreferencias] = useState<Preferencias>({
-    colorAcento: "verde",
+    colorAcento: (["verde", "azul", "violeta", "naranja", "rosa"].includes(initialColorAcento)
+      ? initialColorAcento
+      : "verde") as Preferencias["colorAcento"],
     modoOscuro: false,
     tasaInteresPredeterminada: 3,
   });
 
   useEffect(() => {
-    const cachedAccent = getSessionAccent();
+    const cachedAccent = getSessionAccent() || initialColorAcento;
     const validAccents = ["verde", "azul", "violeta", "naranja", "rosa"];
     if (cachedAccent && validAccents.includes(cachedAccent) && cachedAccent !== "verde") {
       setPreferencias((prev) => ({
         ...prev,
         colorAcento: cachedAccent as Preferencias["colorAcento"],
       }));
+      setSessionAccent(cachedAccent);
       applyCustomAccent(cachedAccent);
     }
-  }, []);
+  }, [initialColorAcento]);
 
   const loadData = useCallback(async () => {
     if (!espacioId) return;

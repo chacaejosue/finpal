@@ -27,9 +27,9 @@ const INITIAL_BORROWERS: SimulatedBorrower[] = [
     loanTitle: "Préstamo personal",
     initialPrincipal: 1200,
     currentPrincipal: 1200,
-    rate: 5,
+    rate: 3,
     dueDay: 15,
-    totalInterestPaid: 60,
+    totalInterestPaid: 36,
   },
   {
     id: "b2",
@@ -37,9 +37,9 @@ const INITIAL_BORROWERS: SimulatedBorrower[] = [
     loanTitle: "Cuota de taller",
     initialPrincipal: 450,
     currentPrincipal: 450,
-    rate: 3,
+    rate: 2,
     dueDay: 10,
-    totalInterestPaid: 13.5,
+    totalInterestPaid: 9,
   },
 ];
 

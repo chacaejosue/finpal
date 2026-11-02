@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
+import { motion } from "framer-motion";
 import {
   X,
   Check,
@@ -110,11 +111,19 @@ export function ModalReciboCobro({
   };
 
   return (
-    <div
-      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150"
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.16 }}
+      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4"
       onClick={onClose}
     >
-      <div
+      <motion.div
+        initial={{ opacity: 0, scale: 0.94, y: 14 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.94, y: 14 }}
+        transition={{ type: "spring", damping: 25, stiffness: 350 }}
         className="bg-surface-container-lowest border border-surface-container-high/80 rounded-3xl max-w-md w-full p-5 sm:p-6 shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
@@ -240,8 +249,8 @@ export function ModalReciboCobro({
             Cerrar
           </button>
         </div>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 }
 
@@ -332,13 +341,34 @@ export function ModalSimuladorPrestamo({
     };
   }, [monto, tasa, plazo, frecuencia, modalidad]);
 
+  const pointerDownOnBackdrop = useRef(false);
+
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    pointerDownOnBackdrop.current = e.target === e.currentTarget;
+  };
+
+  const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!pointerDownOnBackdrop.current || e.target !== e.currentTarget) return;
+    pointerDownOnBackdrop.current = false;
+    onClose();
+  };
+
   return (
-    <div
-      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150"
-      onClick={onClose}
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.16 }}
+      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 select-none"
+      onPointerDown={handlePointerDown}
+      onClick={handleBackdropClick}
     >
-      <div
-        className="bg-surface-container-lowest border border-surface-container-high/80 rounded-3xl max-w-2xl w-full p-5 sm:p-6 shadow-2xl space-y-5 max-h-[92vh] flex flex-col"
+      <motion.div
+        initial={{ opacity: 0, scale: 0.94, y: 14 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.94, y: 14 }}
+        transition={{ type: "spring", damping: 25, stiffness: 350 }}
+        className="bg-surface-container-lowest border border-surface-container-high/80 rounded-3xl max-w-2xl w-full p-5 sm:p-6 shadow-2xl space-y-5 max-h-[92vh] flex flex-col select-text"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-3 pb-3 border-b border-surface-container-low">
@@ -379,7 +409,14 @@ export function ModalSimuladorPrestamo({
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-on-surface mb-1">Tasa mensual (%)</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-semibold text-on-surface">Tasa mensual (%)</label>
+                {tasa > 3 && (
+                  <span className="text-[10px] text-amber-600 dark:text-amber-400 font-bold">
+                    &gt; 3% (Tope Art. 409 Bolivia)
+                  </span>
+                )}
+              </div>
               <input
                 type="number"
                 min={0}
@@ -429,6 +466,15 @@ export function ModalSimuladorPrestamo({
               </select>
             </div>
           </div>
+
+          {tasa > 3 && (
+            <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/25 text-amber-800 dark:text-amber-300 text-[11px] leading-relaxed flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
+              <span>
+                <b>Aviso legal (Bolivia):</b> El Art. 409 del Código Civil fija como tope de interés convencional el <b>3% mensual</b>. FinPal es solo una calculadora contable; el ingreso de tasas mayores es bajo tu exclusiva responsabilidad.
+              </span>
+            </div>
+          )}
 
           {/* Tarjetas Resumen de la Simulación */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
@@ -523,8 +569,8 @@ export function ModalSimuladorPrestamo({
             <span>Crear préstamo con estos valores</span>
           </button>
         </div>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 }
 
@@ -649,15 +695,70 @@ export function ModalKardexPrestamo({
     onClose();
   };
 
+  const isDirtyEditar = nombre !== prestamo.nombre || cobraInteres !== prestamo.cobra_interes || tasa !== prestamo.tasa_interes_mensual || diaPago !== prestamo.dia_pago || notas !== (prestamo.notas ?? "");
+  const isDirtyAmpliar = montoAmpliacion !== "" || notasAmpliacion.trim().length > 0;
+  const isEditing = (tab === "editar" && isDirtyEditar) || (tab === "ampliar" && isDirtyAmpliar);
+
+  const [shake, setShake] = useState(false);
+  const [showProtectedNotice, setShowProtectedNotice] = useState(false);
+  const pointerDownOnBackdrop = useRef(false);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    pointerDownOnBackdrop.current = e.target === e.currentTarget;
+  };
+
+  const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!pointerDownOnBackdrop.current || e.target !== e.currentTarget) return;
+    pointerDownOnBackdrop.current = false;
+
+    if (isEditing) {
+      setShake(true);
+      setShowProtectedNotice(true);
+      setTimeout(() => setShake(false), 350);
+      setTimeout(() => setShowProtectedNotice(false), 2200);
+      return;
+    }
+
+    onClose();
+  };
+
   return (
-    <div
-      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150"
-      onClick={onClose}
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.16 }}
+      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 select-none"
+      onPointerDown={handlePointerDown}
+      onClick={handleBackdropClick}
     >
-      <div
-        className="bg-surface-container-lowest border border-surface-container-high/80 rounded-3xl max-w-2xl w-full p-5 sm:p-6 shadow-2xl space-y-4 max-h-[92vh] flex flex-col"
+      <motion.div
+        initial={{ opacity: 0, scale: 0.94, y: 14 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.94, y: 14 }}
+        transition={{ type: "spring", damping: 25, stiffness: 350 }}
+        className={`bg-surface-container-lowest border border-surface-container-high/80 rounded-3xl max-w-2xl w-full p-5 sm:p-6 shadow-2xl space-y-4 max-h-[92vh] flex flex-col relative select-text ${
+          shake ? "animate-modal-shake" : ""
+        }`}
         onClick={(e) => e.stopPropagation()}
       >
+        {/* Aviso flotante de protección de edición */}
+        {showProtectedNotice && (
+          <div className="absolute top-2.5 left-1/2 -translate-x-1/2 z-20 bg-surface-container-highest/95 backdrop-blur-md text-primary text-[11px] font-semibold px-3 py-1 rounded-full shadow-lg border border-primary/30 flex items-center gap-1.5 pointer-events-none whitespace-nowrap animate-fade-in">
+            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+            <span>Formulario en edición · Usa la ✕ para salir</span>
+          </div>
+        )}
         {/* Cabecera */}
         <div className="flex items-start justify-between gap-3 pb-3 border-b border-surface-container-low">
           <div className="flex items-center gap-3 min-w-0">
@@ -1048,8 +1149,8 @@ export function ModalKardexPrestamo({
             </div>
           )}
         </div>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 }
 
@@ -1176,15 +1277,69 @@ export function ModalFichaContacto({
     onClose();
   };
 
+  const isDirty = nombre !== contacto.nombre || telefono !== (contacto.telefono ?? "") || email !== (contacto.email ?? "") || notas !== (contacto.notas ?? "");
+  const isEditing = tab === "editar" && isDirty;
+
+  const [shake, setShake] = useState(false);
+  const [showProtectedNotice, setShowProtectedNotice] = useState(false);
+  const pointerDownOnBackdrop = useRef(false);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    pointerDownOnBackdrop.current = e.target === e.currentTarget;
+  };
+
+  const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!pointerDownOnBackdrop.current || e.target !== e.currentTarget) return;
+    pointerDownOnBackdrop.current = false;
+
+    if (isEditing) {
+      setShake(true);
+      setShowProtectedNotice(true);
+      setTimeout(() => setShake(false), 350);
+      setTimeout(() => setShowProtectedNotice(false), 2200);
+      return;
+    }
+
+    onClose();
+  };
+
   return (
-    <div
-      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150"
-      onClick={onClose}
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.16 }}
+      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 select-none"
+      onPointerDown={handlePointerDown}
+      onClick={handleBackdropClick}
     >
-      <div
-        className="bg-surface-container-lowest border border-surface-container-high/80 rounded-3xl max-w-xl w-full p-5 sm:p-6 shadow-2xl space-y-4 max-h-[92vh] flex flex-col"
+      <motion.div
+        initial={{ opacity: 0, scale: 0.94, y: 14 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.94, y: 14 }}
+        transition={{ type: "spring", damping: 25, stiffness: 350 }}
+        className={`bg-surface-container-lowest border border-surface-container-high/80 rounded-3xl max-w-xl w-full p-5 sm:p-6 shadow-2xl space-y-4 max-h-[92vh] flex flex-col relative select-text ${
+          shake ? "animate-modal-shake" : ""
+        }`}
         onClick={(e) => e.stopPropagation()}
       >
+        {/* Aviso flotante de protección de edición */}
+        {showProtectedNotice && (
+          <div className="absolute top-2.5 left-1/2 -translate-x-1/2 z-20 bg-surface-container-highest/95 backdrop-blur-md text-primary text-[11px] font-semibold px-3 py-1 rounded-full shadow-lg border border-primary/30 flex items-center gap-1.5 pointer-events-none whitespace-nowrap animate-fade-in">
+            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+            <span>Formulario en edición · Usa la ✕ para salir</span>
+          </div>
+        )}
         <div className="flex items-start justify-between gap-3 pb-3 border-b border-surface-container-low">
           <div className="flex items-center gap-3 min-w-0">
             <ContactAvatar name={contacto.nombre} size={44} className="rounded-full shadow-xs shrink-0" />
@@ -1420,7 +1575,7 @@ export function ModalFichaContacto({
             </div>
           )}
         </div>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 }
