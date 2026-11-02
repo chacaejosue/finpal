@@ -164,7 +164,7 @@ export function WidgetTablaAuditoria({ prestamos, contactos }: WidgetTablaAudito
           No se encontraron registros coincidentes con los filtros actuales.
         </div>
       ) : viewMode === "cards" ? (
-        /* VISTA 1: Tarjetas Analíticas Responsive */
+        /* VISTA 1: Tarjetas Analíticas Tech-Minimalistas */
         <div className="p-4 space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
             {tableRecords.map((r, i) => {
@@ -176,74 +176,77 @@ export function WidgetTablaAuditoria({ prestamos, contactos }: WidgetTablaAudito
                   key={r.id}
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
+                  whileHover={{ y: -2, transition: { duration: 0.16 } }}
                   transition={{ duration: 0.2, delay: Math.min(i * 0.02, 0.2) }}
-                  className="p-4 rounded-2xl bg-surface-container-low/40 hover:bg-surface-container-low/80 border border-surface-container-high/60 transition-all flex flex-col justify-between space-y-3"
+                  className="bg-surface-container-lowest border border-surface-container-high/80 hover:border-primary/40 rounded-2xl p-4 sm:p-5 shadow-2xs hover:shadow-xs transition-all flex flex-col justify-between gap-3 group"
                 >
                   <div>
                     {/* Header: Contacto y Estado */}
-                    <div className="flex items-start justify-between gap-2 mb-2">
+                    <div className="flex items-start justify-between gap-2.5 mb-2.5">
                       <div className="flex items-center gap-2.5 min-w-0">
                         <ContactAvatar
                           name={r.contactoNombre}
-                          size={34}
+                          size={36}
                           className="rounded-full shadow-2xs shrink-0"
                         />
                         <div className="min-w-0">
-                          <h4 className="font-bold text-xs sm:text-sm text-on-surface truncate leading-tight">
+                          <h4 className="font-bold text-sm text-on-surface truncate leading-tight group-hover:text-primary transition-colors">
                             {r.contactoNombre}
                           </h4>
-                          <p className="text-[11px] text-on-surface-variant truncate">{r.nombre}</p>
+                          <p className="text-xs text-on-surface-variant truncate">{r.nombre}</p>
                         </div>
                       </div>
 
                       <span
-                        className={`px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0 ${
-                          isPaid ? "badge-saldado" : isLate ? "badge-atrasado" : "badge-al-dia"
+                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold shrink-0 border ${
+                          isPaid
+                            ? "bg-teal-500/10 text-teal-600 dark:text-teal-400 border-teal-500/20"
+                            : isLate
+                            ? "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20"
+                            : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
                         }`}
                       >
-                        {isPaid ? "Saldado" : isLate ? "Atrasado" : "Al día"}
+                        <span
+                          className={`w-1.5 h-1.5 rounded-full ${
+                            isPaid
+                              ? "bg-teal-500"
+                              : isLate
+                              ? "bg-rose-500 shadow-[0_0_6px_rgba(244,63,94,0.5)]"
+                              : "bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.5)]"
+                          }`}
+                        />
+                        <span>{isPaid ? "Saldado" : isLate ? "Atrasado" : "Al día"}</span>
                       </span>
                     </div>
 
-                    {/* Barra de progreso de amortización */}
-                    <div className="space-y-1 mb-2.5">
-                      <div className="flex items-center justify-between text-[11px]">
-                        <span className="text-on-surface-variant">Devolución de capital</span>
-                        <span className="font-mono font-bold text-on-surface">{r.pct}%</span>
+                    {/* Saldo y Barra de amortización */}
+                    <div className="space-y-1.5 py-1">
+                      <div className="flex items-baseline justify-between gap-2">
+                        <span className="text-[10px] text-on-surface-variant font-semibold uppercase tracking-wider">
+                          Saldo Pendiente
+                        </span>
+                        <span className="font-mono text-lg font-extrabold text-primary">
+                          {money(r.saldo)}
+                        </span>
                       </div>
-                      <div className="w-full h-1.5 rounded-full bg-surface-container overflow-hidden">
+
+                      <div className="h-1.5 w-full bg-surface-container-high/60 rounded-full overflow-hidden flex">
                         <div
-                          className={`h-full rounded-full transition-all duration-500 ${
-                            isPaid ? "bg-teal-500" : isLate ? "bg-amber-500" : "bg-primary"
-                          }`}
+                          className="h-full bg-primary rounded-full transition-all duration-300"
                           style={{ width: `${r.pct}%` }}
                         />
                       </div>
-                    </div>
 
-                    {/* Desglose de importes */}
-                    <div className="grid grid-cols-2 gap-2 p-2 rounded-xl bg-surface-container-lowest border border-surface-container-high/40 text-[11px]">
-                      <div>
-                        <span className="text-[9px] uppercase font-semibold text-on-surface-variant block">
-                          Saldo por cobrar
-                        </span>
-                        <span className="font-mono font-extrabold text-xs text-on-surface block">
-                          {money(r.saldo)}
-                        </span>
-                        <span className="text-[9px] text-on-surface-variant/80 block">
-                          de {money(r.principal)}
-                        </span>
-                      </div>
-                      <div className="text-right">
-                        <span className="text-[9px] uppercase font-semibold text-on-surface-variant block">
-                          Tasa / Mes
-                        </span>
-                        <span className="font-semibold text-xs text-primary block">
-                          {r.cobraInteres ? `+${r.tasa}% mensual` : "Sin interés"}
-                        </span>
-                        <span className="text-[9px] text-on-surface-variant/80 block">
-                          Inicio: {formatDateEs(r.fechaInicio)}
-                        </span>
+                      {/* Micropíldoras Tech */}
+                      <div className="flex flex-wrap items-center gap-1.5 pt-1.5">
+                        <span className="tech-pill font-mono">{r.pct}% amortizado</span>
+                        <span className="tech-pill font-mono">Orig: {money(r.principal)}</span>
+                        {r.cobraInteres ? (
+                          <span className="tech-pill font-mono">{r.tasa}% mensual</span>
+                        ) : (
+                          <span className="tech-pill">Sin interés</span>
+                        )}
+                        <span className="tech-pill font-mono">Inicio: {formatDateEs(r.fechaInicio)}</span>
                       </div>
                     </div>
                   </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useRef, useCallback } from "react";
+import { useState, useMemo, useRef, useCallback, useEffect } from "react";
 import * as XLSX from "xlsx";
 import {
   Upload,
@@ -367,6 +367,9 @@ export function ImportModal({
   const [resultado, setResultado] = useState<ImportResult | null>(null);
   const [errorGlobal, setErrorGlobal] = useState<string | null>(null);
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
+  const [shake, setShake] = useState(false);
+  const [showProtectedNotice, setShowProtectedNotice] = useState(false);
+  const pointerDownOnBackdrop = useRef(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -375,6 +378,40 @@ export function ImportModal({
       setShowDiscardConfirm(true);
       return;
     }
+    onClose();
+  };
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        handleSafeClose();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, fileRows.length, resultado]);
+
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    pointerDownOnBackdrop.current = e.target === e.currentTarget;
+  };
+
+  const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!pointerDownOnBackdrop.current || e.target !== e.currentTarget) {
+      return;
+    }
+    pointerDownOnBackdrop.current = false;
+
+    // Si hay un archivo cargado o importación en progreso:
+    // NO disparar el diálogo de confirmación de descarte y NO cerrar el modal.
+    if (fileRows.length > 0 && !resultado) {
+      setShake(true);
+      setShowProtectedNotice(true);
+      setTimeout(() => setShake(false), 350);
+      setTimeout(() => setShowProtectedNotice(false), 2200);
+      return;
+    }
+
     onClose();
   };
 
@@ -775,13 +812,24 @@ export function ImportModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-black/60 backdrop-blur-sm animate-fade-in"
-      onClick={handleSafeClose}
+      className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-black/60 backdrop-blur-sm animate-fade-in select-none"
+      onPointerDown={handlePointerDown}
+      onClick={handleBackdropClick}
     >
       <div
-        className="bg-surface border border-outline-variant/30 rounded-2xl max-w-3xl w-full p-4 sm:p-6 shadow-2xl space-y-4 sm:space-y-5 max-h-[94vh] flex flex-col"
+        className={`bg-surface border border-outline-variant/30 rounded-2xl max-w-3xl w-full p-4 sm:p-6 shadow-2xl space-y-4 sm:space-y-5 max-h-[94vh] flex flex-col relative select-text ${
+          shake ? "animate-modal-shake" : ""
+        }`}
         onClick={(e) => e.stopPropagation()}
       >
+        {/* Aviso flotante al hacer clic fuera mientras se importa */}
+        {showProtectedNotice && (
+          <div className="absolute top-2.5 left-1/2 -translate-x-1/2 z-20 bg-surface-container-highest/95 backdrop-blur-md text-primary text-[11px] font-semibold px-3 py-1 rounded-full shadow-lg border border-primary/30 flex items-center gap-1.5 pointer-events-none whitespace-nowrap animate-fade-in">
+            <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+            <span>Importación en curso · Usa la ✕ o Cancelar para salir</span>
+          </div>
+        )}
+
         {/* Encabezado */}
         <div className="flex items-center justify-between border-b border-outline-variant/20 pb-3 sm:pb-4">
           <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
