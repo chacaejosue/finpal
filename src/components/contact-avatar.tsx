@@ -59,29 +59,24 @@ const GRADIENT_COORDS = [
 ];
 
 function cleanPrefix(name: string): string {
-  // Limpia tratamientos comunes para que "Doña María" y "Doña Ylsen" no compartan la D
-  return name.replace(/^(doña|dona|don|sr\.|sra\.|tía|tia|tío|tio)\s+/i, "").trim();
+  // Limpia tratamientos y honoríficos comunes para que "Doña María" y "Doña Ylsen" no compartan inicial
+  return name.replace(/^(doña|dona|don|sr\.|sra\.|tía|tia|tío|tio|hno\.|hna\.)\s+/i, "").trim();
 }
 
 function getAvatarColorIndex(name: string, totalColors: number): number {
-  const core = cleanPrefix(name || "FinPal");
-  const coreLower = core.toLowerCase();
-  const rawLower = (name || "FinPal").toLowerCase();
-
-  // Código de la primera y segunda letra del nombre real
-  const firstCode = coreLower.charCodeAt(0) || 65;
-  const secondCode = coreLower.charCodeAt(1) || 66;
-
-  // Hash polinomial de la cadena completa
-  let sum = 0;
-  for (let i = 0; i < rawLower.length; i++) {
-    sum = ((sum << 5) - sum + rawLower.charCodeAt(i)) & 0xffffffff;
+  const core = cleanPrefix(name || "FinPal").toLowerCase();
+  // Hash FNV-1a de 32 bits con cascada de avalancha (dispersión ultra amplia sin colisiones en nombres cortos)
+  let h = 2166136261;
+  for (let i = 0; i < core.length; i++) {
+    h ^= core.charCodeAt(i);
+    h = Math.imul(h, 16777619);
   }
-
-  // Multiplicador primo de dispersión (stride 7) para separar letras cercanas en el abecedario
-  const stride = 7;
-  const combined = ((firstCode - 97) * stride + secondCode + sum + rawLower.length * 3) >>> 0;
-  return combined % totalColors;
+  h ^= h >>> 16;
+  h = Math.imul(h, 0x85ebca6b);
+  h ^= h >>> 13;
+  h = Math.imul(h, 0xc2b2ae35);
+  h ^= h >>> 16;
+  return (h >>> 0) % totalColors;
 }
 
 interface ContactAvatarProps {

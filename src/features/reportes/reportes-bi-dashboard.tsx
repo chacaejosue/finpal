@@ -42,6 +42,7 @@ import { WidgetTopDeudores } from "./widgets/widget-top-deudores";
 import { WidgetLiquidezCuentas } from "./widgets/widget-liquidez-cuentas";
 import { WidgetSmartInsights } from "./widgets/widget-smart-insights";
 import { WidgetTablaAuditoria } from "./widgets/widget-tabla-auditoria";
+import { BudgetRuleWidget } from "@/components/budget-rule-widget";
 
 export type { ReportWidgetKey, ReportWidgetItem, ReportesBiProps };
 
@@ -303,6 +304,12 @@ export function ReportesBiDashboard({
             metrics={metrics}
             topDebtors={topDebtors}
             colSpan={colSpan}
+          />
+        );
+      case "regla_presupuesto":
+        return (
+          <BudgetRuleWidget
+            movimientos={movimientos}
           />
         );
       case "tabla_auditoria":
