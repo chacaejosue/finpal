@@ -61,6 +61,7 @@ import {
 } from "@/lib/dashboard-context";
 import { fixSpanishEncoding } from "@/lib/clean-text";
 import { ContactAvatar } from "@/components/contact-avatar";
+import { BudgetRuleWidget } from "@/components/budget-rule-widget";
 import { useEspacio } from "@/lib/espacio-context";
 import { actualizarEstadoPrestamo } from "@/app/(dashboard)/prestamos/actions";
 import { formatDateEs, formatMonthYear } from "@/lib/format-date";
@@ -535,7 +536,7 @@ export function ModalDetalleNota({
 
 // ─── Modal de Personalización del Dashboard ──────────────────────────────────
 
-type WidgetKey = "kpis" | "prestamos" | "movimientos" | "cuentas";
+type WidgetKey = "kpis" | "prestamos" | "movimientos" | "cuentas" | "regla_presupuesto";
 
 interface WidgetItem {
   id: WidgetKey;
@@ -546,6 +547,7 @@ interface WidgetItem {
 
 const DEFAULT_WIDGETS: WidgetItem[] = [
   { id: "kpis", label: "Métricas generales (KPIs)", description: "Total en cuentas, Por cobrar, Saldado e Intereses", visible: true },
+  { id: "regla_presupuesto", label: "Regla de finanzas (50/30/20 ó 60/20/20)", description: "Distribución de ingresos en necesidades, deseos y ahorro", visible: true },
   { id: "prestamos", label: "Deudores y préstamos recientes", description: "Tabla y tarjetas con estado de abonos y vencimientos", visible: true },
   { id: "movimientos", label: "Movimientos recientes", description: "Últimas transacciones registradas en el espacio", visible: true },
   { id: "cuentas", label: "Resumen de cuentas de dinero", description: "Visualización rápida de tus cuentas y fondos", visible: false },
@@ -729,7 +731,14 @@ function DashboardView({
   const [widgets, setWidgets] = useState<WidgetItem[]>(() => {
     try {
       const saved = localStorage.getItem("finpal_dashboard_widgets_v1");
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed: WidgetItem[] = JSON.parse(saved);
+        const missing = DEFAULT_WIDGETS.filter((dw) => !parsed.some((pw) => pw.id === dw.id));
+        if (missing.length > 0) {
+          return [...parsed, ...missing];
+        }
+        return parsed;
+      }
     } catch {}
     return DEFAULT_WIDGETS;
   });
@@ -891,6 +900,15 @@ function DashboardView({
             );
           }
 
+          if (w.id === "regla_presupuesto") {
+            return (
+              <BudgetRuleWidget
+                key={w.id}
+                movimientos={movimientos}
+              />
+            );
+          }
+
           if (w.id === "prestamos") {
             return (
               <div key={w.id} className="bg-surface-container-lowest border border-surface-container-high/70 rounded-2xl p-4 sm:p-6 shadow-2xs space-y-4">
@@ -1009,7 +1027,7 @@ function DashboardView({
                                   {money(balance > 0 ? balance : principal)}
                                 </span>
                               </div>
-                              <div className="flex flex-wrap items-center gap-1">
+                              <div className="flex flex-wrap items-center gap-1.5">
                                 <span className="tech-pill font-mono">Orig: {money(principal)}</span>
                                 {p.cobra_interes ? (
                                   <span className="tech-pill font-mono">+{p.tasa_interes_mensual}%</span>
@@ -1018,9 +1036,9 @@ function DashboardView({
                                 )}
                                 <span className={`tech-pill ${
                                   p.vence_hoy
-                                    ? "border-amber-500/50 text-amber-600 dark:text-amber-400 font-semibold"
+                                    ? "border-amber-500/50 text-amber-600 dark:text-amber-400 font-semibold bg-amber-500/10"
                                     : isLate
-                                    ? "border-rose-500/50 text-rose-600 dark:text-rose-400 font-semibold"
+                                    ? "border-rose-500/50 text-rose-600 dark:text-rose-400 font-semibold bg-rose-500/10"
                                     : ""
                                 }`}>
                                   {p.vence_hoy
@@ -2002,9 +2020,9 @@ function PrestamosView({
                     )}
                     <span className={`tech-pill ${
                       l.vence_hoy
-                        ? "border-amber-500/50 text-amber-600 dark:text-amber-400 font-semibold"
+                        ? "border-amber-500/50 text-amber-600 dark:text-amber-400 font-semibold bg-amber-500/10"
                         : l.meses_atrasados > 0
-                        ? "border-rose-500/50 text-rose-600 dark:text-rose-400 font-semibold"
+                        ? "border-rose-500/50 text-rose-600 dark:text-rose-400 font-semibold bg-rose-500/10"
                         : ""
                     }`}>
                       {l.vence_hoy

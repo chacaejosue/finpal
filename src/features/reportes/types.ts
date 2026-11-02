@@ -41,7 +41,8 @@ export type ReportWidgetKey =
   | "top_deudores"
   | "liquidez_cuentas"
   | "smart_insights"
-  | "tabla_auditoria";
+  | "tabla_auditoria"
+  | "regla_presupuesto";
 
 export interface ReportWidgetItem {
   id: ReportWidgetKey;
@@ -124,5 +125,13 @@ export const REPORT_WIDGETS_CATALOG: ReportWidgetItem[] = [
     description: "Explorador completo de préstamos, tasa, progreso devuelto, estados y exportación a Excel.",
     colSpan: 12,
     visible: false,
+  },
+  {
+    id: "regla_presupuesto",
+    label: "Regla de Presupuesto (50/30/20 ó 60/20/20)",
+    category: "insights",
+    description: "Distribución analítica mensual de ingresos en necesidades, deseos y ahorro.",
+    colSpan: 12,
+    visible: true,
   },
 ];
