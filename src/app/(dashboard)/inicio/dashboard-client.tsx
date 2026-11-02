@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { motion } from "motion/react";
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { motion, AnimatePresence } from "motion/react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import {
   ArrowRight,
   BadgeCheck,
@@ -41,6 +41,11 @@ import {
   Archive,
   RotateCcw,
   UsersRound,
+  Landmark,
+  QrCode,
+  PiggyBank,
+  CreditCard,
+  Wallet,
 } from "lucide-react";
 import {
   useDashboard,
@@ -276,84 +281,94 @@ export default function DashboardClient({
         )}
       </motion.div>
 
-      {notaModal && (
-        <ModalDetalleNota
-          titulo={notaModal.titulo}
-          subtitulo={notaModal.subtitulo}
-          texto={notaModal.texto}
-          onClose={() => setNotaModal(null)}
-        />
-      )}
+      <AnimatePresence>
+        {notaModal && (
+          <ModalDetalleNota
+            titulo={notaModal.titulo}
+            subtitulo={notaModal.subtitulo}
+            texto={notaModal.texto}
+            onClose={() => setNotaModal(null)}
+          />
+        )}
+      </AnimatePresence>
 
-      {reciboPago && (
-        <ModalReciboCobro
-          pago={reciboPago}
-          prestamo={
-            prestamos.find((pr) => pr.id === reciboPago.prestamo_id) ??
-            prestamos.find((pr) => pr.nombre === rel(reciboPago.prestamos)?.nombre) ??
-            null
-          }
-          espacioNombre={espacioNombre}
-          onClose={() => setReciboPago(null)}
-        />
-      )}
+      <AnimatePresence>
+        {reciboPago && (
+          <ModalReciboCobro
+            pago={reciboPago}
+            prestamo={
+              prestamos.find((pr) => pr.id === reciboPago.prestamo_id) ??
+              prestamos.find((pr) => pr.nombre === rel(reciboPago.prestamos)?.nombre) ??
+              null
+            }
+            espacioNombre={espacioNombre}
+            onClose={() => setReciboPago(null)}
+          />
+        )}
+      </AnimatePresence>
 
-      {simuladorOpen && (
-        <ModalSimuladorPrestamo
-          tasaPredeterminada={preferencias.tasaInteresPredeterminada}
-          onClose={() => setSimuladorOpen(false)}
-          onUsarEnPrestamo={(preset) => {
-            setSimuladorOpen(false);
-            openModal("loan", preset);
-          }}
-        />
-      )}
+      <AnimatePresence>
+        {simuladorOpen && (
+          <ModalSimuladorPrestamo
+            tasaPredeterminada={preferencias.tasaInteresPredeterminada}
+            onClose={() => setSimuladorOpen(false)}
+            onUsarEnPrestamo={(preset) => {
+              setSimuladorOpen(false);
+              openModal("loan", preset);
+            }}
+          />
+        )}
+      </AnimatePresence>
 
-      {activeKardexPrestamo && (
-        <ModalKardexPrestamo
-          prestamo={activeKardexPrestamo}
-          pagos={pagos}
-          cuentas={cuentas}
-          espacioId={espacioId ?? ""}
-          onClose={() => setKardexPrestamoId(null)}
-          onCobrar={(loanId) => {
-            setKardexPrestamoId(null);
-            openModal("payment", { loanId });
-          }}
-          onVerRecibo={(pago) => setReciboPago(pago)}
-          onSuccess={async (msg) => {
-            setSuccessNotice(msg);
-            await loadData();
-          }}
-        />
-      )}
+      <AnimatePresence>
+        {activeKardexPrestamo && (
+          <ModalKardexPrestamo
+            prestamo={activeKardexPrestamo}
+            pagos={pagos}
+            cuentas={cuentas}
+            espacioId={espacioId ?? ""}
+            onClose={() => setKardexPrestamoId(null)}
+            onCobrar={(loanId) => {
+              setKardexPrestamoId(null);
+              openModal("payment", { loanId });
+            }}
+            onVerRecibo={(pago) => setReciboPago(pago)}
+            onSuccess={async (msg) => {
+              setSuccessNotice(msg);
+              await loadData();
+            }}
+          />
+        )}
+      </AnimatePresence>
 
-      {fichaContacto && (
-        <ModalFichaContacto
-          contacto={contactos.find((c) => c.id === fichaContacto.contacto.id) ?? fichaContacto.contacto}
-          prestamos={prestamos}
-          pagos={pagos}
-          espacioId={espacioId ?? ""}
-          initialTab={fichaContacto.tab}
-          onClose={() => setFichaContacto(null)}
-          onNuevoPrestamo={(contactId) => {
-            setFichaContacto(null);
-            openModal("loan", { contactId });
-          }}
-          onCobrarPrestamo={(loanId) => {
-            setFichaContacto(null);
-            openModal("payment", { loanId });
-          }}
-          onAbrirPrestamo={(loan) => {
-            setFichaContacto(null);
-            setKardexPrestamoId(loan.id);
-          }}
-          onSuccess={async (msg) => {
-            setSuccessNotice(msg);
-            await loadData();
-          }}
-        />
-      )}
+      <AnimatePresence>
+        {fichaContacto && (
+          <ModalFichaContacto
+            contacto={contactos.find((c) => c.id === fichaContacto.contacto.id) ?? fichaContacto.contacto}
+            prestamos={prestamos}
+            pagos={pagos}
+            espacioId={espacioId ?? ""}
+            initialTab={fichaContacto.tab}
+            onClose={() => setFichaContacto(null)}
+            onNuevoPrestamo={(contactId) => {
+              setFichaContacto(null);
+              openModal("loan", { contactId });
+            }}
+            onCobrarPrestamo={(loanId) => {
+              setFichaContacto(null);
+              openModal("payment", { loanId });
+            }}
+            onAbrirPrestamo={(loan) => {
+              setFichaContacto(null);
+              setKardexPrestamoId(loan.id);
+            }}
+            onSuccess={async (msg) => {
+              setSuccessNotice(msg);
+              await loadData();
+            }}
+          />
+        )}
+      </AnimatePresence>
     </>
   );
 }
@@ -444,11 +459,19 @@ export function ModalDetalleNota({
   };
 
   return (
-    <div
-      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150"
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.16 }}
+      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4"
       onClick={onClose}
     >
-      <div
+      <motion.div
+        initial={{ opacity: 0, scale: 0.94, y: 10 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.94, y: 10 }}
+        transition={{ type: "spring", stiffness: 380, damping: 28 }}
         className="bg-surface-container-lowest border border-surface-container-high/80 rounded-2xl max-w-lg w-full p-5 sm:p-6 shadow-2xl space-y-4 max-h-[85vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
@@ -505,8 +528,8 @@ export function ModalDetalleNota({
             Cerrar
           </button>
         </div>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 }
 
@@ -560,11 +583,19 @@ function ModalPersonalizarDashboard({
   };
 
   return (
-    <div
-      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150"
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.16 }}
+      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4"
       onClick={onClose}
     >
-      <div
+      <motion.div
+        initial={{ opacity: 0, scale: 0.94, y: 10 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.94, y: 10 }}
+        transition={{ type: "spring", stiffness: 380, damping: 28 }}
         className="bg-surface-container-lowest border border-surface-container-high/80 rounded-2xl max-w-md w-full p-5 sm:p-6 shadow-2xl space-y-4 max-h-[90vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
@@ -669,8 +700,8 @@ function ModalPersonalizarDashboard({
             Guardar cambios
           </button>
         </div>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 }
 
@@ -955,65 +986,70 @@ function DashboardView({
                             </div>
 
                             {/* Barra visual de amortización */}
-                            <div className="space-y-1 mb-3">
+                            <div className="space-y-1 mb-2">
                               <div className="flex items-center justify-between text-[11px]">
-                                <span className="text-on-surface-variant">Amortizado</span>
+                                <span className="text-on-surface-variant font-medium">Amortizado</span>
                                 <span className="font-mono font-semibold text-on-surface">{pctAmortizado}%</span>
                               </div>
                               <div className="w-full h-1.5 rounded-full bg-surface-container overflow-hidden">
                                 <div
                                   className={`h-full rounded-full transition-all duration-500 ${
-                                    isPaid ? "bg-teal-500" : isLate ? "bg-amber-500" : "bg-primary"
+                                    isPaid ? "bg-teal-500" : isLate ? "bg-rose-500" : "bg-primary"
                                   }`}
                                   style={{ width: `${pctAmortizado}%` }}
                                 />
                               </div>
                             </div>
 
-                            {/* Cifras clave */}
-                            <div className="grid grid-cols-2 gap-2 p-2.5 rounded-xl bg-surface-container-lowest border border-surface-container-high/50 text-xs mb-3">
-                              <div>
-                                <span className="text-[10px] uppercase font-semibold text-on-surface-variant block">Saldo por cobrar</span>
-                                <span className="font-mono font-extrabold text-sm text-on-surface block">
+                            {/* Cifras clave y micro-píldoras */}
+                            <div className="space-y-2 mb-3">
+                              <div className="flex items-baseline justify-between">
+                                <span className="text-[10px] uppercase font-semibold text-on-surface-variant">Saldo por cobrar</span>
+                                <span className="font-mono font-extrabold text-base text-primary">
                                   {money(balance > 0 ? balance : principal)}
                                 </span>
-                                <span className="text-[10px] text-on-surface-variant/75 block">
-                                  de {money(principal)}
-                                </span>
                               </div>
-                              <div className="text-right">
-                                <span className="text-[10px] uppercase font-semibold text-on-surface-variant block">Próximo cobro</span>
-                                <span className={`font-semibold text-xs block ${
-                                  isLate ? "text-error font-bold" : p.vence_hoy ? "text-primary font-bold" : "text-on-surface"
+                              <div className="flex flex-wrap items-center gap-1">
+                                <span className="tech-pill font-mono">Orig: {money(principal)}</span>
+                                {p.cobra_interes ? (
+                                  <span className="tech-pill font-mono">+{p.tasa_interes_mensual}%</span>
+                                ) : (
+                                  <span className="tech-pill">Sin int.</span>
+                                )}
+                                <span className={`tech-pill ${
+                                  p.vence_hoy
+                                    ? "border-amber-500/50 text-amber-600 dark:text-amber-400 font-semibold"
+                                    : isLate
+                                    ? "border-rose-500/50 text-rose-600 dark:text-rose-400 font-semibold"
+                                    : ""
                                 }`}>
                                   {p.vence_hoy
-                                    ? "Hoy (Cobro)"
+                                    ? "¡Vence hoy!"
+                                    : isLate
+                                    ? "Con atraso"
                                     : p.fecha_proximo_pago
-                                    ? formatDateEs(p.fecha_proximo_pago)
+                                    ? `Vence: ${formatDateEs(p.fecha_proximo_pago)}`
                                     : `Día ${p.dia_pago}`}
-                                </span>
-                                <span className="text-[10px] text-primary font-medium block truncate">
-                                  {p.cobra_interes ? `+${p.tasa_interes_mensual}% (${money(monthlyInt)})` : "Sin interés"}
                                 </span>
                               </div>
                             </div>
                           </div>
 
                           {/* Botones de acción */}
-                          <div className="pt-2 border-t border-surface-container-high/40 flex items-center justify-between gap-2">
+                          <div className="pt-2 border-t border-surface-container-high/40 flex items-center justify-between gap-2 text-xs">
                             <button
                               type="button"
                               onClick={() => onOpenKardex(p.id)}
-                              className="flex-1 px-3 py-1.5 rounded-xl bg-surface-container hover:bg-surface-container-high text-on-surface text-xs font-semibold inline-flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
+                              className="text-on-surface-variant hover:text-primary font-semibold inline-flex items-center gap-1 cursor-pointer transition-colors"
                             >
-                              <FolderOpen className="w-3.5 h-3.5 text-primary" />
                               <span>Expediente</span>
+                              <ArrowUpRight className="w-3.5 h-3.5" />
                             </button>
                             {!isPaid && (
                               <button
                                 type="button"
                                 onClick={() => openModal("payment", { loanId: p.id })}
-                                className="flex-1 px-3 py-1.5 rounded-xl bg-primary hover:bg-primary-container text-on-primary text-xs font-bold inline-flex items-center justify-center gap-1.5 cursor-pointer transition-colors shadow-2xs"
+                                className="px-3 py-1.5 rounded-lg bg-primary hover:bg-primary-container text-on-primary text-xs font-bold inline-flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
                               >
                                 <ReceiptText className="w-3.5 h-3.5" />
                                 <span>Cobrar</span>
@@ -1351,7 +1387,7 @@ function ContactosView({
           </p>
         </div>
       ) : viewMode === "grid" ? (
-        /* VISTA 1: Cuadrícula de Tarjetas de Contacto & Confianza */
+        /* VISTA 1: Cuadrícula de Tarjetas Tech Minimalistas */
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {contactosFiltrados.map((c, i) => {
             const allLoans = prestamos.filter((l) => rel(l.contactos)?.id === c.id);
@@ -1363,20 +1399,21 @@ function ContactosView({
             return (
               <motion.div
                 key={c.id}
-                initial={{ opacity: 0, y: 12 }}
+                initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.24, delay: Math.min(i * 0.03, 0.25) }}
-                className="bg-surface-container-lowest border border-surface-container-high/70 rounded-2xl p-4 sm:p-5 shadow-2xs hover:shadow-xs transition-all flex flex-col justify-between gap-4 group"
+                whileHover={{ y: -2, transition: { duration: 0.16 } }}
+                transition={{ duration: 0.22, delay: Math.min(i * 0.03, 0.25) }}
+                className="bg-surface-container-lowest border border-surface-container-high/80 rounded-2xl p-4 sm:p-5 shadow-2xs hover:shadow-xs transition-all flex flex-col justify-between gap-3.5 group"
               >
                 {/* Cabecera del Contacto */}
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <ContactAvatar name={c.nombre} size={44} className="rounded-full shadow-xs shrink-0" />
+                <div className="flex items-start justify-between gap-2.5">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <ContactAvatar name={c.nombre} size={40} className="rounded-full shadow-2xs shrink-0" />
                     <div className="min-w-0">
                       <button
                         type="button"
                         onClick={() => onOpenFicha(c, "ficha")}
-                        className="font-bold text-sm sm:text-base text-on-surface hover:text-primary truncate block transition-colors text-left cursor-pointer"
+                        className="font-bold text-sm text-on-surface hover:text-primary truncate block transition-colors text-left cursor-pointer"
                         title="Ver ficha 360°"
                       >
                         {c.nombre}
@@ -1384,112 +1421,119 @@ function ContactosView({
                       {c.telefono ? (
                         <a
                           href={`tel:${c.telefono}`}
-                          className="text-xs text-primary font-medium hover:underline block truncate"
+                          className="text-[11px] text-on-surface-variant hover:text-primary transition-colors block truncate font-mono"
                           title="Llamar contacto"
                         >
                           {c.telefono}
                         </a>
                       ) : (
-                        <span className="text-xs text-on-surface-variant/70 italic block">Sin teléfono</span>
-                      )}
-                      {c.email && (
-                        <span className="text-[11px] text-on-surface-variant block truncate">
-                          {c.email}
-                        </span>
+                        <span className="text-[11px] text-on-surface-variant/60 italic block">Sin teléfono</span>
                       )}
                     </div>
                   </div>
 
-                  {/* Estado / Reputación */}
+                  {/* Estado / Reputación con punto estilo Safari */}
                   <div className="shrink-0">
                     {activeLoans.length > 0 ? (
                       isLate ? (
-                        <span className="px-2.5 py-1 rounded-full text-[11px] font-bold badge-atrasado inline-flex items-center">
-                          Con atraso
+                        <span className="badge-atrasado px-2 py-0.5 rounded-md text-[11px] font-semibold inline-flex items-center gap-1.5">
+                          <span className="safari-dot-red" />
+                          Atrasado
                         </span>
                       ) : (
-                        <span className="px-2.5 py-1 rounded-full text-[11px] font-bold badge-al-dia inline-flex items-center">
+                        <span className="badge-al-dia px-2 py-0.5 rounded-md text-[11px] font-semibold inline-flex items-center gap-1.5">
+                          <span className="safari-dot-green" />
                           Al día
                         </span>
                       )
                     ) : (
-                      <span className="px-2.5 py-1 rounded-full text-[11px] font-bold badge-saldado inline-flex items-center">
+                      <span className="badge-saldado px-2 py-0.5 rounded-md text-[11px] font-semibold inline-flex items-center gap-1.5">
+                        <span className="safari-dot-blue" />
                         Sin deuda
                       </span>
                     )}
                   </div>
                 </div>
 
-                {/* Resumen de Préstamos y Deuda Activa */}
-                <div className="space-y-1.5 p-3 rounded-xl bg-surface-container-low/60 border border-surface-container-high/40">
+                {/* Resumen Deuda Activa */}
+                <div className="space-y-1.5 py-1">
                   <div className="flex items-baseline justify-between">
                     <span className="text-[10px] text-on-surface-variant font-semibold uppercase tracking-wider">
                       Deuda Activa
                     </span>
-                    <span className="font-mono text-lg font-extrabold text-primary">
+                    <span className={`font-mono text-lg font-extrabold ${balance > 0 ? "text-primary" : "text-on-surface-variant/60"}`}>
                       {money(balance)}
                     </span>
                   </div>
-                  <div className="flex items-center justify-between text-xs text-on-surface-variant pt-1 border-t border-surface-container-high/40">
-                    <span>{allLoans.length} préstamo{allLoans.length === 1 ? "" : "s"} registrados</span>
-                    <span className="font-medium text-emerald-600 dark:text-emerald-400">
-                      {paidLoans.length} saldado{paidLoans.length === 1 ? "" : "s"}
+
+                  {/* Micro-píldoras monocromáticas estilo Tech Stack (como la referencia) */}
+                  <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                    <span className="tech-pill">
+                      {allLoans.length} préstamo{allLoans.length === 1 ? "" : "s"}
                     </span>
+                    {paidLoans.length > 0 && (
+                      <span className="tech-pill text-emerald-600 dark:text-emerald-400">
+                        {paidLoans.length} saldado{paidLoans.length === 1 ? "" : "s"}
+                      </span>
+                    )}
+                    {c.email && (
+                      <span className="tech-pill max-w-[140px] truncate" title={c.email}>
+                        {c.email}
+                      </span>
+                    )}
+                    {c.notas && (
+                      <button
+                        type="button"
+                        onClick={() => onVerNota("Notas del contacto", c.nombre, c.notas)}
+                        className="tech-pill hover:border-primary/40 cursor-pointer"
+                        title="Ver notas"
+                      >
+                        <FileText className="w-3 h-3 text-primary shrink-0" />
+                        <span className="truncate max-w-[110px]">{c.notas}</span>
+                      </button>
+                    )}
                   </div>
                 </div>
 
-                {/* Nota adjunta si existe */}
-                {c.notas && (
-                  <div className="pt-1 flex items-center justify-between border-t border-surface-container-low">
-                    <button
-                      type="button"
-                      onClick={() => onVerNota("Notas del contacto", c.nombre, c.notas)}
-                      className="inline-flex items-center gap-1.5 text-xs text-on-surface-variant hover:text-primary transition-colors cursor-pointer"
-                    >
-                      <FileText className="w-3.5 h-3.5 text-primary" />
-                      <span className="truncate max-w-[220px] text-[11px] font-medium">{c.notas}</span>
-                    </button>
-                  </div>
-                )}
+                {/* Acciones Rápidas Minimalistas (estilo Links GitHub / Tech) */}
+                <div className="pt-2.5 border-t border-surface-container-high/50 flex items-center justify-between gap-1.5 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => onOpenFicha(c, "ficha")}
+                    className="text-on-surface-variant hover:text-primary font-semibold inline-flex items-center gap-1 cursor-pointer transition-colors"
+                    title="Ver ficha 360° e historial de operaciones"
+                  >
+                    <span>Ficha 360°</span>
+                    <ArrowUpRight className="w-3.5 h-3.5" />
+                  </button>
 
-                {/* Acciones Rápidas */}
-                <div className="pt-2 border-t border-surface-container-low flex items-center justify-between gap-1.5">
                   <div className="flex items-center gap-1.5">
                     <button
                       type="button"
-                      onClick={() => onOpenFicha(c, "ficha")}
-                      className="px-2.5 py-1.5 rounded-xl bg-surface-container-low hover:bg-surface-container border border-surface-container-high/60 text-on-surface text-xs font-semibold inline-flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
-                      title="Ver ficha 360° e historial de operaciones"
-                    >
-                      <Eye className="w-3.5 h-3.5 text-primary" />
-                      <span>Ficha</span>
-                    </button>
-                    <button
-                      type="button"
                       onClick={() => onOpenFicha(c, "editar")}
-                      className="p-1.5 rounded-xl bg-surface-container-low hover:bg-surface-container border border-surface-container-high/60 text-on-surface-variant hover:text-on-surface cursor-pointer transition-colors"
+                      className="p-1.5 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors cursor-pointer"
                       title="Editar datos del contacto"
                     >
                       <Pencil className="w-3.5 h-3.5" />
                     </button>
-                  </div>
 
-                  <button
-                    type="button"
-                    onClick={() => openLoanForContact(c.id)}
-                    className="px-3 py-1.5 rounded-xl bg-primary/10 hover:bg-primary/20 text-primary text-xs font-bold inline-flex items-center gap-1 cursor-pointer transition-all border border-primary/20 shadow-2xs active:scale-95"
-                    title="Otorgar nuevo préstamo a este contacto"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>Préstamo</span>
-                  </button>
+                    <button
+                      type="button"
+                      onClick={() => openLoanForContact(c.id)}
+                      className="px-2.5 py-1 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary text-xs font-bold inline-flex items-center gap-1 cursor-pointer transition-all border border-primary/20 shadow-2xs active:scale-95"
+                      title="Otorgar nuevo préstamo a este contacto"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Préstamo</span>
+                    </button>
+                  </div>
                 </div>
               </motion.div>
             );
           })}
         </div>
       ) : (
-        /* VISTA 2: Lista Compacta Moderna */
+        /* VISTA 2: Lista Compacta Tech */
         <div className="space-y-2.5">
           {contactosFiltrados.map((c, i) => {
             const allLoans = prestamos.filter((l) => rel(l.contactos)?.id === c.id);
@@ -1503,12 +1547,13 @@ function ContactosView({
                 key={c.id}
                 initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
+                whileHover={{ y: -1, transition: { duration: 0.14 } }}
                 transition={{ duration: 0.2, delay: Math.min(i * 0.02, 0.2) }}
-                className="bg-surface-container-lowest border border-surface-container-high/70 rounded-xl p-3 sm:px-4 sm:py-3 shadow-2xs hover:shadow-xs transition-all flex flex-col md:flex-row md:items-center justify-between gap-3"
+                className="bg-surface-container-lowest border border-surface-container-high/80 rounded-xl p-3 sm:px-4 sm:py-3 shadow-2xs hover:shadow-xs transition-all flex flex-col md:flex-row md:items-center justify-between gap-3"
               >
                 {/* Persona y datos */}
-                <div className="flex items-center gap-3 min-w-[220px]">
-                  <ContactAvatar name={c.nombre} size={38} className="rounded-full shadow-xs shrink-0" />
+                <div className="flex items-center gap-3 min-w-[200px]">
+                  <ContactAvatar name={c.nombre} size={36} className="rounded-full shadow-2xs shrink-0" />
                   <div className="min-w-0">
                     <button
                       type="button"
@@ -1517,13 +1562,13 @@ function ContactosView({
                     >
                       {c.nombre}
                     </button>
-                    <div className="flex items-center gap-2 text-xs text-on-surface-variant">
-                      <span>{c.telefono || "Sin teléfono"}</span>
+                    <div className="flex items-center gap-2 text-xs text-on-surface-variant font-mono">
+                      <span>{c.telefono || "Sin tel."}</span>
                       {c.notas && (
                         <button
                           type="button"
                           onClick={() => onVerNota("Notas del contacto", c.nombre, c.notas)}
-                          className="text-primary hover:underline font-medium cursor-pointer"
+                          className="text-primary hover:underline font-sans cursor-pointer text-[11px]"
                         >
                           Nota
                         </button>
@@ -1532,119 +1577,77 @@ function ContactosView({
                   </div>
                 </div>
 
-                {/* Préstamos y Deuda */}
-                <div className="flex items-center gap-4">
-                  <div className="text-xs text-on-surface-variant">
-                    <span className="font-semibold text-on-surface">{allLoans.length}</span> préstamos
-                    {paidLoans.length > 0 && <span className="text-[10px] block opacity-75">({paidLoans.length} saldados)</span>}
-                  </div>
-                  <div className="min-w-[100px] text-right">
-                    <span className="text-[10px] text-on-surface-variant block">Saldo por cobrar</span>
-                    <span className="font-mono font-bold text-primary text-sm">{money(balance)}</span>
-                  </div>
+                {/* Píldoras informativas */}
+                <div className="flex flex-wrap items-center gap-1.5 flex-1 md:justify-center">
+                  <span className="tech-pill">{allLoans.length} préstamos</span>
+                  {paidLoans.length > 0 && <span className="tech-pill text-emerald-600 dark:text-emerald-400">{paidLoans.length} saldados</span>}
                 </div>
 
-                {/* Estado */}
-                <div className="shrink-0">
-                  {activeLoans.length > 0 ? (
-                    isLate ? (
-                      <span className="px-2.5 py-1 rounded-full text-xs font-bold badge-atrasado inline-flex items-center">
-                        Con atraso
-                      </span>
-                    ) : (
-                      <span className="px-2.5 py-1 rounded-full text-xs font-bold badge-al-dia inline-flex items-center">
-                        Al día
-                      </span>
-                    )
-                  ) : (
-                    <span className="px-2.5 py-1 rounded-full text-xs font-bold badge-saldado inline-flex items-center">
-                      Sin deuda
+                {/* Saldo y Estado */}
+                <div className="flex items-center gap-3 shrink-0">
+                  <div className="text-right">
+                    <span className="font-mono text-sm font-bold text-primary block">
+                      {money(balance)}
                     </span>
-                  )}
-                </div>
+                    <span className="text-[10px] text-on-surface-variant uppercase tracking-wider block">
+                      Deuda activa
+                    </span>
+                  </div>
 
-                {/* Acciones */}
-                <div className="flex items-center gap-1.5 shrink-0 justify-end pt-2 md:pt-0 border-t md:border-t-0 border-surface-container-low">
-                  <button
-                    type="button"
-                    onClick={() => onOpenFicha(c, "ficha")}
-                    className="px-2.5 py-1.5 rounded-lg bg-surface-container-low hover:bg-surface-container border border-surface-container-high/60 text-on-surface text-xs font-semibold inline-flex items-center gap-1 cursor-pointer transition-colors"
-                    title="Ver ficha 360°"
-                  >
-                    <Eye className="w-3.5 h-3.5 text-primary" />
-                    <span>Ficha</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => onOpenFicha(c, "editar")}
-                    className="p-1.5 rounded-lg bg-surface-container-low hover:bg-surface-container border border-surface-container-high/60 text-on-surface-variant hover:text-on-surface cursor-pointer transition-colors"
-                    title="Editar contacto"
-                  >
-                    <Pencil className="w-3.5 h-3.5" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => openLoanForContact(c.id)}
-                    className="px-2.5 py-1.5 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary text-xs font-bold inline-flex items-center gap-1 cursor-pointer transition-colors"
-                    title="Crear préstamo"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>Préstamo</span>
-                  </button>
+                  <div className="shrink-0">
+                    {activeLoans.length > 0 ? (
+                      isLate ? (
+                        <span className="badge-atrasado px-2 py-0.5 rounded-md text-[11px] font-semibold inline-flex items-center gap-1.5">
+                          <span className="safari-dot-red" />
+                          Atrasado
+                        </span>
+                      ) : (
+                        <span className="badge-al-dia px-2 py-0.5 rounded-md text-[11px] font-semibold inline-flex items-center gap-1.5">
+                          <span className="safari-dot-green" />
+                          Al día
+                        </span>
+                      )
+                    ) : (
+                      <span className="badge-saldado px-2 py-0.5 rounded-md text-[11px] font-semibold inline-flex items-center gap-1.5">
+                        <span className="safari-dot-blue" />
+                        Sin deuda
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Acciones */}
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => onOpenFicha(c, "ficha")}
+                      className="p-1.5 rounded-lg text-on-surface-variant hover:text-primary hover:bg-surface-container transition-colors cursor-pointer"
+                      title="Ver ficha 360°"
+                    >
+                      <ArrowUpRight className="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onOpenFicha(c, "editar")}
+                      className="p-1.5 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors cursor-pointer"
+                      title="Editar contacto"
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => openLoanForContact(c.id)}
+                      className="px-2.5 py-1 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary text-xs font-bold inline-flex items-center gap-1 cursor-pointer transition-all border border-primary/20 shadow-2xs active:scale-95"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span className="hidden sm:inline">Préstamo</span>
+                    </button>
+                  </div>
                 </div>
               </motion.div>
             );
           })}
         </div>
-      )}
-
-      {/* Sección de Contactos Archivados */}
-      {showArchivados && (
-        <div className="mt-6 pt-6 border-t border-surface-container-high/60 space-y-3">
-          <div className="flex items-center gap-2">
-            <Archive className="w-4 h-4 text-amber-500" />
-            <h2 className="text-sm font-bold uppercase tracking-wider text-on-surface">Contactos Archivados</h2>
-            <span className="text-xs px-2 py-0.5 rounded-full bg-surface-container text-on-surface-variant font-medium">
-              {contactosArchivados.length}
-            </span>
-          </div>
-
-          {loadingArchivados ? (
-            <div className="flex items-center justify-center py-6 text-on-surface-variant gap-2 text-xs">
-              <Loader2 className="w-4 h-4 animate-spin text-primary" />
-              <span>Cargando archivados...</span>
-            </div>
-          ) : contactosArchivados.length === 0 ? (
-            <p className="text-xs text-on-surface-variant py-4 italic">No tienes ningún contacto archivado.</p>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-              {contactosArchivados.map((c) => (
-                <div
-                  key={c.id}
-                  className="bg-surface-container-low/60 border border-surface-container-high/60 rounded-xl p-3.5 flex items-center justify-between gap-3 opacity-80"
-                >
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <ContactAvatar name={c.nombre} size={36} className="rounded-full shrink-0" />
-                    <div className="min-w-0">
-                      <span className="font-semibold text-xs text-on-surface truncate block">{c.nombre}</span>
-                      <span className="text-[11px] text-on-surface-variant truncate block">{c.telefono || "Sin teléfono"}</span>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => handleReactivar(c)}
-                    className="px-2.5 py-1 rounded-lg bg-surface-container hover:bg-surface-container-high text-primary text-xs font-semibold inline-flex items-center gap-1 cursor-pointer transition-colors shrink-0"
-                  >
-                    <RotateCcw className="w-3.5 h-3.5" />
-                    <span>Reactivar</span>
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
+      )}    </div>
   );
 }
 
@@ -1657,12 +1660,22 @@ function EstadoPrestamoSelect({
   nombre: string;
   onChange: (nuevoEstado: "activo" | "pagado" | "atrasado" | "cancelado") => void;
 }) {
+  const dotCls =
+    estado === "atrasado"
+      ? "safari-dot-red"
+      : estado === "pagado"
+      ? "safari-dot-blue"
+      : estado === "cancelado"
+      ? "w-1.5 h-1.5 rounded-full bg-slate-400"
+      : "safari-dot-green";
+
   return (
     <div className="has-custom-chevron relative inline-flex items-center">
+      <span className={`absolute left-2.5 pointer-events-none ${dotCls}`} />
       <select
         value={estado}
         onChange={(event) => onChange(event.target.value as "activo" | "pagado" | "atrasado" | "cancelado")}
-        className={`no-bg-chevron appearance-none w-[128px] pl-3.5 pr-8.5 py-1.5 rounded-full text-xs font-bold border cursor-pointer transition-all focus:outline-none focus:ring-2 focus:ring-primary/20 shadow-2xs ${
+        className={`no-bg-chevron appearance-none w-[116px] pl-6 pr-7 py-1 rounded-md text-[11px] font-semibold border cursor-pointer transition-all focus:outline-none focus:ring-1 focus:ring-primary/30 shadow-2xs ${
           estado === "atrasado" ? "badge-atrasado" :
           estado === "pagado" ? "badge-saldado" :
           estado === "cancelado" ? "badge-neutral" :
@@ -1670,12 +1683,12 @@ function EstadoPrestamoSelect({
         }`}
         aria-label={`Estado de ${nombre}`}
       >
-        <option value="activo" className="bg-surface text-on-surface">Activo</option>
+        <option value="activo" className="bg-surface text-on-surface">Al día</option>
         <option value="atrasado" className="bg-surface text-on-surface">Atrasado</option>
-        <option value="pagado" className="bg-surface text-on-surface">Pagado</option>
+        <option value="pagado" className="bg-surface text-on-surface">Saldado</option>
         <option value="cancelado" className="bg-surface text-on-surface">Cancelado</option>
       </select>
-      <ChevronDown className="w-3.5 h-3.5 absolute right-3.5 pointer-events-none text-current opacity-70" />
+      <ChevronDown className="w-3 h-3 absolute right-2 pointer-events-none text-current opacity-70" />
     </div>
   );
 }
@@ -1910,7 +1923,7 @@ function PrestamosView({
           </p>
         </div>
       ) : viewMode === "grid" ? (
-        /* VISTA 1: Cuadrícula de Tarjetas Ricas con Amortización Visual */
+        /* VISTA 1: Cuadrícula de Tarjetas Tech Minimalistas */
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {displayed.map((l, i) => {
             const nombre = rel(l.contactos)?.nombre ?? "—";
@@ -1923,19 +1936,20 @@ function PrestamosView({
             return (
               <motion.div
                 key={l.id}
-                initial={{ opacity: 0, y: 12 }}
+                initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.24, delay: Math.min(i * 0.03, 0.25) }}
-                className={`bg-surface-container-lowest border border-surface-container-high/70 rounded-2xl p-4 sm:p-5 shadow-2xs hover:shadow-xs transition-all flex flex-col justify-between gap-4 group ${
+                whileHover={{ y: -2, transition: { duration: 0.16 } }}
+                transition={{ duration: 0.22, delay: Math.min(i * 0.03, 0.25) }}
+                className={`bg-surface-container-lowest border border-surface-container-high/80 rounded-2xl p-4 sm:p-5 shadow-2xs hover:shadow-xs transition-all flex flex-col justify-between gap-3.5 group ${
                   isPaid ? "opacity-75" : ""
                 }`}
               >
                 {/* Cabecera de la tarjeta: Contacto + Estado */}
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <ContactAvatar name={nombre} size={42} className="rounded-full shadow-xs shrink-0" />
+                <div className="flex items-start justify-between gap-2.5">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <ContactAvatar name={nombre} size={40} className="rounded-full shadow-2xs shrink-0" />
                     <div className="min-w-0">
-                      <h4 className="font-bold text-sm sm:text-base text-on-surface truncate group-hover:text-primary transition-colors">
+                      <h4 className="font-bold text-sm text-on-surface truncate group-hover:text-primary transition-colors">
                         {nombre}
                       </h4>
                       <button
@@ -1946,12 +1960,6 @@ function PrestamosView({
                       >
                         {l.nombre}
                       </button>
-                      {(l.fecha_inicio || l.created_at) && (
-                        <span className="inline-flex items-center gap-1 text-[11px] text-on-surface-variant/80 mt-0.5">
-                          <Calendar className="w-3 h-3 text-outline shrink-0" />
-                          <span>Inició: {formatDateEs(l.fecha_inicio || l.created_at)}</span>
-                        </span>
-                      )}
                     </div>
                   </div>
 
@@ -1964,117 +1972,83 @@ function PrestamosView({
                   </div>
                 </div>
 
-                {/* Amortización y Barra de Progreso Visual */}
-                <div className="space-y-1.5 p-3 rounded-xl bg-surface-container-low/60 border border-surface-container-high/40">
+                {/* Saldo y Amortización Visual Compacta */}
+                <div className="space-y-1.5 py-1">
                   <div className="flex items-baseline justify-between gap-2">
-                    <div>
-                      <span className="text-[10px] text-on-surface-variant font-semibold uppercase tracking-wider block">
-                        {tab === "activos" ? "Saldo por cobrar" : "Capital saldado"}
-                      </span>
-                      <span className="font-mono text-lg sm:text-xl font-extrabold text-primary">
-                        {isPaid ? money(pagadoCap) : money(saldo)}
-                      </span>
-                    </div>
-                    <span className="text-[11px] font-bold font-mono px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 shrink-0">
-                      {pctAmortizado}% amortizado
+                    <span className="text-[10px] text-on-surface-variant font-semibold uppercase tracking-wider">
+                      {tab === "activos" ? "Saldo por cobrar" : "Capital saldado"}
+                    </span>
+                    <span className="font-mono text-lg sm:text-xl font-extrabold text-primary">
+                      {isPaid ? money(pagadoCap) : money(saldo)}
                     </span>
                   </div>
 
-                  {/* Barra de progreso */}
-                  <div className="h-2 w-full bg-surface-container-high/60 rounded-full overflow-hidden flex">
+                  {/* Micro-barra de amortización */}
+                  <div className="h-1.5 w-full bg-surface-container-high/60 rounded-full overflow-hidden flex">
                     <div
                       className="h-full bg-primary rounded-full transition-all duration-300"
                       style={{ width: `${pctAmortizado}%` }}
                     />
                   </div>
 
-                  <div className="flex justify-between items-center text-[10px] text-on-surface-variant font-mono pt-0.5">
-                    <span>Original: {money(principal)}</span>
-                    <span>Amortizado: {money(pagadoCap)}</span>
-                  </div>
-                </div>
-
-                {/* Grilla 2x2 de Detalles Clave */}
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div className="p-2.5 rounded-xl bg-surface-container-low/40 border border-surface-container-high/40">
-                    <span className="text-[10px] text-on-surface-variant font-medium block mb-0.5">Interés mensual</span>
+                  {/* Micro-píldoras monocromáticas de stack / tech (como la referencia) */}
+                  <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                    <span className="tech-pill font-mono">{pctAmortizado}% amortizado</span>
+                    <span className="tech-pill font-mono">Orig: {money(principal)}</span>
                     {l.cobra_interes ? (
-                      <>
-                        <span className="font-mono font-bold text-on-surface text-xs block">
-                          {l.tasa_interes_mensual}% ({money(monthlyInterest(l))})
-                        </span>
-                        <span className="text-[10px] text-on-surface-variant block mt-0.5">
-                          Cobrado: {money(l.interes_pagado_total)}
-                        </span>
-                      </>
+                      <span className="tech-pill font-mono">{l.tasa_interes_mensual}% mensual</span>
                     ) : (
-                      <span className="text-on-surface-variant italic font-sans">Sin interés</span>
+                      <span className="tech-pill">Sin interés</span>
                     )}
-                  </div>
-
-                  <div className="p-2.5 rounded-xl bg-surface-container-low/40 border border-surface-container-high/40">
-                    <span className="text-[10px] text-on-surface-variant font-medium block mb-0.5">Próximo vencimiento</span>
-                    <span className={`font-semibold text-xs block ${
-                      l.vence_hoy ? "text-amber-600 font-bold" : l.meses_atrasados > 0 ? "text-error font-bold" : "text-on-surface"
+                    <span className={`tech-pill ${
+                      l.vence_hoy
+                        ? "border-amber-500/50 text-amber-600 dark:text-amber-400 font-semibold"
+                        : l.meses_atrasados > 0
+                        ? "border-rose-500/50 text-rose-600 dark:text-rose-400 font-semibold"
+                        : ""
                     }`}>
-                      {l.vence_hoy ? "¡Vence Hoy!" : l.fecha_proximo_pago ? formatDateEs(l.fecha_proximo_pago) : "Al día"}
+                      {l.vence_hoy
+                        ? "¡Vence hoy!"
+                        : l.meses_atrasados > 0
+                        ? `Atraso: ${l.meses_atrasados}c (${l.dias_atraso}d)`
+                        : l.fecha_proximo_pago
+                        ? `Vence: ${formatDateEs(l.fecha_proximo_pago)}`
+                        : "Al día"}
                     </span>
-                    {l.meses_atrasados > 0 && (
-                      <span className="text-[10px] text-error font-bold block mt-0.5">
-                        ⚠️ {l.meses_atrasados} cuota{l.meses_atrasados > 1 ? "s" : ""} ({l.dias_atraso}d)
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="p-2.5 rounded-xl bg-surface-container-low/40 border border-surface-container-high/40 col-span-2 flex items-center justify-between">
-                    <div>
-                      <span className="text-[10px] text-on-surface-variant font-medium block">Último periodo cubierto</span>
-                      <span className="text-xs font-semibold text-on-surface">
-                        {l.ultimo_mes_cubierto || "Sin cobros registrados"}
-                      </span>
-                    </div>
-                    {l.ultimo_pago && (
-                      <span className="text-[10px] text-on-surface-variant font-mono">
-                        {formatDateEs(l.ultimo_pago.recibido_en)}
-                      </span>
+                    {l.notas && (
+                      <button
+                        type="button"
+                        onClick={() => onVerNota("Notas del préstamo", `${nombre} · ${l.nombre}`, l.notas)}
+                        className="tech-pill hover:border-primary/40 cursor-pointer"
+                        title="Ver notas"
+                      >
+                        <FileText className="w-3 h-3 text-primary shrink-0" />
+                        <span className="truncate max-w-[100px]">{l.notas}</span>
+                      </button>
                     )}
                   </div>
                 </div>
 
-                {/* Nota adjunta si existe */}
-                {l.notas && (
-                  <div className="pt-1 flex items-center justify-between border-t border-surface-container-low">
-                    <button
-                      type="button"
-                      onClick={() => onVerNota("Notas del préstamo", `${nombre} · ${l.nombre}`, l.notas)}
-                      className="inline-flex items-center gap-1.5 text-xs text-on-surface-variant hover:text-primary transition-colors cursor-pointer"
-                    >
-                      <FileText className="w-3.5 h-3.5 text-primary" />
-                      <span className="truncate max-w-[200px] text-[11px] font-medium">{l.notas}</span>
-                    </button>
-                  </div>
-                )}
-
-                {/* Botones de acción */}
-                <div className="pt-2 border-t border-surface-container-low flex items-center justify-between gap-2">
+                {/* Botones de acción minimalistas (estilo Links GitHub / Tech) */}
+                <div className="pt-2.5 border-t border-surface-container-high/50 flex items-center justify-between gap-2 text-xs">
                   <button
                     type="button"
                     onClick={() => onOpenKardex(l.id)}
-                    className="px-3 py-2 rounded-xl bg-surface-container-low hover:bg-surface-container text-on-surface text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer transition-colors border border-surface-container-high/60 shadow-2xs"
-                    title="Ver extracto, simulación y expediente"
+                    className="text-on-surface-variant hover:text-primary font-semibold inline-flex items-center gap-1 cursor-pointer transition-colors"
+                    title="Ver extracto, simulación y expediente completo"
                   >
-                    <FolderOpen className="w-4 h-4 text-primary" />
                     <span>Expediente</span>
+                    <ArrowUpRight className="w-3.5 h-3.5" />
                   </button>
 
                   {!isPaid && (
                     <button
                       type="button"
                       onClick={() => onCobrarPrestamo(l.id)}
-                      className="px-4 py-2 rounded-xl bg-primary hover:bg-primary-container text-on-primary text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer transition-all shadow-xs active:scale-95 ml-auto"
+                      className="px-3.5 py-1.5 rounded-lg bg-primary hover:bg-primary-container text-on-primary text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer transition-all shadow-xs active:scale-95 ml-auto"
                       title="Registrar cobro de cuota o capital"
                     >
-                      <ReceiptText className="w-4 h-4" />
+                      <ReceiptText className="w-3.5 h-3.5" />
                       <span>Cobrar</span>
                     </button>
                   )}
@@ -2084,7 +2058,7 @@ function PrestamosView({
           })}
         </div>
       ) : (
-        /* VISTA 2: Lista Compacta Moderna (Tipo Linear / Apple) sin scroll horizontal */
+        /* VISTA 2: Lista Compacta Tech */
         <div className="space-y-2.5">
           {displayed.map((l, i) => {
             const nombre = rel(l.contactos)?.nombre ?? "—";
@@ -2099,20 +2073,21 @@ function PrestamosView({
                 key={l.id}
                 initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
+                whileHover={{ y: -1, transition: { duration: 0.14 } }}
                 transition={{ duration: 0.2, delay: Math.min(i * 0.02, 0.2) }}
-                className={`bg-surface-container-lowest border border-surface-container-high/70 rounded-xl p-3.5 sm:px-4 sm:py-3 shadow-2xs hover:shadow-xs transition-all flex flex-col md:flex-row md:items-center justify-between gap-3 ${
+                className={`bg-surface-container-lowest border border-surface-container-high/80 rounded-xl p-3.5 sm:px-4 sm:py-3 shadow-2xs hover:shadow-xs transition-all flex flex-col md:flex-row md:items-center justify-between gap-3 ${
                   isPaid ? "opacity-75" : ""
                 }`}
               >
                 {/* Info del deudor */}
-                <div className="flex items-center gap-3 min-w-[220px]">
-                  <ContactAvatar name={nombre} size={38} className="rounded-full shadow-xs shrink-0" />
+                <div className="flex items-center gap-3 min-w-[200px]">
+                  <ContactAvatar name={nombre} size={36} className="rounded-full shadow-2xs shrink-0" />
                   <div className="min-w-0">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5">
                       <h4 className="font-bold text-sm text-on-surface truncate">{nombre}</h4>
                       <span className="text-xs text-on-surface-variant font-medium truncate">· {l.nombre}</span>
                     </div>
-                    <div className="flex items-center gap-2 text-[11px] text-on-surface-variant/80">
+                    <div className="flex items-center gap-1.5 text-[11px] text-on-surface-variant/80">
                       <span>Inició: {formatDateEs(l.fecha_inicio || l.created_at)}</span>
                       {l.notas && (
                         <button
@@ -2130,15 +2105,18 @@ function PrestamosView({
                 {/* Barra de progreso y saldo */}
                 <div className="flex-1 max-w-sm space-y-1">
                   <div className="flex justify-between text-xs">
-                    <span className="text-[11px] text-on-surface-variant font-medium">Por cobrar:</span>
+                    <span className="text-[11px] text-on-surface-variant font-medium">
+                      {isPaid ? "Capital saldado:" : "Por cobrar:"}
+                    </span>
                     <span className="font-mono font-bold text-primary">{isPaid ? money(pagadoCap) : money(saldo)}</span>
                   </div>
                   <div className="h-1.5 w-full bg-surface-container-high/60 rounded-full overflow-hidden flex">
                     <div className="h-full bg-primary rounded-full transition-all duration-300" style={{ width: `${pctAmortizado}%` }} />
                   </div>
-                  <div className="flex justify-between text-[10px] text-on-surface-variant font-mono">
-                    <span>Orig: {money(principal)}</span>
-                    <span>{pctAmortizado}% amortizado</span>
+                  <div className="flex items-center gap-1 pt-0.5">
+                    <span className="tech-pill font-mono">{pctAmortizado}%</span>
+                    <span className="tech-pill font-mono">Orig: {money(principal)}</span>
+                    {l.cobra_interes && <span className="tech-pill font-mono">{l.tasa_interes_mensual}%</span>}
                   </div>
                 </div>
 
@@ -2167,10 +2145,10 @@ function PrestamosView({
                   <button
                     type="button"
                     onClick={() => onOpenKardex(l.id)}
-                    className="p-2 sm:px-2.5 sm:py-1.5 rounded-lg bg-surface-container-low hover:bg-surface-container text-on-surface text-xs font-semibold inline-flex items-center gap-1 cursor-pointer transition-colors border border-surface-container-high/60 shadow-2xs"
+                    className="p-1.5 sm:px-2.5 sm:py-1.5 rounded-lg text-on-surface-variant hover:text-primary hover:bg-surface-container text-xs font-semibold inline-flex items-center gap-1 cursor-pointer transition-colors"
                     title="Ver expediente del préstamo"
                   >
-                    <FolderOpen className="w-3.5 h-3.5 text-primary" />
+                    <ArrowUpRight className="w-4 h-4 text-primary" />
                     <span className="hidden lg:inline">Expediente</span>
                   </button>
 
@@ -2190,8 +2168,7 @@ function PrestamosView({
             );
           })}
         </div>
-      )}
-    </div>
+      )}    </div>
   );
 }
 
@@ -2383,7 +2360,7 @@ function PagosView({
           </p>
         </div>
       ) : viewMode === "grid" ? (
-        /* VISTA 1: Cuadrícula de Tarjetas de Cobro / Recibo */
+        /* VISTA 1: Cuadrícula de Cobros Tech Minimalista */
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {pagosFiltrados.map((p, i) => {
             const prestamo = rel(p.prestamos);
@@ -2394,114 +2371,109 @@ function PagosView({
             return (
               <motion.div
                 key={p.id}
-                initial={{ opacity: 0, y: 12 }}
+                initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.24, delay: Math.min(i * 0.03, 0.25) }}
-                className="bg-surface-container-lowest border border-surface-container-high/70 rounded-2xl p-4 sm:p-5 shadow-2xs hover:shadow-xs transition-all flex flex-col justify-between gap-4 group"
+                whileHover={{ y: -2, transition: { duration: 0.16 } }}
+                transition={{ duration: 0.22, delay: Math.min(i * 0.03, 0.25) }}
+                className="bg-surface-container-lowest border border-surface-container-high/80 rounded-2xl p-4 sm:p-5 shadow-2xs hover:shadow-xs transition-all flex flex-col justify-between gap-3.5 group"
               >
                 {/* Cabecera del Cobro */}
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <ContactAvatar name={contacto?.nombre ?? "—"} size={42} className="rounded-full shadow-xs shrink-0" />
+                <div className="flex items-start justify-between gap-2.5">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <ContactAvatar name={contacto?.nombre ?? "—"} size={40} className="rounded-full shadow-2xs shrink-0" />
                     <div className="min-w-0">
-                      <h4 className="font-bold text-sm sm:text-base text-on-surface truncate group-hover:text-primary transition-colors">
+                      <h4 className="font-bold text-sm text-on-surface truncate group-hover:text-primary transition-colors">
                         {contacto?.nombre ?? "—"}
                       </h4>
                       <p className="text-xs text-on-surface-variant truncate font-medium">
                         {prestamo?.nombre ?? "—"}
                       </p>
-                      <span className="inline-flex items-center gap-1 text-[11px] text-on-surface-variant/80 mt-0.5">
-                        <Calendar className="w-3 h-3 text-outline shrink-0" />
-                        <span>Cobrado: {formatDateEs(p.recibido_en)}</span>
-                      </span>
                     </div>
                   </div>
 
-                  {/* Estado de puntualidad */}
-                  <div className="shrink-0 text-right">
+                  {/* Estado de puntualidad con punto estilo Safari */}
+                  <div className="shrink-0">
                     {isLate ? (
-                      <span className="inline-block text-[10px] font-bold text-amber-700 bg-amber-500/15 border border-amber-500/30 dark:text-amber-300 px-2 py-0.5 rounded-full">
+                      <span className="badge-atrasado px-2 py-0.5 rounded-md text-[11px] font-semibold inline-flex items-center gap-1.5">
+                        <span className="safari-dot-red" />
                         Con retraso
                       </span>
                     ) : isEarly ? (
-                      <span className="inline-block text-[10px] font-bold text-emerald-700 bg-emerald-500/15 border border-emerald-500/30 dark:text-emerald-300 px-2 py-0.5 rounded-full">
+                      <span className="badge-blue px-2 py-0.5 rounded-md text-[11px] font-semibold inline-flex items-center gap-1.5">
+                        <span className="safari-dot-blue" />
                         Anticipado
                       </span>
                     ) : (
-                      <span className="inline-block text-[10px] font-bold text-primary bg-primary/10 border border-primary/20 px-2 py-0.5 rounded-full">
+                      <span className="badge-al-dia px-2 py-0.5 rounded-md text-[11px] font-semibold inline-flex items-center gap-1.5">
+                        <span className="safari-dot-green" />
                         En fecha
                       </span>
                     )}
                   </div>
                 </div>
 
-                {/* Desglose Monetario del Cobro */}
-                <div className="space-y-1.5 p-3 rounded-xl bg-surface-container-low/60 border border-surface-container-high/40">
+                {/* Monto Total Cobrado */}
+                <div className="space-y-1.5 py-1">
                   <div className="flex items-baseline justify-between">
                     <span className="text-[10px] text-on-surface-variant font-semibold uppercase tracking-wider">
-                      Monto Total Cobrado
+                      Monto Cobrado
                     </span>
                     <span className="font-mono text-xl font-extrabold text-primary">
                       {money(Number(p.monto_total))}
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-2 text-xs pt-2 border-t border-surface-container-high/40 font-mono">
-                    <div>
-                      <span className="text-[10px] text-on-surface-variant font-sans block">Abono Capital</span>
-                      <span className="font-bold text-on-surface">{money(Number(p.monto_principal))}</span>
-                    </div>
-                    <div className="text-right">
-                      <span className="text-[10px] text-on-surface-variant font-sans block">Interés Percibido</span>
-                      <span className="font-bold text-emerald-600 dark:text-emerald-400">{money(Number(p.monto_interes))}</span>
-                    </div>
+                  {/* Micro-píldoras monocromáticas de desglose */}
+                  <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                    <span className="tech-pill font-mono">
+                      Cap: {money(Number(p.monto_principal))}
+                    </span>
+                    {Number(p.monto_interes) > 0 && (
+                      <span className="tech-pill font-mono text-emerald-600 dark:text-emerald-400">
+                        Int: {money(Number(p.monto_interes))}
+                      </span>
+                    )}
+                    {rel(p.cuentas_dinero)?.nombre && (
+                      <span className="tech-pill">
+                        {rel(p.cuentas_dinero)?.nombre}
+                      </span>
+                    )}
+                    <span className="tech-pill font-mono">
+                      {formatDateEs(p.recibido_en)}
+                    </span>
+                    {p.notas && (
+                      <button
+                        type="button"
+                        onClick={() => onVerNota("Notas del cobro", `${contacto?.nombre ?? "—"} · ${formatDateEs(p.recibido_en)}`, p.notas)}
+                        className="tech-pill hover:border-primary/40 cursor-pointer"
+                        title="Ver notas"
+                      >
+                        <FileText className="w-3 h-3 text-primary shrink-0" />
+                        <span className="truncate max-w-[100px]">{p.notas}</span>
+                      </button>
+                    )}
                   </div>
                 </div>
 
-                {/* Datos del Periodo y Cuenta */}
-                <div className="flex items-center justify-between text-xs text-on-surface-variant px-1">
-                  <span>
-                    Período: <strong className="text-on-surface">{p.fecha_esperada ? formatMonthYear(p.fecha_esperada) : "Cuota"}</strong>
-                  </span>
-                  <span>
-                    Cuenta: <strong className="text-on-surface">{rel(p.cuentas_dinero)?.nombre ?? "—"}</strong>
-                  </span>
-                </div>
-
-                {/* Notas si existen */}
-                {p.notas && (
-                  <div className="pt-1 flex items-center justify-between border-t border-surface-container-low">
-                    <button
-                      type="button"
-                      onClick={() => onVerNota("Notas del cobro", `${contacto?.nombre ?? "—"} · ${formatDateEs(p.recibido_en)}`, p.notas)}
-                      className="inline-flex items-center gap-1.5 text-xs text-on-surface-variant hover:text-primary transition-colors cursor-pointer"
-                    >
-                      <FileText className="w-3.5 h-3.5 text-primary" />
-                      <span className="truncate max-w-[200px] text-[11px] font-medium">{p.notas}</span>
-                    </button>
-                  </div>
-                )}
-
-                {/* Acciones */}
-                <div className="pt-2 border-t border-surface-container-low flex items-center justify-between gap-2">
+                {/* Acciones Rápidas Minimalistas */}
+                <div className="pt-2.5 border-t border-surface-container-high/50 flex items-center justify-between gap-1.5 text-xs">
                   <button
                     type="button"
                     onClick={() => onVerRecibo(p)}
-                    className="px-3.5 py-2 rounded-xl bg-surface-container-low hover:bg-surface-container text-on-surface text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer transition-colors border border-surface-container-high/60 shadow-2xs"
-                    title="Ver comprobante de cobro"
+                    className="text-on-surface-variant hover:text-primary font-semibold inline-flex items-center gap-1 cursor-pointer transition-colors"
+                    title="Ver comprobante digital de cobro"
                   >
-                    <ReceiptText className="w-4 h-4 text-primary" />
-                    <span>Ver Recibo</span>
+                    <span>Recibo digital</span>
+                    <ArrowUpRight className="w-3.5 h-3.5" />
                   </button>
 
                   <button
                     type="button"
                     onClick={() => setPagoAAnular(p)}
-                    className="px-3 py-2 rounded-xl text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 text-xs font-semibold inline-flex items-center gap-1.5 transition-colors cursor-pointer ml-auto"
+                    className="p-1 rounded-lg text-on-surface-variant hover:text-rose-600 hover:bg-surface-container transition-colors cursor-pointer"
                     title="Anular y revertir cobro"
                   >
                     <RotateCcw className="w-3.5 h-3.5" />
-                    <span>Anular</span>
                   </button>
                 </div>
               </motion.div>
@@ -2509,7 +2481,7 @@ function PagosView({
           })}
         </div>
       ) : (
-        /* VISTA 2: Lista Compacta Moderna */
+        /* VISTA 2: Lista Compacta Tech */
         <div className="space-y-2.5">
           {pagosFiltrados.map((p, i) => {
             const prestamo = rel(p.prestamos);
@@ -2522,18 +2494,19 @@ function PagosView({
                 key={p.id}
                 initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
+                whileHover={{ y: -1, transition: { duration: 0.14 } }}
                 transition={{ duration: 0.2, delay: Math.min(i * 0.02, 0.2) }}
-                className="bg-surface-container-lowest border border-surface-container-high/70 rounded-xl p-3 sm:px-4 sm:py-3 shadow-2xs hover:shadow-xs transition-all flex flex-col md:flex-row md:items-center justify-between gap-3"
+                className="bg-surface-container-lowest border border-surface-container-high/80 rounded-xl p-3 sm:px-4 sm:py-3 shadow-2xs hover:shadow-xs transition-all flex flex-col md:flex-row md:items-center justify-between gap-3"
               >
                 {/* Deudor y préstamo */}
                 <div className="flex items-center gap-3 min-w-[200px]">
-                  <ContactAvatar name={contacto?.nombre ?? "—"} size={38} className="rounded-full shadow-xs shrink-0" />
+                  <ContactAvatar name={contacto?.nombre ?? "—"} size={36} className="rounded-full shadow-2xs shrink-0" />
                   <div className="min-w-0">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5">
                       <h4 className="font-bold text-sm text-on-surface truncate">{contacto?.nombre ?? "—"}</h4>
                       <span className="text-xs text-on-surface-variant font-medium truncate">· {prestamo?.nombre ?? "—"}</span>
                     </div>
-                    <div className="flex items-center gap-2 text-[11px] text-on-surface-variant/80">
+                    <div className="flex items-center gap-1.5 text-[11px] text-on-surface-variant font-mono">
                       <span>{formatDateEs(p.recibido_en)}</span>
                       <span>·</span>
                       <span>{rel(p.cuentas_dinero)?.nombre ?? "—"}</span>
@@ -2541,86 +2514,70 @@ function PagosView({
                   </div>
                 </div>
 
-                {/* Período y estado */}
-                <div className="text-xs">
-                  <span className="text-on-surface font-semibold block">
-                    {p.fecha_esperada ? formatMonthYear(p.fecha_esperada) : "Cuota"}
-                  </span>
-                  {isLate ? (
-                    <span className="text-[10px] text-amber-700 dark:text-amber-300 font-semibold">Con retraso</span>
-                  ) : isEarly ? (
-                    <span className="text-[10px] text-emerald-700 dark:text-emerald-300 font-semibold">Anticipado</span>
-                  ) : (
-                    <span className="text-[10px] text-primary font-semibold">En fecha</span>
+                {/* Desglose tech-pills */}
+                <div className="flex flex-wrap items-center gap-1.5 flex-1 md:justify-center">
+                  <span className="tech-pill font-mono">Cap: {money(Number(p.monto_principal))}</span>
+                  {Number(p.monto_interes) > 0 && (
+                    <span className="tech-pill font-mono text-emerald-600 dark:text-emerald-400">
+                      Int: {money(Number(p.monto_interes))}
+                    </span>
                   )}
                 </div>
 
-                {/* Monto y Desglose */}
-                <div className="text-right min-w-[120px]">
-                  <span className="font-mono font-extrabold text-sm text-primary block">
-                    {money(Number(p.monto_total))}
-                  </span>
-                  <span className="text-[10px] font-mono text-on-surface-variant block">
-                    Cap: {money(Number(p.monto_principal))} · Int: {money(Number(p.monto_interes))}
-                  </span>
-                </div>
+                {/* Monto y Estado */}
+                <div className="flex items-center gap-3 shrink-0">
+                  <div className="text-right">
+                    <span className="font-mono text-sm font-bold text-primary block">
+                      {money(Number(p.monto_total))}
+                    </span>
+                    <span className="text-[10px] text-on-surface-variant uppercase tracking-wider block">
+                      {p.fecha_esperada ? formatMonthYear(p.fecha_esperada) : "Cobrado"}
+                    </span>
+                  </div>
 
-                {/* Acciones */}
-                <div className="flex items-center gap-2 shrink-0 justify-end pt-2 md:pt-0 border-t md:border-t-0 border-surface-container-low">
-                  <button
-                    type="button"
-                    onClick={() => onVerRecibo(p)}
-                    className="px-2.5 py-1.5 rounded-lg bg-surface-container-low hover:bg-surface-container text-on-surface text-xs font-semibold inline-flex items-center gap-1 cursor-pointer transition-colors border border-surface-container-high/60 shadow-2xs"
-                    title="Ver comprobante de cobro"
-                  >
-                    <ReceiptText className="w-3.5 h-3.5 text-primary" />
-                    <span>Recibo</span>
-                  </button>
+                  <div className="shrink-0">
+                    {isLate ? (
+                      <span className="badge-atrasado px-2 py-0.5 rounded-md text-[11px] font-semibold inline-flex items-center gap-1.5">
+                        <span className="safari-dot-red" />
+                        Retraso
+                      </span>
+                    ) : isEarly ? (
+                      <span className="badge-blue px-2 py-0.5 rounded-md text-[11px] font-semibold inline-flex items-center gap-1.5">
+                        <span className="safari-dot-blue" />
+                        Anticipado
+                      </span>
+                    ) : (
+                      <span className="badge-al-dia px-2 py-0.5 rounded-md text-[11px] font-semibold inline-flex items-center gap-1.5">
+                        <span className="safari-dot-green" />
+                        En fecha
+                      </span>
+                    )}
+                  </div>
 
-                  <button
-                    type="button"
-                    onClick={() => setPagoAAnular(p)}
-                    className="p-1.5 rounded-lg text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 cursor-pointer transition-colors"
-                    title="Anular cobro"
-                  >
-                    <RotateCcw className="w-3.5 h-3.5" />
-                  </button>
+                  {/* Acciones */}
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => onVerRecibo(p)}
+                      className="p-1.5 rounded-lg text-on-surface-variant hover:text-primary hover:bg-surface-container transition-colors cursor-pointer"
+                      title="Ver comprobante de cobro"
+                    >
+                      <ArrowUpRight className="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPagoAAnular(p)}
+                      className="p-1.5 rounded-lg text-on-surface-variant hover:text-rose-600 hover:bg-surface-container transition-colors cursor-pointer"
+                      title="Anular cobro"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
               </motion.div>
             );
           })}
         </div>
-      )}
-
-      {pagoAAnular && (
-        <ConfirmDialog
-          isOpen={true}
-          title="¿Anular y revertir este cobro?"
-          description={
-            <div className="space-y-2.5 text-xs text-on-surface-variant">
-              <div className="p-3 rounded-xl bg-surface-container-low border border-surface-container-high/70 flex items-center justify-between">
-                <div>
-                  <span className="font-bold text-on-surface block">
-                    {rel(rel(pagoAAnular.prestamos)?.contactos)?.nombre ?? "Deudor"}
-                  </span>
-                  <span className="text-[11px]">{rel(pagoAAnular.prestamos)?.nombre ?? "Préstamo"} · {formatDateEs(pagoAAnular.recibido_en)}</span>
-                </div>
-                <span className="font-mono font-extrabold text-sm text-rose-600 dark:text-rose-400">
-                  {money(Number(pagoAAnular.monto_total))}
-                </span>
-              </div>
-              <p className="leading-relaxed">
-                Al anular este cobro se <strong>eliminará el movimiento de ingreso</strong> en la cuenta <strong>{rel(pagoAAnular.cuentas_dinero)?.nombre ?? "seleccionada"}</strong> y se <strong>restaurará automáticamente el capital pendiente</strong> del préstamo.
-              </p>
-            </div>
-          }
-          useSlider={true}
-          sliderLabel="Desliza para anular cobro"
-          submitting={isAnulando}
-          variant="danger"
-          onConfirm={handleConfirmAnular}
-          onCancel={() => !isAnulando && setPagoAAnular(null)}
-        />
       )}
     </div>
   );
@@ -2633,65 +2590,90 @@ interface AccountTheme {
   dot: string;
   cardCls: string;
   badgeCls: string;
-  balanceCls: string;
+  glowCls: string;
+  iconCls: string;
 }
 
 const ACCOUNT_CARD_THEMES: AccountTheme[] = [
   {
-    id: "turquoise",
-    name: "Turquesa Al Día",
-    description: "Estilo insignia con la frescura y liquidez de FinPal",
-    dot: "#00a896",
-    cardCls: "bg-teal-100/90 border-teal-300 hover:border-teal-400 dark:bg-teal-950/50 dark:border-teal-700/60 dark:hover:border-teal-600 shadow-2xs transition-colors",
-    badgeCls: "badge-turquesa",
-    balanceCls: "text-slate-800 dark:text-white",
-  },
-  {
     id: "emerald",
-    name: "Esmeralda Vivo",
-    description: "Rendimientos estables, capital y crecimiento continuo",
-    dot: "#059669",
-    cardCls: "bg-emerald-100/90 border-emerald-300 hover:border-emerald-400 dark:bg-emerald-950/50 dark:border-emerald-700/60 dark:hover:border-emerald-600 shadow-2xs transition-colors",
-    badgeCls: "badge-emerald",
-    balanceCls: "text-slate-800 dark:text-white",
+    name: "Esmeralda FinPal",
+    description: "Identidad insignia de FinPal con liquidez activa",
+    dot: "#10b981",
+    cardCls: "border-surface-container-high/80 hover:border-emerald-500/50",
+    badgeCls: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/25",
+    glowCls: "",
+    iconCls: "bg-emerald-500/10 border-emerald-500/25 text-emerald-600 dark:text-emerald-400",
   },
   {
     id: "ocean",
     name: "Azul Océano",
-    description: "Solidez bancaria, cuentas de nómina e instituciones",
-    dot: "#2563eb",
-    cardCls: "bg-blue-100/90 border-blue-300 hover:border-blue-400 dark:bg-blue-950/50 dark:border-blue-700/60 dark:hover:border-blue-600 shadow-2xs transition-colors",
-    badgeCls: "badge-blue",
-    balanceCls: "text-slate-800 dark:text-white",
-  },
-  {
-    id: "violet",
-    name: "Violeta Real",
-    description: "Fondos de inversión, reservas y metas patrimoniales",
-    dot: "#7c3aed",
-    cardCls: "bg-violet-100/90 border-violet-300 hover:border-violet-400 dark:bg-violet-950/50 dark:border-violet-700/60 dark:hover:border-violet-600 shadow-2xs transition-colors",
-    badgeCls: "badge-violet",
-    balanceCls: "text-slate-800 dark:text-white",
+    description: "Solidez bancaria y tesorería institucional",
+    dot: "#3b82f6",
+    cardCls: "border-surface-container-high/80 hover:border-blue-500/50",
+    badgeCls: "bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-500/25",
+    glowCls: "",
+    iconCls: "bg-blue-500/10 border-blue-500/25 text-blue-600 dark:text-blue-400",
   },
   {
     id: "amber",
-    name: "Ámbar Cálido",
-    description: "Fondos de emergencia, ahorro líquido y reserva diaria",
-    dot: "#d97706",
-    cardCls: "bg-amber-100/90 border-amber-300 hover:border-amber-400 dark:bg-amber-950/50 dark:border-amber-700/60 dark:hover:border-amber-600 shadow-2xs transition-colors",
-    badgeCls: "badge-amber",
-    balanceCls: "text-slate-800 dark:text-white",
+    name: "Ámbar Safari",
+    description: "Fondos de emergencia y ahorro líquido",
+    dot: "#f59e0b",
+    cardCls: "border-surface-container-high/80 hover:border-amber-500/50",
+    badgeCls: "bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/25",
+    glowCls: "",
+    iconCls: "bg-amber-500/10 border-amber-500/25 text-amber-600 dark:text-amber-400",
   },
   {
     id: "rose",
     name: "Coral Carmesí",
-    description: "Gastos activos, billeteras QR y consumo personal",
-    dot: "#e11d48",
-    cardCls: "bg-rose-100/90 border-rose-300 hover:border-rose-400 dark:bg-rose-950/50 dark:border-rose-700/60 dark:hover:border-rose-600 shadow-2xs transition-colors",
-    badgeCls: "badge-rose",
-    balanceCls: "text-slate-800 dark:text-white",
+    description: "Billeteras QR y consumo de flujo activo",
+    dot: "#ef4444",
+    cardCls: "border-surface-container-high/80 hover:border-rose-500/50",
+    badgeCls: "bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-500/25",
+    glowCls: "",
+    iconCls: "bg-rose-500/10 border-rose-500/25 text-rose-600 dark:text-rose-400",
+  },
+  {
+    id: "violet",
+    name: "Violeta Cyber",
+    description: "Fondos de inversión y reservas patrimoniales",
+    dot: "#8b5cf6",
+    cardCls: "border-surface-container-high/80 hover:border-violet-500/50",
+    badgeCls: "bg-violet-500/10 text-violet-700 dark:text-violet-400 border-violet-500/25",
+    glowCls: "",
+    iconCls: "bg-violet-500/10 border-violet-500/25 text-violet-700 dark:text-violet-400",
+  },
+  {
+    id: "obsidian",
+    name: "Carbono Obsidian",
+    description: "Acabado titanio grafito de alta precisión",
+    dot: "#64748b",
+    cardCls: "border-surface-container-high/80 hover:border-slate-500/50",
+    badgeCls: "bg-slate-500/10 text-slate-700 dark:text-slate-300 border-slate-500/20",
+    glowCls: "",
+    iconCls: "bg-slate-500/10 border-slate-500/20 text-slate-700 dark:text-slate-300",
+  },
+  {
+    id: "turquoise",
+    name: "Menta Fintech",
+    description: "Cajas chicas y operaciones operativas diarias",
+    dot: "#14b8a6",
+    cardCls: "border-surface-container-high/80 hover:border-teal-500/50",
+    badgeCls: "bg-teal-500/10 text-teal-700 dark:text-teal-300 border-teal-500/25",
+    glowCls: "",
+    iconCls: "bg-teal-500/10 border-teal-500/25 text-teal-700 dark:text-teal-300",
   },
 ];
+
+const TIPO_CONFIG: Record<string, { label: string; icon: typeof Wallet; desc: string }> = {
+  efectivo: { label: "Efectivo", icon: Wallet, desc: "Caja física" },
+  banco: { label: "Banco", icon: Landmark, desc: "Cuenta bancaria" },
+  billetera_movil: { label: "Billetera QR", icon: QrCode, desc: "Billetera digital" },
+  ahorro: { label: "Ahorros", icon: PiggyBank, desc: "Cuenta de ahorro" },
+  otra: { label: "Cuenta", icon: CreditCard, desc: "Otra cuenta" },
+};
 
 function AccountCardItem({
   c,
@@ -2700,6 +2682,7 @@ function AccountCardItem({
   themeId,
   onEdit,
   onDelete,
+  onOpenDetails,
   isArchived = false,
   onReactivate,
 }: {
@@ -2709,59 +2692,63 @@ function AccountCardItem({
   themeId: string;
   onEdit?: (cuenta: Cuenta) => void;
   onDelete?: (cuenta: Cuenta) => void;
+  onOpenDetails?: (cuenta: Cuenta) => void;
   isArchived?: boolean;
   onReactivate?: (cuenta: Cuenta) => void;
 }) {
-  const normalizedId = themeId === "blue" ? "ocean" : themeId;
-  const currentTheme = ACCOUNT_CARD_THEMES.find((t) => t.id === normalizedId) ?? ACCOUNT_CARD_THEMES[index % ACCOUNT_CARD_THEMES.length];
+  const normalizedId = themeId === "blue" ? "ocean" : themeId === "charcoal" ? "obsidian" : themeId;
+  const currentTheme =
+    ACCOUNT_CARD_THEMES.find((t) => t.id === normalizedId) ??
+    ACCOUNT_CARD_THEMES[index % ACCOUNT_CARD_THEMES.length];
+  const TipoIcon = TIPO_CONFIG[c.tipo]?.icon ?? Landmark;
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 14, scale: 0.98 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      transition={{ duration: 0.28, delay: Math.min(index * 0.07, 0.35), ease: "easeOut" }}
-      className={`rounded-2xl border p-5 shadow-xs transition-colors relative flex flex-col justify-between ${
-        isArchived
-          ? "opacity-80 hover:opacity-100 border-dashed border-slate-300 dark:border-slate-700 bg-slate-100/60 dark:bg-slate-900/60"
-          : currentTheme.cardCls
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      whileHover={{ y: -2, transition: { duration: 0.16 } }}
+      transition={{ duration: 0.22, delay: Math.min(index * 0.03, 0.25) }}
+      onClick={() => onOpenDetails?.(c)}
+      className={`group bg-surface-container-lowest border border-surface-container-high/80 hover:border-primary/40 rounded-2xl p-4 sm:p-5 shadow-2xs hover:shadow-xs transition-all flex flex-col justify-between gap-3.5 cursor-pointer select-text ${
+        isArchived ? "opacity-75 border-dashed" : ""
       }`}
     >
+      {/* Superior: Ícono Squircle + Nombre + Moneda */}
       <div>
-        <div className="flex items-center justify-between gap-2">
-          <span
-            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold border uppercase tracking-wider ${
-              isArchived
-                ? "bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/20"
-                : currentTheme.badgeCls
-            }`}
-          >
-            {isArchived ? "Archivada" : tipoLabel}
-          </span>
-          <div className="flex items-center gap-1">
-            {isArchived && onReactivate ? (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onReactivate(c);
-                }}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-emerald-600/10 hover:bg-emerald-600/20 text-emerald-700 dark:text-emerald-300 border border-emerald-600/20 transition-colors cursor-pointer"
-                title="Reactivar cuenta en el espacio de trabajo"
+        <div className="flex items-start justify-between gap-2.5">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div
+              className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border transition-all duration-200 shadow-2xs ${
+                isArchived
+                  ? "bg-surface-container text-outline border-outline/20"
+                  : currentTheme.iconCls
+              }`}
+            >
+              <TipoIcon className="w-4 h-4" />
+            </div>
+            <div className="min-w-0">
+              <h3 className="font-heading text-sm sm:text-base font-bold text-on-surface truncate group-hover:text-primary transition-colors">
+                {c.nombre}
+              </h3>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1.5 shrink-0">
+            <span className="tech-pill font-mono font-bold">
+              {c.codigo_moneda}
+            </span>
+            {/* Acciones flotantes al hover */}
+            {!isArchived && (
+              <div
+                className="flex items-center gap-0.5 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
+                onClick={(e) => e.stopPropagation()}
               >
-                <RotateCcw className="w-3.5 h-3.5" />
-                <span>Reactivar</span>
-              </button>
-            ) : (
-              <>
                 {onEdit && (
                   <button
                     type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onEdit(c);
-                    }}
-                    className="p-1.5 rounded-lg text-slate-700 hover:text-slate-900 dark:text-slate-200 dark:hover:text-white hover:bg-black/10 dark:hover:bg-white/10 transition-colors cursor-pointer"
-                    title="Editar nombre o categoría de la cuenta"
+                    onClick={() => onEdit(c)}
+                    className="p-1 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors cursor-pointer"
+                    title="Editar cuenta"
                   >
                     <Pencil className="w-3.5 h-3.5" />
                   </button>
@@ -2769,32 +2756,227 @@ function AccountCardItem({
                 {onDelete && (
                   <button
                     type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onDelete(c);
-                    }}
-                    className="p-1.5 rounded-lg text-rose-600 hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-300 hover:bg-rose-500/10 transition-colors cursor-pointer"
-                    title="Eliminar o desactivar cuenta"
+                    onClick={() => onDelete(c)}
+                    className="p-1 rounded-lg text-rose-600 hover:text-rose-700 dark:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer"
+                    title="Eliminar o archivar"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
                 )}
-              </>
+              </div>
             )}
           </div>
         </div>
-        <p className="font-heading text-lg font-extrabold text-slate-800 dark:text-white mt-3 tracking-tight">{c.nombre}</p>
+
+        {/* Saldo Principal - Limpio y prominente */}
+        <div className="mt-3">
+          <span className="text-[10px] text-on-surface-variant font-semibold uppercase tracking-wider block mb-0.5">
+            Saldo Disponible
+          </span>
+          <p className="font-mono text-2xl font-extrabold text-on-surface tracking-tight">
+            {money(c.saldo)}
+          </p>
+        </div>
+
+        {/* Micro-píldoras monocromáticas estilo Tech Stack */}
+        <div className="flex flex-wrap items-center gap-1.5 pt-2">
+          <span className="tech-pill">
+            {isArchived ? "Archivada" : tipoLabel}
+          </span>
+          {c.saldo_inicial > 0 && (
+            <span className="tech-pill font-mono">
+              Inicial: {money(c.saldo_inicial)}
+            </span>
+          )}
+        </div>
       </div>
 
-      <div className="mt-4 pt-3 border-t border-black/10 dark:border-white/10 flex items-baseline justify-between">
-        <div>
-          <span className="text-[10px] text-slate-600 dark:text-slate-300 block uppercase font-bold tracking-wider">Saldo disponible</span>
-          <p className="font-mono text-2xl font-extrabold mt-0.5 text-slate-800 dark:text-white">{money(c.saldo)}</p>
-        </div>
-        <span className="text-xs font-bold px-2 py-0.5 rounded-md bg-black/5 dark:bg-white/10 text-slate-800 dark:text-white border border-black/10 dark:border-white/15 font-mono">
-          {c.codigo_moneda}
+      {/* Pie de tarjeta: enlace Detalles minimalista */}
+      <div className="pt-2.5 border-t border-surface-container-high/50 flex items-center justify-between text-xs">
+        <span className="text-[10px] text-on-surface-variant uppercase tracking-wider font-semibold">
+          {isArchived ? "Inactiva" : "Cuenta activa"}
         </span>
+
+        {isArchived && onReactivate ? (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onReactivate(c);
+            }}
+            className="inline-flex items-center gap-1 font-semibold text-emerald-600 dark:text-emerald-400 hover:underline cursor-pointer"
+          >
+            <RotateCcw className="w-3 h-3" />
+            <span>Reactivar</span>
+          </button>
+        ) : (
+          <span className="text-on-surface-variant hover:text-primary font-semibold inline-flex items-center gap-1 cursor-pointer transition-colors">
+            <span>Detalles</span>
+            <ArrowUpRight className="w-3.5 h-3.5" />
+          </span>
+        )}
       </div>
+    </motion.div>
+  );
+}
+
+// ─── Modal para Ver Detalle Minimalista de Cuenta ───────────────────────────
+
+function ModalDetalleCuenta({
+  cuenta,
+  tipoLabel,
+  theme,
+  onClose,
+  onEdit,
+  onDelete,
+  onOpenMovement,
+}: {
+  cuenta: Cuenta;
+  tipoLabel: string;
+  theme: AccountTheme;
+  onClose: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+  onOpenMovement: () => void;
+}) {
+  const TipoIcon = TIPO_CONFIG[cuenta.tipo]?.icon ?? Landmark;
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.18 }}
+      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 select-none"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.94, y: 12 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.94, y: 12 }}
+        transition={{ type: "spring", stiffness: 380, damping: 28 }}
+        className="bg-surface-container-lowest border border-surface-container-high/80 rounded-2xl max-w-md w-full p-5 sm:p-6 shadow-2xl space-y-4 relative select-text"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Encabezado del Detalle */}
+        <div className="flex items-start justify-between gap-3 pb-3 border-b border-surface-container-high/60">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border shadow-2xs ${theme.iconCls}`}>
+              <TipoIcon className="w-5 h-5" />
+            </div>
+            <div className="min-w-0">
+              <h2 className="font-heading text-lg font-bold text-on-surface truncate">
+                {cuenta.nombre}
+              </h2>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <span className={`inline-flex items-center font-mono text-[10px] font-bold px-2 py-0.5 rounded-md border ${theme.badgeCls}`}>
+                  {tipoLabel}
+                </span>
+                <span className="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-surface-container text-on-surface-variant border border-surface-container-high/60">
+                  {cuenta.codigo_moneda}
+                </span>
+              </div>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-1.5 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors cursor-pointer"
+            aria-label="Cerrar detalles"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Saldo Principal Destacado */}
+        <div className="p-4 rounded-xl bg-surface-container-low/70 border border-surface-container-high/60 flex items-baseline justify-between">
+          <div>
+            <span className="font-mono text-[10px] uppercase font-bold text-outline block">
+              Saldo disponible
+            </span>
+            <p className="font-mono text-2xl sm:text-3xl font-extrabold text-on-surface mt-0.5">
+              {money(cuenta.saldo)}
+            </p>
+          </div>
+          <span className="font-mono text-xs font-bold text-primary">
+            {cuenta.codigo_moneda}
+          </span>
+        </div>
+
+        {/* Desglose de Información Contable */}
+        <div className="space-y-2 text-xs">
+          <div className="flex items-center justify-between py-1.5 border-b border-surface-container-high/40">
+            <span className="text-on-surface-variant">Saldo de apertura</span>
+            <span className="font-mono font-semibold text-on-surface">
+              {money(cuenta.saldo_inicial)}
+            </span>
+          </div>
+
+          <div className="flex items-center justify-between py-1.5 border-b border-surface-container-high/40">
+            <span className="text-on-surface-variant">Estado operativo</span>
+            <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+              {cuenta.es_activa ? "Activa y disponible" : "Archivada / Inactiva"}
+            </span>
+          </div>
+
+          {cuenta.created_at && (
+            <div className="flex items-center justify-between py-1.5 border-b border-surface-container-high/40">
+              <span className="text-on-surface-variant">Fecha de registro</span>
+              <span className="font-mono text-on-surface">
+                {formatDateEs(cuenta.created_at)}
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* Acciones Rápidas */}
+        <div className="pt-2 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                onClose();
+                onEdit();
+              }}
+              className="px-3 py-2 rounded-xl text-xs font-semibold border border-surface-container-high/80 bg-surface-container-lowest hover:bg-surface-container text-on-surface flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+            >
+              <Pencil className="w-3.5 h-3.5" />
+              <span>Editar</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                onClose();
+                onDelete();
+              }}
+              className="px-3 py-2 rounded-xl text-xs font-semibold text-rose-600 hover:text-rose-700 hover:bg-rose-500/10 border border-rose-500/20 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>{cuenta.saldo > 0 ? "Archivar" : "Eliminar"}</span>
+            </button>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              onClose();
+              onOpenMovement();
+            }}
+            className="px-4 py-2 rounded-xl text-xs font-semibold bg-primary text-on-primary hover:bg-primary-container shadow-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>Nuevo movimiento</span>
+          </button>
+        </div>
+      </motion.div>
     </motion.div>
   );
 }
@@ -2873,15 +3055,69 @@ function ModalEditarCuenta({
     return true;
   };
 
+  const isDirty = nombre !== cuenta.nombre || tipo !== cuenta.tipo || motivo.trim().length > 0;
+  const [shake, setShake] = useState(false);
+  const [showProtectedNotice, setShowProtectedNotice] = useState(false);
+  const pointerDownOnBackdrop = useRef(false);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    pointerDownOnBackdrop.current = e.target === e.currentTarget;
+  };
+
+  const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!pointerDownOnBackdrop.current || e.target !== e.currentTarget) {
+      return;
+    }
+    pointerDownOnBackdrop.current = false;
+
+    if (isDirty) {
+      setShake(true);
+      setShowProtectedNotice(true);
+      setTimeout(() => setShake(false), 350);
+      setTimeout(() => setShowProtectedNotice(false), 2200);
+      return;
+    }
+
+    onClose();
+  };
+
   return (
-    <div
-      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150"
-      onClick={onClose}
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.16 }}
+      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 select-none"
+      onPointerDown={handlePointerDown}
+      onClick={handleBackdropClick}
     >
-      <div
-        className="bg-surface-container-lowest border border-surface-container-high/80 rounded-2xl max-w-lg w-full p-5 sm:p-6 shadow-2xl space-y-4 max-h-[92vh] flex flex-col"
+      <motion.div
+        initial={{ opacity: 0, scale: 0.94, y: 14 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.94, y: 14 }}
+        transition={{ type: "spring", damping: 25, stiffness: 350 }}
+        className={`bg-surface-container-lowest border border-surface-container-high/80 rounded-2xl max-w-lg w-full p-5 sm:p-6 shadow-2xl space-y-4 max-h-[92vh] flex flex-col relative select-text ${
+          shake ? "animate-modal-shake" : ""
+        }`}
         onClick={(e) => e.stopPropagation()}
       >
+        {/* Aviso flotante de protección de edición */}
+        {showProtectedNotice && (
+          <div className="absolute top-2.5 left-1/2 -translate-x-1/2 z-20 bg-surface-container-highest/95 backdrop-blur-md text-primary text-[11px] font-semibold px-3 py-1 rounded-full shadow-lg border border-primary/30 flex items-center gap-1.5 pointer-events-none whitespace-nowrap animate-fade-in">
+            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+            <span>Edición en curso · Usa la ✕ o Cancelar para salir</span>
+          </div>
+        )}
         <div className="flex items-start justify-between gap-3 pb-3 border-b border-surface-container-low">
           <div className="flex items-center gap-2.5">
             <span className="w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
@@ -3026,8 +3262,8 @@ function ModalEditarCuenta({
             )}
           </div>
         )}
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 }
 
@@ -3047,12 +3283,33 @@ function ModalPersonalizarColores({
   onClose: () => void;
 }) {
   const currentAccount = cuentas.find((c) => c.id === selectedAccountId) ?? cuentas[0];
-  const activeThemeId = currentAccount ? (themeMap[currentAccount.id] ?? "turquoise") : "turquoise";
+  const activeThemeId = currentAccount
+    ? themeMap[currentAccount.id] === "blue"
+      ? "ocean"
+      : themeMap[currentAccount.id] === "charcoal"
+      ? "obsidian"
+      : themeMap[currentAccount.id] ?? "turquoise"
+    : "turquoise";
   const activeTheme = ACCOUNT_CARD_THEMES.find((t) => t.id === activeThemeId) ?? ACCOUNT_CARD_THEMES[0];
+  const TipoIcon = currentAccount ? TIPO_CONFIG[currentAccount.tipo]?.icon ?? Landmark : Landmark;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-      <div className="bg-surface-container-lowest border border-surface-container-high/80 rounded-2xl max-w-lg w-full p-5 sm:p-6 shadow-xl space-y-5 max-h-[92vh] overflow-y-auto">
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.16 }}
+      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 select-none"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.94, y: 14 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.94, y: 14 }}
+        transition={{ type: "spring", damping: 25, stiffness: 350 }}
+        className="bg-surface-container-lowest border border-surface-container-high/80 rounded-2xl max-w-lg w-full p-5 sm:p-6 shadow-xl space-y-5 max-h-[92vh] overflow-y-auto select-text"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-2.5">
             <span className="w-8 h-8 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
@@ -3102,19 +3359,30 @@ function ModalPersonalizarColores({
               <span className="text-xs font-semibold text-on-surface-variant">Vista previa en tiempo real:</span>
               <span className="text-[11px] text-primary font-medium">{activeTheme.name}</span>
             </div>
-            <div className={`rounded-2xl border p-4 shadow-xs transition-all ${activeTheme.cardCls}`}>
-              <div className="flex items-center justify-between gap-2">
-                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold border uppercase tracking-wider ${activeTheme.badgeCls}`}>
-                  {currentAccount.tipo}
-                </span>
-                <span className="text-xs font-bold px-2 py-0.5 rounded-md bg-black/5 dark:bg-white/10 text-slate-800 dark:text-white border border-black/10 dark:border-white/15 font-mono">
+            <div className={`relative rounded-2xl border p-4 shadow-xs transition-all overflow-hidden ${activeTheme.cardCls} bg-surface-container-lowest/90 dark:bg-surface-container-low/40`}>
+              <div
+                className={`absolute -top-10 -right-10 w-24 h-24 rounded-full blur-xl pointer-events-none opacity-40 ${activeTheme.glowCls}`}
+              />
+              <div className="flex items-center justify-between gap-2 relative">
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 border ${activeTheme.iconCls}`}>
+                    <TipoIcon className="w-4 h-4" />
+                  </div>
+                  <p className="font-heading text-sm font-bold text-on-surface truncate tracking-tight">{currentAccount.nombre}</p>
+                </div>
+                <span className="font-mono text-[11px] font-bold px-2 py-0.5 rounded-md bg-surface-container/70 border border-surface-container-high/60 text-on-surface-variant shrink-0">
                   {currentAccount.codigo_moneda}
                 </span>
               </div>
-              <p className="font-heading text-base font-extrabold text-slate-800 dark:text-white mt-2.5 tracking-tight">{currentAccount.nombre}</p>
-              <div className="mt-3 pt-2.5 border-t border-black/10 dark:border-white/10 flex items-baseline justify-between">
-                <span className="text-[10px] text-slate-600 dark:text-slate-300 uppercase font-bold tracking-wider">Saldo disponible</span>
-                <p className="font-mono text-xl font-extrabold text-slate-800 dark:text-white">{money(currentAccount.saldo)}</p>
+              <p className="font-mono text-2xl font-extrabold text-on-surface mt-3 tracking-tight">{money(currentAccount.saldo)}</p>
+              <div className="mt-3 pt-2.5 border-t border-surface-container-high/40 flex items-center justify-between text-[11px]">
+                <span className={`inline-flex items-center font-mono text-[10px] uppercase font-bold px-2 py-0.5 rounded-md border ${activeTheme.badgeCls}`}>
+                  {currentAccount.tipo}
+                </span>
+                <span className="font-semibold text-primary inline-flex items-center gap-0.5">
+                  <span>Detalles</span>
+                  <ArrowRight className="w-3 h-3" />
+                </span>
               </div>
             </div>
           </div>
@@ -3163,8 +3431,8 @@ function ModalPersonalizarColores({
             Listo
           </button>
         </div>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 }
 
@@ -3181,13 +3449,19 @@ function CuentasView({
   loadData: () => Promise<void>;
   setSuccessNotice: (msg: string | null) => void;
 }) {
+  const { openModal: openDashboardModal } = useDashboard();
   const [modalColoresOpen, setModalColoresOpen] = useState(false);
   const [cuentaAEditar, setCuentaAEditar] = useState<Cuenta | null>(null);
   const [cuentaAEliminar, setCuentaAEliminar] = useState<Cuenta | null>(null);
+  const [cuentaDetalle, setCuentaDetalle] = useState<Cuenta | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [showArchivadas, setShowArchivadas] = useState(false);
   const [cuentasArchivadas, setCuentasArchivadas] = useState<Cuenta[]>([]);
   const [loadingArchivadas, setLoadingArchivadas] = useState(false);
+
+  const totalLiquidez = useMemo(() => {
+    return cuentas.reduce((acc, c) => acc + (Number(c.saldo) || 0), 0);
+  }, [cuentas]);
 
   const [selectedAccountId, setSelectedAccountId] = useState<string>(cuentas[0]?.id ?? "");
   const [themeMap, setThemeMap] = useState<Record<string, string>>(() => {
@@ -3290,38 +3564,56 @@ function CuentasView({
       <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.24 }}
+        transition={{ duration: 0.22 }}
         className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-surface-container-high/60"
       >
-        <div>
-          <h1 className="font-heading text-2xl font-extrabold text-on-surface">Cuentas de Dinero</h1>
-          <p className="text-xs text-on-surface-variant mt-0.5">Efectivo, bancos, billeteras y personalización de fondo.</p>
+        <div className="flex flex-wrap items-center gap-2.5">
+          <h1 className="font-heading text-2xl font-extrabold text-on-surface">Cuentas y Billeteras</h1>
+          <span className="font-mono text-xs font-semibold px-2.5 py-1 rounded-lg bg-surface-container text-on-surface border border-surface-container-high/60 shadow-2xs">
+            Total: {money(totalLiquidez)}
+          </span>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={toggleArchivadas}
-            className={`w-full sm:w-auto px-3.5 py-2.5 rounded-xl border text-xs font-semibold shadow-2xs flex items-center justify-center gap-2 cursor-pointer transition-colors ${
-              showArchivadas
-                ? "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300"
-                : "border-surface-container-high/80 bg-surface-container-lowest hover:bg-surface-container text-on-surface"
-            }`}
-          >
-            <Archive className="w-4 h-4" />
-            <span>{showArchivadas ? "Ocultar archivadas" : "Cuentas archivadas"}</span>
-          </button>
+
+        <div className="flex items-center gap-2">
+          {showArchivadas || cuentasArchivadas.length > 0 ? (
+            <button
+              type="button"
+              onClick={toggleArchivadas}
+              className={`px-3 py-2 rounded-xl border text-xs font-semibold shadow-2xs flex items-center gap-1.5 cursor-pointer transition-colors ${
+                showArchivadas
+                  ? "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300"
+                  : "border-surface-container-high/80 bg-surface-container-lowest hover:bg-surface-container text-on-surface"
+              }`}
+            >
+              <Archive className="w-3.5 h-3.5" />
+              <span>{showArchivadas ? "Ocultar" : "Archivadas"}</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={toggleArchivadas}
+              className="px-3 py-2 rounded-xl border border-surface-container-high/80 bg-surface-container-lowest hover:bg-surface-container text-on-surface text-xs font-semibold shadow-2xs flex items-center gap-1.5 cursor-pointer transition-colors"
+              title="Ver cuentas archivadas"
+            >
+              <Archive className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Archivadas</span>
+            </button>
+          )}
+
           {cuentas.length > 0 && (
             <button
               type="button"
               onClick={() => handleOpenColorModal()}
-              className="w-full sm:w-auto px-3.5 py-2.5 rounded-xl border border-surface-container-high/80 bg-surface-container-lowest hover:bg-surface-container text-on-surface text-xs font-semibold shadow-2xs flex items-center justify-center gap-2 cursor-pointer transition-colors"
+              className="p-2 sm:px-3 sm:py-2 rounded-xl border border-surface-container-high/80 bg-surface-container-lowest hover:bg-surface-container text-on-surface text-xs font-semibold shadow-2xs flex items-center gap-1.5 cursor-pointer transition-colors"
+              title="Personalizar colores de tarjetas"
             >
-              <Palette className="w-4 h-4 text-primary" />
-              <span>Editar colores</span>
+              <Palette className="w-3.5 h-3.5 text-primary" />
+              <span className="hidden sm:inline">Estilo</span>
             </button>
           )}
+
           <button
-            className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-primary text-on-primary text-xs font-semibold shadow-xs hover:bg-primary-container flex items-center justify-center gap-2 cursor-pointer transition-colors"
+            className="px-3.5 py-2 rounded-xl bg-primary text-on-primary text-xs font-semibold shadow-xs hover:bg-primary-container flex items-center gap-1.5 cursor-pointer transition-colors"
             onClick={openModal}
           >
             <Plus className="w-4 h-4" />
@@ -3332,7 +3624,21 @@ function CuentasView({
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {cuentas.length === 0 && (
-          <p className="text-xs text-on-surface-variant col-span-3 text-center py-8">Sin cuentas registradas aún.</p>
+          <div className="py-12 px-4 rounded-2xl border-2 border-dashed border-surface-container-high/70 bg-surface-container-lowest/40 text-center col-span-full max-w-md mx-auto">
+            <div className="w-10 h-10 rounded-xl bg-surface-container text-on-surface-variant flex items-center justify-center mx-auto mb-2.5">
+              <WalletCards className="w-5 h-5" />
+            </div>
+            <p className="text-sm font-bold text-on-surface">Sin cuentas activas</p>
+            <p className="text-xs text-on-surface-variant mt-1">Registra tu primera cuenta o billetera para controlar tu liquidez.</p>
+            <button
+              type="button"
+              onClick={openModal}
+              className="mt-3.5 px-4 py-2 rounded-xl bg-primary text-on-primary text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer shadow-xs"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Crear primera cuenta</span>
+            </button>
+          </div>
         )}
         {cuentas.map((c, i) => (
           <AccountCardItem
@@ -3343,6 +3649,7 @@ function CuentasView({
             themeId={themeMap[c.id] ?? ACCOUNT_CARD_THEMES[i % ACCOUNT_CARD_THEMES.length].id}
             onEdit={(cuenta) => setCuentaAEditar(cuenta)}
             onDelete={(cuenta) => setCuentaAEliminar(cuenta)}
+            onOpenDetails={(cuenta) => setCuentaDetalle(cuenta)}
           />
         ))}
       </div>
@@ -3385,28 +3692,64 @@ function CuentasView({
         </div>
       )}
 
-      {modalColoresOpen && (
-        <ModalPersonalizarColores
-          cuentas={cuentas}
-          selectedAccountId={selectedAccountId}
-          onSelectAccount={setSelectedAccountId}
-          themeMap={themeMap}
-          onSelectTheme={handleSelectTheme}
-          onClose={() => setModalColoresOpen(false)}
-        />
-      )}
+      <AnimatePresence>
+        {modalColoresOpen && (
+          <ModalPersonalizarColores
+            cuentas={cuentas}
+            selectedAccountId={selectedAccountId}
+            onSelectAccount={setSelectedAccountId}
+            themeMap={themeMap}
+            onSelectTheme={handleSelectTheme}
+            onClose={() => setModalColoresOpen(false)}
+          />
+        )}
+      </AnimatePresence>
 
-      {cuentaAEditar && (
-        <ModalEditarCuenta
-          cuenta={cuentaAEditar}
-          espacioId={espacioId}
-          onClose={() => setCuentaAEditar(null)}
-          onSuccess={async () => {
-            setSuccessNotice("¡Cuenta actualizada correctamente!");
-            await loadData();
-          }}
-        />
-      )}
+      <AnimatePresence>
+        {cuentaAEditar && (
+          <ModalEditarCuenta
+            cuenta={cuentaAEditar}
+            espacioId={espacioId}
+            onClose={() => setCuentaAEditar(null)}
+            onSuccess={async () => {
+              setSuccessNotice("¡Cuenta actualizada correctamente!");
+              await loadData();
+            }}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {cuentaDetalle && (
+          <ModalDetalleCuenta
+            cuenta={cuentaDetalle}
+            tipoLabel={TIPO_LABELS[cuentaDetalle.tipo] ?? cuentaDetalle.tipo}
+            theme={
+              ACCOUNT_CARD_THEMES.find(
+                (t) =>
+                  t.id ===
+                  (themeMap[cuentaDetalle.id] === "blue"
+                    ? "ocean"
+                    : themeMap[cuentaDetalle.id] === "charcoal"
+                    ? "obsidian"
+                    : themeMap[cuentaDetalle.id] ?? ACCOUNT_CARD_THEMES[0].id)
+              ) ?? ACCOUNT_CARD_THEMES[0]
+            }
+            onClose={() => setCuentaDetalle(null)}
+            onEdit={() => {
+              const c = cuentaDetalle;
+              setCuentaDetalle(null);
+              setCuentaAEditar(c);
+            }}
+            onDelete={() => {
+              const c = cuentaDetalle;
+              setCuentaDetalle(null);
+              setCuentaAEliminar(c);
+            }}
+            onOpenMovement={() => openDashboardModal("movement")}
+          />
+        )}
+      </AnimatePresence>
 
       {cuentaAEliminar && (
         <ConfirmDialog
@@ -3752,29 +4095,28 @@ function MovimientosView({
                       <h4 className="font-bold text-sm text-on-surface truncate group-hover:text-primary transition-colors">
                         {m.descripcion ? fixSpanishEncoding(m.descripcion) : badge.label}
                       </h4>
-                      <span className={`inline-flex items-center gap-1 px-2 py-0.2 rounded-full text-[10px] font-bold border ${badge.badgeClass}`}>
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold border ${badge.badgeClass}`}>
                         <BadgeIcon className="w-2.5 h-2.5 shrink-0" />
                         <span>{badge.label}</span>
                       </span>
                       {catNombre && (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.2 rounded-full text-[10px] font-semibold bg-surface-container text-on-surface-variant border border-surface-container-high/60">
-                          <Tag className="w-2.5 h-2.5 text-primary" />
+                        <span className="tech-pill">
+                          <Tag className="w-2.5 h-2.5 text-primary shrink-0" />
                           <span>{catNombre}</span>
                         </span>
                       )}
                     </div>
 
-                    <div className="flex items-center gap-2 text-xs text-on-surface-variant flex-wrap">
-                      <span className="font-medium text-on-surface">{cuentaNombre}</span>
-                      <span>·</span>
-                      <span>{formatDateEs(m.ocurrido_en)}</span>
+                    <div className="flex items-center gap-1.5 text-xs text-on-surface-variant flex-wrap pt-0.5">
+                      <span className="tech-pill">{cuentaNombre}</span>
+                      <span className="tech-pill font-mono">{formatDateEs(m.ocurrido_en)}</span>
                       {m.descripcion && m.descripcion.length > 25 && (
                         <button
                           type="button"
                           onClick={() => onVerNota("Detalle del movimiento", badge.label, m.descripcion)}
-                          className="text-[10px] text-primary hover:underline font-semibold cursor-pointer"
+                          className="tech-pill hover:border-primary/40 cursor-pointer text-primary"
                         >
-                          Ver nota
+                          Nota
                         </button>
                       )}
                     </div>
@@ -3794,12 +4136,21 @@ function MovimientosView({
                     </span>
                   </div>
 
-                  {isManual && (
+                  {isManual ? (
                     <button
                       type="button"
                       onClick={() => setMovimientoAEliminar(m)}
                       className="p-2 rounded-xl text-on-surface-variant hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-500/10 cursor-pointer transition-colors"
                       title="Eliminar este movimiento"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled
+                      className="p-2 rounded-xl text-on-surface-variant/30 cursor-not-allowed transition-colors"
+                      title="Movimiento originado por un préstamo o cobro (administrable desde su expediente para proteger el balance)"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -3860,12 +4211,21 @@ function MovimientosView({
                     {isPositive ? "+" : "−"}{money(Number(m.monto))}
                   </span>
 
-                  {isManual && (
+                  {isManual ? (
                     <button
                       type="button"
                       onClick={() => setMovimientoAEliminar(m)}
                       className="p-1.5 rounded-lg text-on-surface-variant hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-500/10 cursor-pointer transition-colors"
                       title="Eliminar movimiento"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled
+                      className="p-1.5 rounded-lg text-on-surface-variant/30 cursor-not-allowed transition-colors"
+                      title="Movimiento originado por un préstamo o cobro (administrable desde su expediente para proteger el balance)"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
