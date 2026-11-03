@@ -10,7 +10,7 @@ import {
 } from "@/config/legal-content";
 
 export const metadata: Metadata = {
-  title: "Política de Privacidad y Soberanía de Datos | FinPal",
+  title: "Política de Privacidad y Soberanía de Datos",
   description:
     "Política de privacidad, cifrado AES-256-GCM en servidor, aislamiento RLS, no entrenamiento de IA y ejercicio del Derecho al Olvido (Bolivia, CCPA, GDPR).",
 };

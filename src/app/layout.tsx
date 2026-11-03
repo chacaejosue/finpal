@@ -37,7 +37,7 @@ function getMetadataBase(): URL {
 export const metadata: Metadata = {
   metadataBase: getMetadataBase(),
   title: {
-    default: "FinPal | Control Inteligente de Préstamos, Cobros y Finanzas Personales",
+    default: "FinPal | Control de Préstamos y Finanzas Personales",
     template: "%s | FinPal",
   },
   description:
@@ -83,7 +83,7 @@ export const metadata: Metadata = {
     type: "website",
     locale: "es_LA",
     url: SITE_URL,
-    title: "FinPal | Control Inteligente de Préstamos, Cobros y Finanzas Personales",
+    title: "FinPal | Control de Préstamos y Finanzas Personales",
     description:
       "Gestiona préstamos personales, cobro mensual de intereses, amortizaciones y cuentas de dinero con total privacidad y reportes ejecutivos.",
     siteName: "FinPal",
@@ -106,6 +106,11 @@ export const metadata: Metadata = {
   },
   verification: {
     google: process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION,
+    other: {
+      ...(process.env.NEXT_PUBLIC_BING_SITE_VERIFICATION
+        ? { "msvalidate.01": process.env.NEXT_PUBLIC_BING_SITE_VERIFICATION }
+        : {}),
+    },
   },
   icons: {
     icon: [
