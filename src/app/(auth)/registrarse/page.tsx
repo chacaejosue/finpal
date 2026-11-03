@@ -1,8 +1,13 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowLeft, ArrowRight, Check, Code2, Lock, Mail, ShieldCheck, Wallet, BadgePercent } from "lucide-react";
 import { signUp } from "../actions";
 import { FinPalLogo } from "@/components/finpal-logo";
 import { ThemeToggle } from "@/components/theme-toggle";
+
+export const metadata: Metadata = {
+  title: "Crear Cuenta",
+};
 
 export default async function SignUpPage({ searchParams }: PageProps<"/registrarse">) {
   const { error } = await searchParams;
@@ -103,9 +108,9 @@ export default async function SignUpPage({ searchParams }: PageProps<"/registrar
                 <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full badge-emerald text-[10px] font-bold mb-1.5">
                   <span>Primer paso</span>
                 </div>
-                <h2 className="font-heading text-xl sm:text-2xl text-on-surface font-extrabold tracking-tight">
+                <h1 className="font-heading text-xl sm:text-2xl text-on-surface font-extrabold tracking-tight">
                   Crea tu cuenta
-                </h2>
+                </h1>
                 <p className="text-xs text-on-surface-variant mt-0.5 leading-relaxed">
                   Configura tu acceso para comenzar a organizar tu dinero.
                 </p>

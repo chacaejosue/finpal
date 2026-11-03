@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowLeft, Code2, ShieldCheck } from "lucide-react";
 import { signIn } from "../actions";
@@ -5,6 +6,10 @@ import { AuthShowcase } from "@/components/auth-showcase";
 import { LoginForm } from "@/components/login-form";
 import { FinPalLogo } from "@/components/finpal-logo";
 import { ThemeToggle } from "@/components/theme-toggle";
+
+export const metadata: Metadata = {
+  title: "Iniciar Sesión",
+};
 
 export default async function SignInPage({ searchParams }: PageProps<"/iniciar-sesion">) {
   const { error, mensaje } = await searchParams;
@@ -48,9 +53,9 @@ export default async function SignInPage({ searchParams }: PageProps<"/iniciar-s
             {/* Encabezado y Formulario */}
             <div className="flex-1 flex flex-col">
               <div className="mb-4">
-                <h2 className="font-heading text-xl sm:text-2xl text-on-surface font-extrabold tracking-tight">
+                <h1 className="font-heading text-xl sm:text-2xl text-on-surface font-extrabold tracking-tight">
                   Iniciar sesión
-                </h2>
+                </h1>
                 <p className="text-xs text-on-surface-variant mt-1 leading-relaxed">
                   Ingresa a tu cuenta para gestionar tus espacios de trabajo.
                 </p>

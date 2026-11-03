@@ -10,7 +10,7 @@ import {
 } from "@/config/legal-content";
 
 export const metadata: Metadata = {
-  title: "Términos de Servicio y Deslinde Legal | FinPal",
+  title: "Términos de Servicio y Deslinde Legal",
   description:
     "Condiciones de uso, deslinde de responsabilidad financiera y de inteligencia artificial, cumplimiento legal en Bolivia y jurisdicción internacional de FinPal.",
 };
