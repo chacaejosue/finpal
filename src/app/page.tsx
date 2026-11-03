@@ -170,7 +170,6 @@ const metrics = [
 ];
 
 export default function Home() {
-  const [mounted, setMounted] = useState(false);
   const [legalModal, setLegalModal] = useState<"terminos" | "privacidad" | null>(null);
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(null);
   const [mockTab, setMockTab] = useState<"resumen" | "prestamos" | "recibo">("resumen");
@@ -184,7 +183,6 @@ export default function Home() {
   const [showScrollTop, setShowScrollTop] = useState(false);
 
   useEffect(() => {
-    setMounted(true);
     const onScroll = () => setShowScrollTop(window.scrollY > 350);
     window.addEventListener("scroll", onScroll, { passive: true });
     onScroll();
@@ -233,14 +231,6 @@ export default function Home() {
       };
     }
   }, [simMonto, simTasa, simPlazo, simModalidad]);
-
-  if (!mounted) {
-    return (
-      <div className="min-h-screen bg-surface flex items-center justify-center">
-        <div className="w-8 h-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
-      </div>
-    );
-  }
 
   if (MODO_MANTENIMIENTO) {
     return <PantallaMantenimiento />;
@@ -954,7 +944,7 @@ export default function Home() {
               {/* Lado derecho: Flujo y Cuentas */}
               <div className="lg:col-span-4 flex flex-col gap-4">
                 <div className="bg-surface-container-lowest border border-surface-container-high/70 rounded-2xl p-4 shadow-xs">
-                  <span className="text-[11px] font-semibold text-on-surface-variant uppercase font-mono">
+                  <span className="text-[11px] font-semibold text-on-surface-variant uppercase font-mono" suppressHydrationWarning>
                     Cobros de {mesActualLanding}
                   </span>
                   <div className="flex items-baseline gap-2 mt-1">
