@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { EspacioProvider } from "@/lib/espacio-context";
+import { getSiteUrl } from "@/lib/site";
 
 export const viewport: Viewport = {
   width: "device-width",
@@ -13,22 +14,11 @@ export const viewport: Viewport = {
   ],
 };
 
-const SITE_URL =
-  process.env.NEXT_PUBLIC_SITE_URL ||
-  (process.env.VERCEL_PROJECT_PRODUCTION_URL
-    ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
-    : "") ||
-  (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "") ||
-  "https://finpal-tan.vercel.app";
+const SITE_URL = getSiteUrl();
 
 function getMetadataBase(): URL {
-  const urlWithProtocol =
-    SITE_URL.startsWith("http://") || SITE_URL.startsWith("https://")
-      ? SITE_URL
-      : `https://${SITE_URL}`;
-
   try {
-    return new URL(urlWithProtocol);
+    return new URL(SITE_URL);
   } catch {
     return new URL("https://finpal-tan.vercel.app");
   }
