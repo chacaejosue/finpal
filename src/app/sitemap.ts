@@ -1,12 +1,13 @@
 import type { MetadataRoute } from "next";
+import { getSiteUrl } from "@/lib/site";
 
 export default function sitemap(): MetadataRoute.Sitemap {
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://finpal-tan.vercel.app";
+  const siteUrl = getSiteUrl();
   const now = new Date();
 
   return [
     {
-      url: `${siteUrl}`,
+      url: `${siteUrl}/`,
       lastModified: now,
       changeFrequency: "daily",
       priority: 1.0,
