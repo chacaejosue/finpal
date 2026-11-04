@@ -288,7 +288,7 @@ export default function Home() {
 
             <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
               <Link
-                href="/registrarse"
+                href="/iniciar-sesion"
                 className="inline-flex items-center gap-1.5 px-3.5 py-1.5 sm:px-4 sm:py-2 rounded-xl bg-primary text-on-primary text-xs sm:text-sm font-semibold hover:bg-primary-container transition-all cursor-pointer shadow-xs shrink-0"
               >
                 <span>Empezar gratis</span>
@@ -349,7 +349,7 @@ export default function Home() {
                   <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
                     <Link
                       className="inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-primary hover:bg-primary-container text-on-primary font-semibold text-sm sm:text-base shadow-md hover:shadow-lg transition-all text-center w-full"
-                      href="/registrarse"
+                      href="/iniciar-sesion"
                     >
                       <span>Empezar gratis</span>
                       <ArrowRight className="w-4 h-4" />
