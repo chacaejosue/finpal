@@ -215,6 +215,11 @@ export async function registrarMovimiento(espacioId: string, formData: FormData)
 }
 
 // ── Eliminar movimiento manual, transferencia o cobro ───────────────────
+// Supabase no devuelve error cuando RLS bloquea un DELETE (simplemente borra 0 filas),
+// por eso cada borrado se verifica antes de registrar la auditoría.
+const MENSAJE_SIN_PERMISO =
+  "No se pudo eliminar el movimiento: tu usuario no tiene permiso de borrado en este espacio. Pide al administrador que aplique el script supabase/setup/7-anulacion-cobros.sql.";
+
 export async function eliminarMovimiento(txId: string, espacioId: string) {
   if (!isValidUuid(txId) || !isValidUuid(espacioId)) {
     return { error: "Identificadores no válidos" };
@@ -247,20 +252,27 @@ export async function eliminarMovimiento(txId: string, espacioId: string) {
   if (tx.tipo === "pago_prestamo" || tx.pago_prestamo_id) {
     let pagoId = tx.pago_prestamo_id;
 
-    if (!pagoId && tx.prestamo_id) {
-      // Buscar el cobro coincidente si la transacción histórica no tenía pago_prestamo_id enlazado
-      const { data: pagoCandidato } = await supabase
+    if (!pagoId) {
+      // Buscar el cobro coincidente si la transacción histórica no tenía pago_prestamo_id enlazado.
+      // Sin esto, solo se borraba el movimiento y el cobro seguía vivo en /pagos y reportes.
+      let query = supabase
         .from("pagos_prestamos")
-        .select("id")
+        .select("id, recibido_en")
         .eq("espacio_id", espacioId)
-        .eq("prestamo_id", tx.prestamo_id)
         .eq("cuenta_dinero_id", tx.cuenta_dinero_id)
         .eq("monto_total", tx.monto)
         .order("created_at", { ascending: false })
-        .limit(1);
+        .limit(10);
+      if (tx.prestamo_id) query = query.eq("prestamo_id", tx.prestamo_id);
 
-      if (pagoCandidato && pagoCandidato[0]) {
-        pagoId = pagoCandidato[0].id;
+      const { data: pagosCandidatos } = await query;
+      const candidatos = pagosCandidatos ?? [];
+      const mejor =
+        candidatos.find((p) => p.recibido_en === tx.ocurrido_en) ??
+        (tx.prestamo_id ? candidatos[0] : undefined);
+
+      if (mejor) {
+        pagoId = mejor.id;
       }
     }
 
@@ -269,13 +281,15 @@ export async function eliminarMovimiento(txId: string, espacioId: string) {
     }
 
     // Si no existe pago_prestamo asociado (transacción huérfana), eliminarla y auditar
-    const { error: delTxError } = await supabase
+    const { data: txBorradas, error: delTxError } = await supabase
       .from("transacciones")
       .delete()
       .eq("id", txId)
-      .eq("espacio_id", espacioId);
+      .eq("espacio_id", espacioId)
+      .select("id");
 
     if (delTxError) return { error: delTxError.message };
+    if (!txBorradas || txBorradas.length === 0) return { error: MENSAJE_SIN_PERMISO };
 
     await supabase.from("auditoria_cambios").insert({
       espacio_id: espacioId,
@@ -308,13 +322,15 @@ export async function eliminarMovimiento(txId: string, espacioId: string) {
 
   // 3. Caso Transferencia entre cuentas: Eliminar ambas patas de forma coordinada
   if (tx.transfer_group_id) {
-    const { error } = await supabase
+    const { data: borradas, error } = await supabase
       .from("transacciones")
       .delete()
       .eq("transfer_group_id", tx.transfer_group_id)
-      .eq("espacio_id", espacioId);
+      .eq("espacio_id", espacioId)
+      .select("id");
 
     if (error) return { error: error.message };
+    if (!borradas || borradas.length === 0) return { error: MENSAJE_SIN_PERMISO };
 
     await supabase.from("auditoria_cambios").insert({
       espacio_id: espacioId,
@@ -345,13 +361,15 @@ export async function eliminarMovimiento(txId: string, espacioId: string) {
   }
 
   // 4. Caso General: Ingreso, gasto o ajuste manual
-  const { error } = await supabase
+  const { data: borradas, error } = await supabase
     .from("transacciones")
     .delete()
     .eq("id", txId)
-    .eq("espacio_id", espacioId);
+    .eq("espacio_id", espacioId)
+    .select("id");
 
   if (error) return { error: error.message };
+  if (!borradas || borradas.length === 0) return { error: MENSAJE_SIN_PERMISO };
 
   await supabase.from("auditoria_cambios").insert({
     espacio_id: espacioId,
