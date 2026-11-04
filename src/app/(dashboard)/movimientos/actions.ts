@@ -8,6 +8,7 @@ import { transaccionSchema } from "@/lib/validations/schemas";
 import { isValidUuid, sanitizeText } from "@/lib/security";
 import { encryptFieldSync, decryptFieldSync, isEncrypted, autoMigrateRow } from "@/lib/crypto";
 import { checkRateLimit, QUOTAS } from "@/lib/rate-limit";
+import { anularPago } from "@/app/(dashboard)/pagos/actions";
 
 // ── Listar categorías del espacio ─────────────────────────────────────────
 export async function getCategorias(espacioId: string) {
@@ -213,7 +214,7 @@ export async function registrarMovimiento(espacioId: string, formData: FormData)
   return { success: true };
 }
 
-// ── Eliminar movimiento manual (o par de transferencia) ───────────────────
+// ── Eliminar movimiento manual, transferencia o cobro ───────────────────
 export async function eliminarMovimiento(txId: string, espacioId: string) {
   if (!isValidUuid(txId) || !isValidUuid(espacioId)) {
     return { error: "Identificadores no válidos" };
@@ -225,7 +226,7 @@ export async function eliminarMovimiento(txId: string, espacioId: string) {
 
   const { data: tx } = await supabase
     .from("transacciones")
-    .select("id, prestamo_id, pago_prestamo_id, transfer_group_id")
+    .select("id, tipo, ajuste_sentido, monto, ocurrido_en, descripcion, cuenta_dinero_id, prestamo_id, pago_prestamo_id, transfer_group_id")
     .eq("id", txId)
     .eq("espacio_id", espacioId)
     .maybeSingle();
@@ -234,13 +235,78 @@ export async function eliminarMovimiento(txId: string, espacioId: string) {
     return { error: "El movimiento no existe." };
   }
 
-  if (tx.prestamo_id || tx.pago_prestamo_id) {
+  // 1. Caso Desembolso de préstamo: Proteger integridad del expediente
+  if (tx.tipo === "entrega_prestamo") {
     return {
       error:
-        "Este movimiento está vinculado a un préstamo o cobro. Anúlalo desde la sección de Cobros o Préstamos para mantener la integridad contable.",
+        "Este movimiento corresponde al desembolso de un préstamo. Para anularlo o modificarlo, gestiona el préstamo desde su expediente para no desajustar el capital original.",
     };
   }
 
+  // 2. Caso Cobro de cuota / Pago de préstamo: Deshacer cobro, revertir interés y restaurar saldos
+  if (tx.tipo === "pago_prestamo" || tx.pago_prestamo_id) {
+    let pagoId = tx.pago_prestamo_id;
+
+    if (!pagoId && tx.prestamo_id) {
+      // Buscar el cobro coincidente si la transacción histórica no tenía pago_prestamo_id enlazado
+      const { data: pagoCandidato } = await supabase
+        .from("pagos_prestamos")
+        .select("id")
+        .eq("espacio_id", espacioId)
+        .eq("prestamo_id", tx.prestamo_id)
+        .eq("cuenta_dinero_id", tx.cuenta_dinero_id)
+        .eq("monto_total", tx.monto)
+        .order("created_at", { ascending: false })
+        .limit(1);
+
+      if (pagoCandidato && pagoCandidato[0]) {
+        pagoId = pagoCandidato[0].id;
+      }
+    }
+
+    if (pagoId) {
+      return await anularPago(pagoId, espacioId, tx.id);
+    }
+
+    // Si no existe pago_prestamo asociado (transacción huérfana), eliminarla y auditar
+    const { error: delTxError } = await supabase
+      .from("transacciones")
+      .delete()
+      .eq("id", txId)
+      .eq("espacio_id", espacioId);
+
+    if (delTxError) return { error: delTxError.message };
+
+    await supabase.from("auditoria_cambios").insert({
+      espacio_id: espacioId,
+      entidad: "transacciones",
+      entidad_id: txId,
+      campo_modificado: "anulacion_cobro",
+      valor_anterior: JSON.stringify({
+        tipo: tx.tipo,
+        monto_total: Number(tx.monto),
+        cuenta_dinero_id: tx.cuenta_dinero_id,
+        prestamo_id: tx.prestamo_id,
+        ocurrido_en: tx.ocurrido_en,
+        descripcion: decryptFieldSync(tx.descripcion),
+      }),
+      valor_nuevo: "eliminado",
+      motivo: "Transacción de cobro eliminada por el usuario",
+      usuario_id: user.id,
+    });
+
+    revalidatePath("/movimientos");
+    revalidatePath("/cuentas");
+    revalidatePath("/prestamos");
+    revalidatePath("/inicio");
+
+    return {
+      success: true,
+      message: "Cobro eliminado correctamente y registrado en la auditoría.",
+    };
+  }
+
+  // 3. Caso Transferencia entre cuentas: Eliminar ambas patas de forma coordinada
   if (tx.transfer_group_id) {
     const { error } = await supabase
       .from("transacciones")
@@ -249,24 +315,124 @@ export async function eliminarMovimiento(txId: string, espacioId: string) {
       .eq("espacio_id", espacioId);
 
     if (error) return { error: error.message };
-  } else {
-    const { error } = await supabase
-      .from("transacciones")
-      .delete()
-      .eq("id", txId)
-      .eq("espacio_id", espacioId)
-      .is("prestamo_id", null);
 
-    if (error) return { error: error.message };
+    await supabase.from("auditoria_cambios").insert({
+      espacio_id: espacioId,
+      entidad: "transacciones",
+      entidad_id: txId,
+      campo_modificado: "eliminacion_transferencia",
+      valor_anterior: JSON.stringify({
+        tipo: tx.tipo,
+        monto: Number(tx.monto),
+        cuenta_dinero_id: tx.cuenta_dinero_id,
+        transfer_group_id: tx.transfer_group_id,
+        ocurrido_en: tx.ocurrido_en,
+        descripcion: decryptFieldSync(tx.descripcion),
+      }),
+      valor_nuevo: "eliminado",
+      motivo: "Transferencia entre cuentas eliminada por el usuario",
+      usuario_id: user.id,
+    });
+
+    revalidatePath("/movimientos");
+    revalidatePath("/cuentas");
+    revalidatePath("/inicio");
+
+    return {
+      success: true,
+      message: "Transferencia entre cuentas anulada en ambas cuentas y registrada en la auditoría.",
+    };
   }
+
+  // 4. Caso General: Ingreso, gasto o ajuste manual
+  const { error } = await supabase
+    .from("transacciones")
+    .delete()
+    .eq("id", txId)
+    .eq("espacio_id", espacioId);
+
+  if (error) return { error: error.message };
+
+  await supabase.from("auditoria_cambios").insert({
+    espacio_id: espacioId,
+    entidad: "transacciones",
+    entidad_id: txId,
+    campo_modificado: "eliminacion_movimiento",
+    valor_anterior: JSON.stringify({
+      tipo: tx.tipo,
+      ajuste_sentido: tx.ajuste_sentido,
+      monto: Number(tx.monto),
+      cuenta_dinero_id: tx.cuenta_dinero_id,
+      ocurrido_en: tx.ocurrido_en,
+      descripcion: decryptFieldSync(tx.descripcion),
+    }),
+    valor_nuevo: "eliminado",
+    motivo: "Movimiento eliminado por el usuario",
+    usuario_id: user.id,
+  });
 
   revalidatePath("/movimientos");
   revalidatePath("/cuentas");
   revalidatePath("/inicio");
+
   return {
     success: true,
-    message: tx.transfer_group_id
-      ? "Transferencia entre cuentas anulada en ambas cuentas."
-      : "Movimiento eliminado correctamente.",
+    message: "Movimiento eliminado correctamente y registrado en la auditoría.",
   };
+}
+
+// ── Tipos y Consulta de Auditoría de Eliminaciones ───────────────────────
+export type RegistroAuditoriaEliminacion = {
+  id: string;
+  entidad: string;
+  entidad_id: string;
+  campo_modificado: string;
+  valor_anterior: string | null;
+  valor_nuevo: string | null;
+  motivo: string | null;
+  usuario_id: string | null;
+  created_at: string;
+  perfiles?: {
+    id: string;
+    nombre_mostrado: string | null;
+  } | null;
+};
+
+export async function getAuditoriaEliminaciones(
+  espacioId: string,
+  limit = 50,
+): Promise<RegistroAuditoriaEliminacion[]> {
+  if (!isValidUuid(espacioId)) return [];
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return [];
+
+  const safeLimit = Math.min(Math.max(1, limit), 100);
+
+  const { data, error } = await supabase
+    .from("auditoria_cambios")
+    .select(`
+      id, entidad, entidad_id, campo_modificado, valor_anterior, valor_nuevo, motivo, usuario_id, created_at,
+      perfiles(id, nombre_mostrado)
+    `)
+    .eq("espacio_id", espacioId)
+    .in("campo_modificado", [
+      "anulacion_cobro",
+      "eliminacion_movimiento",
+      "eliminacion_transferencia",
+    ])
+    .order("created_at", { ascending: false })
+    .limit(safeLimit);
+
+  if (error) {
+    console.error("Error al consultar bitácora de auditoría:", error);
+    return [];
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (data ?? []).map((row: any) => ({
+    ...row,
+    perfiles: Array.isArray(row.perfiles) ? row.perfiles[0] : row.perfiles,
+  }));
 }
