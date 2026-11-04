@@ -128,7 +128,7 @@ export async function registrarPago(espacioId: string, formData: FormData) {
 }
 
 // ── Anular / Revertir un cobro registrado por error ────────────────────────
-export async function anularPago(pagoId: string, espacioId: string) {
+export async function anularPago(pagoId: string, espacioId: string, transaccionId?: string) {
   if (!isValidUuid(pagoId) || !isValidUuid(espacioId)) {
     return { error: "Identificadores no válidos" };
   }
@@ -150,12 +150,27 @@ export async function anularPago(pagoId: string, espacioId: string) {
 
   const { data: prestamo } = await supabase
     .from("prestamos")
-    .select("id, monto_principal, monto_capital_pagado, estado")
+    .select("id, nombre, monto_principal, monto_capital_pagado, estado")
     .eq("id", pago.prestamo_id)
     .eq("espacio_id", espacioId)
     .maybeSingle();
 
-  // 1. Eliminar transacción asociada a este cobro
+  const { data: cuenta } = await supabase
+    .from("cuentas_dinero")
+    .select("id, nombre")
+    .eq("id", pago.cuenta_dinero_id)
+    .eq("espacio_id", espacioId)
+    .maybeSingle();
+
+  // 1. Eliminar transacción asociada a este cobro (por transaccionId explícito si viene de movimientos)
+  if (transaccionId && isValidUuid(transaccionId)) {
+    await supabase
+      .from("transacciones")
+      .delete()
+      .eq("id", transaccionId)
+      .eq("espacio_id", espacioId);
+  }
+
   const { data: txByPagoId } = await supabase
     .from("transacciones")
     .select("id")
@@ -225,6 +240,28 @@ export async function anularPago(pagoId: string, espacioId: string) {
       .eq("espacio_id", espacioId);
   }
 
+  // 4. Registrar en la bitácora de auditoría de cambios
+  await supabase.from("auditoria_cambios").insert({
+    espacio_id: espacioId,
+    entidad: "pagos_prestamos",
+    entidad_id: pagoId,
+    campo_modificado: "anulacion_cobro",
+    valor_anterior: JSON.stringify({
+      tipo: "pago_prestamo",
+      monto_total: Number(pago.monto_total),
+      monto_principal: Number(pago.monto_principal),
+      monto_interes: Number(pago.monto_interes),
+      prestamo_id: pago.prestamo_id,
+      prestamo_nombre: prestamo?.nombre ?? null,
+      cuenta_dinero_id: pago.cuenta_dinero_id,
+      cuenta_nombre: cuenta?.nombre ?? null,
+      recibido_en: pago.recibido_en,
+    }),
+    valor_nuevo: "eliminado",
+    motivo: "Cobro revertido y eliminado por corrección del usuario",
+    usuario_id: user.id,
+  });
+
   revalidatePath("/pagos");
   revalidatePath("/prestamos");
   revalidatePath("/movimientos");
@@ -233,6 +270,6 @@ export async function anularPago(pagoId: string, espacioId: string) {
 
   return {
     success: true,
-    message: "Cobro anulado correctamente. Se restauró el saldo del préstamo y de la cuenta.",
+    message: "Cobro revertido correctamente. Se eliminó el interés registrado, se restauró el saldo del préstamo y de la cuenta, y quedó registrado en la auditoría.",
   };
 }
