@@ -90,6 +90,7 @@ import {
 import { getContactosArchivados, reactivarContacto } from "@/app/(dashboard)/contactos/actions";
 import { anularPago } from "@/app/(dashboard)/pagos/actions";
 import { eliminarMovimiento } from "@/app/(dashboard)/movimientos/actions";
+import { ModalAuditoriaEliminaciones } from "@/components/modal-auditoria-eliminaciones";
 import { Calculator, Eye, FolderOpen, Tag, UserCheck } from "lucide-react";
 
 
@@ -3890,6 +3891,7 @@ function MovimientosView({
   const [porPagina, setPorPagina] = useState(12);
   const [movimientoAEliminar, setMovimientoAEliminar] = useState<Movimiento | null>(null);
   const [isEliminando, setIsEliminando] = useState(false);
+  const [mostrarAuditoria, setMostrarAuditoria] = useState(false);
   const [viewMode, setViewMode] = useState<"feed" | "compact">(() => {
     if (typeof window === "undefined") return "feed";
     try {
@@ -3967,9 +3969,20 @@ function MovimientosView({
           <h1 className="font-heading text-2xl font-extrabold text-on-surface">Movimientos</h1>
           <p className="text-xs text-on-surface-variant mt-0.5">Libro mayor de ingresos, gastos, cobros y transferencias entre cuentas.</p>
         </div>
-        <button className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-primary text-on-primary text-xs font-semibold shadow-xs hover:bg-primary-container flex items-center justify-center gap-2 cursor-pointer transition-colors" onClick={openModal}>
-          <Plus className="w-4 h-4" /><span>Registrar movimiento</span>
-        </button>
+        <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap">
+          <button
+            type="button"
+            onClick={() => setMostrarAuditoria(true)}
+            className="flex-1 sm:flex-initial px-3.5 py-2.5 rounded-xl border border-surface-container-high/80 bg-surface-container-lowest hover:bg-surface-container text-xs font-semibold text-on-surface flex items-center justify-center gap-2 shadow-2xs transition-colors cursor-pointer"
+            title="Ver historial de cobros revertidos y movimientos eliminados"
+          >
+            <History className="w-4 h-4 text-primary" />
+            <span>Historial de eliminaciones</span>
+          </button>
+          <button className="flex-1 sm:flex-initial px-4 py-2.5 rounded-xl bg-primary text-on-primary text-xs font-semibold shadow-xs hover:bg-primary-container flex items-center justify-center gap-2 cursor-pointer transition-colors" onClick={openModal}>
+            <Plus className="w-4 h-4" /><span>Registrar movimiento</span>
+          </button>
+        </div>
       </motion.div>
 
       {/* Barra de Filtros, Búsqueda y Conmutador */}
@@ -4084,6 +4097,7 @@ function MovimientosView({
               ? (m.cuentas_dinero[0] as unknown as { nombre?: string })?.nombre
               : (m.cuentas_dinero as unknown as { nombre?: string })?.nombre) ?? "—";
             const catNombre = rel(m.categorias)?.nombre;
+            const isCobro = m.tipo === "pago_prestamo" || Boolean(m.pago_prestamo_id);
             const isManual = !m.prestamo_id && !m.pago_prestamo_id;
 
             return (
@@ -4154,7 +4168,16 @@ function MovimientosView({
                     </span>
                   </div>
 
-                  {isManual ? (
+                  {isCobro ? (
+                    <button
+                      type="button"
+                      onClick={() => setMovimientoAEliminar(m)}
+                      className="p-2 rounded-xl text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 hover:bg-amber-500/10 cursor-pointer transition-colors"
+                      title="Deshacer y revertir cobro registrado por error"
+                    >
+                      <RotateCcw className="w-4 h-4" />
+                    </button>
+                  ) : isManual ? (
                     <button
                       type="button"
                       onClick={() => setMovimientoAEliminar(m)}
@@ -4168,7 +4191,7 @@ function MovimientosView({
                       type="button"
                       disabled
                       className="p-2 rounded-xl text-on-surface-variant/30 cursor-not-allowed transition-colors"
-                      title="Movimiento originado por un préstamo o cobro (administrable desde su expediente para proteger el balance)"
+                      title="Desembolso inicial de préstamo (administrable desde su expediente para proteger el balance)"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -4189,6 +4212,7 @@ function MovimientosView({
               ? (m.cuentas_dinero[0] as unknown as { nombre?: string })?.nombre
               : (m.cuentas_dinero as unknown as { nombre?: string })?.nombre) ?? "—";
             const catNombre = rel(m.categorias)?.nombre;
+            const isCobro = m.tipo === "pago_prestamo" || Boolean(m.pago_prestamo_id);
             const isManual = !m.prestamo_id && !m.pago_prestamo_id;
 
             return (
@@ -4229,7 +4253,16 @@ function MovimientosView({
                     {isPositive ? "+" : "−"}{money(Number(m.monto))}
                   </span>
 
-                  {isManual ? (
+                  {isCobro ? (
+                    <button
+                      type="button"
+                      onClick={() => setMovimientoAEliminar(m)}
+                      className="p-1.5 rounded-lg text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 hover:bg-amber-500/10 cursor-pointer transition-colors"
+                      title="Deshacer y revertir cobro registrado por error"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                    </button>
+                  ) : isManual ? (
                     <button
                       type="button"
                       onClick={() => setMovimientoAEliminar(m)}
@@ -4243,7 +4276,7 @@ function MovimientosView({
                       type="button"
                       disabled
                       className="p-1.5 rounded-lg text-on-surface-variant/30 cursor-not-allowed transition-colors"
-                      title="Movimiento originado por un préstamo o cobro (administrable desde su expediente para proteger el balance)"
+                      title="Desembolso inicial de préstamo (administrable desde su expediente para proteger el balance)"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
@@ -4256,38 +4289,55 @@ function MovimientosView({
       )}
 
       {/* Modal de Eliminación Seguro con Slider */}
-      {movimientoAEliminar && (
-        <ConfirmDialog
-          isOpen={true}
-          title="¿Eliminar este movimiento?"
-          description={
-            <div className="space-y-2.5 text-xs text-on-surface-variant">
-              <div className="p-3 rounded-xl bg-surface-container-low border border-surface-container-high/70 flex items-center justify-between">
-                <div>
-                  <span className="font-bold text-on-surface block">
-                    {movimientoAEliminar.descripcion ? fixSpanishEncoding(movimientoAEliminar.descripcion) : "Movimiento"}
+      {movimientoAEliminar && (() => {
+        const esCobro = movimientoAEliminar.tipo === "pago_prestamo" || Boolean(movimientoAEliminar.pago_prestamo_id);
+        return (
+          <ConfirmDialog
+            isOpen={true}
+            title={esCobro ? "¿Deshacer y revertir este cobro?" : "¿Eliminar este movimiento?"}
+            description={
+              <div className="space-y-2.5 text-xs text-on-surface-variant">
+                <div className="p-3 rounded-xl bg-surface-container-low border border-surface-container-high/70 flex items-center justify-between">
+                  <div>
+                    <span className="font-bold text-on-surface block">
+                      {movimientoAEliminar.descripcion
+                        ? fixSpanishEncoding(movimientoAEliminar.descripcion)
+                        : esCobro
+                        ? "Cobro de cuota"
+                        : "Movimiento"}
+                    </span>
+                    <span className="text-[11px]">{formatDateEs(movimientoAEliminar.ocurrido_en)}</span>
+                  </div>
+                  <span className="font-mono font-extrabold text-sm text-rose-600 dark:text-rose-400">
+                    {money(Number(movimientoAEliminar.monto))}
                   </span>
-                  <span className="text-[11px]">{formatDateEs(movimientoAEliminar.ocurrido_en)}</span>
                 </div>
-                <span className="font-mono font-extrabold text-sm text-rose-600 dark:text-rose-400">
-                  {money(Number(movimientoAEliminar.monto))}
-                </span>
+                <p className="leading-relaxed">
+                  {esCobro
+                    ? "Se revertirá este cobro por completo: se descontará el interés registrado por error, se restaurará el saldo pendiente del préstamo y se restará el monto cobrado de la cuenta de dinero. Esta acción quedará registrada en la bitácora de auditoría."
+                    : movimientoAEliminar.transfer_group_id
+                    ? "Este movimiento forma parte de una transferencia entre cuentas. Se eliminarán ambos asientos (salida y entrada) para mantener cuadradas tus cuentas. Quedará registrado en la auditoría."
+                    : "Se eliminará este registro y el saldo de la cuenta se recalculará automáticamente. La eliminación quedará registrada en la auditoría."
+                  }
+                </p>
               </div>
-              <p className="leading-relaxed">
-                {movimientoAEliminar.transfer_group_id
-                  ? "Este movimiento forma parte de una transferencia entre cuentas. Se eliminarán ambos asientos (salida y entrada) para mantener cuadradas tus cuentas."
-                  : "Se eliminará este registro y el saldo disponible de la cuenta se recalculará automáticamente."}
-              </p>
-            </div>
-          }
-          useSlider={true}
-          sliderLabel="Desliza para eliminar movimiento"
-          submitting={isEliminando}
-          variant="danger"
-          onConfirm={handleConfirmEliminar}
-          onCancel={() => !isEliminando && setMovimientoAEliminar(null)}
-        />
-      )}
+            }
+            useSlider={true}
+            sliderLabel={esCobro ? "Desliza para revertir el cobro" : "Desliza para eliminar movimiento"}
+            submitting={isEliminando}
+            variant="danger"
+            onConfirm={handleConfirmEliminar}
+            onCancel={() => !isEliminando && setMovimientoAEliminar(null)}
+          />
+        );
+      })()}
+
+      {/* Modal de Auditoría de Eliminaciones y Reversiones */}
+      <ModalAuditoriaEliminaciones
+        isOpen={mostrarAuditoria}
+        onClose={() => setMostrarAuditoria(false)}
+        espacioId={espacioId}
+      />
 
       {/* Barra de Paginación Moderna */}
       <motion.div
