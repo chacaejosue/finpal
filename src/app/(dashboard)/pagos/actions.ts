@@ -128,7 +128,39 @@ export async function registrarPago(espacioId: string, formData: FormData) {
 }
 
 // ── Anular / Revertir un cobro registrado por error ────────────────────────
-export async function anularPago(pagoId: string, espacioId: string, transaccionId?: string) {
+// Un cobro revertido debe desaparecer de TODAS las vistas y cálculos
+// (/pagos, /movimientos, saldos de cuentas, reportes, intereses percibidos)
+// como si nunca hubiera existido; el único rastro es la bitácora de auditoría.
+type ResultadoAnulacion =
+  | { success: true; message: string; error?: undefined }
+  | { error: string; success?: undefined; message?: undefined };
+
+const MENSAJE_EXITO_ANULACION =
+  "Cobro revertido correctamente. Se eliminó el ingreso de la cuenta, se descontó el interés, se restauró el saldo del préstamo y quedó registrado en el historial de eliminaciones.";
+
+function revalidarVistasCobro() {
+  revalidatePath("/pagos");
+  revalidatePath("/prestamos");
+  revalidatePath("/movimientos");
+  revalidatePath("/cuentas");
+  revalidatePath("/reportes");
+  revalidatePath("/inicio");
+}
+
+function esFuncionInexistente(err: { code?: string; message?: string } | null): boolean {
+  if (!err) return false;
+  return (
+    err.code === "PGRST202" ||
+    err.code === "42883" ||
+    /could not find the function|does not exist/i.test(err.message ?? "")
+  );
+}
+
+export async function anularPago(
+  pagoId: string,
+  espacioId: string,
+  transaccionId?: string,
+): Promise<ResultadoAnulacion> {
   if (!isValidUuid(pagoId) || !isValidUuid(espacioId)) {
     return { error: "Identificadores no válidos" };
   }
@@ -136,6 +168,37 @@ export async function anularPago(pagoId: string, espacioId: string, transaccionI
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/iniciar-sesion");
+
+  // 1. Camino preferido: reversión atómica en PostgreSQL (todo o nada)
+  const { error: rpcError } = await supabase.rpc("fn_anular_cobro_prestamo", {
+    p_espacio_id: espacioId,
+    p_pago_id: pagoId,
+    p_transaccion_id: transaccionId && isValidUuid(transaccionId) ? transaccionId : null,
+    p_motivo: null,
+  });
+
+  if (!rpcError) {
+    revalidarVistasCobro();
+    return { success: true, message: MENSAJE_EXITO_ANULACION };
+  }
+
+  if (!esFuncionInexistente(rpcError)) {
+    return { error: `No se pudo revertir el cobro: ${rpcError.message}` };
+  }
+
+  // 2. Respaldo (si aún no se aplicó supabase/setup/7-anulacion-cobros.sql):
+  //    cada borrado se verifica y, si algo falla, se restaura lo eliminado
+  //    para no dejar el cobro "a medias".
+  return await anularPagoSinRpc(pagoId, espacioId, user.id, transaccionId);
+}
+
+async function anularPagoSinRpc(
+  pagoId: string,
+  espacioId: string,
+  userId: string,
+  transaccionId?: string,
+): Promise<ResultadoAnulacion> {
+  const supabase = await createClient();
 
   const { data: pago } = await supabase
     .from("pagos_prestamos")
@@ -148,76 +211,92 @@ export async function anularPago(pagoId: string, espacioId: string, transaccionI
     return { error: "El cobro no fue encontrado en este espacio." };
   }
 
-  const { data: prestamo } = await supabase
-    .from("prestamos")
-    .select("id, nombre, monto_principal, monto_capital_pagado, estado")
-    .eq("id", pago.prestamo_id)
-    .eq("espacio_id", espacioId)
-    .maybeSingle();
+  const [{ data: prestamo }, { data: cuenta }] = await Promise.all([
+    supabase
+      .from("prestamos")
+      .select("id, nombre, monto_principal, monto_capital_pagado, estado")
+      .eq("id", pago.prestamo_id)
+      .eq("espacio_id", espacioId)
+      .maybeSingle(),
+    supabase
+      .from("cuentas_dinero")
+      .select("id, nombre")
+      .eq("id", pago.cuenta_dinero_id)
+      .eq("espacio_id", espacioId)
+      .maybeSingle(),
+  ]);
 
-  const { data: cuenta } = await supabase
-    .from("cuentas_dinero")
-    .select("id, nombre")
-    .eq("id", pago.cuenta_dinero_id)
-    .eq("espacio_id", espacioId)
-    .maybeSingle();
+  // Localizar todas las transacciones del cobro
+  const idsTx = new Set<string>();
+  if (transaccionId && isValidUuid(transaccionId)) idsTx.add(transaccionId);
 
-  // 1. Eliminar transacción asociada a este cobro (por transaccionId explícito si viene de movimientos)
-  if (transaccionId && isValidUuid(transaccionId)) {
-    await supabase
-      .from("transacciones")
-      .delete()
-      .eq("id", transaccionId)
-      .eq("espacio_id", espacioId);
-  }
-
-  const { data: txByPagoId } = await supabase
+  const { data: txEnlazadas } = await supabase
     .from("transacciones")
     .select("id")
     .eq("espacio_id", espacioId)
     .eq("pago_prestamo_id", pagoId);
+  (txEnlazadas ?? []).forEach((t) => idsTx.add(t.id));
 
-  if (txByPagoId && txByPagoId.length > 0) {
-    await supabase
+  if (idsTx.size === 0) {
+    const { data: candidatas } = await supabase
+      .from("transacciones")
+      .select("id, prestamo_id, ocurrido_en")
+      .eq("espacio_id", espacioId)
+      .eq("tipo", "pago_prestamo")
+      .is("pago_prestamo_id", null)
+      .eq("cuenta_dinero_id", pago.cuenta_dinero_id)
+      .eq("monto", pago.monto_total)
+      .order("created_at", { ascending: false })
+      .limit(10);
+
+    const mejor = (candidatas ?? [])
+      .filter((t) => !t.prestamo_id || t.prestamo_id === pago.prestamo_id)
+      .sort((a, b) => Number(b.ocurrido_en === pago.recibido_en) - Number(a.ocurrido_en === pago.recibido_en))[0];
+    if (mejor) idsTx.add(mejor.id);
+  }
+
+  // Borrar transacciones guardando copia para poder restaurarlas
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let txBorradas: any[] = [];
+  if (idsTx.size > 0) {
+    const { data: borradas, error: delTxError } = await supabase
       .from("transacciones")
       .delete()
       .eq("espacio_id", espacioId)
-      .eq("pago_prestamo_id", pagoId);
-  } else {
-    // Si el RPC insertó la transacción sin pago_prestamo_id, buscar la transacción pago_prestamo coincidente
-    const { data: candidateTx } = await supabase
-      .from("transacciones")
-      .select("id")
-      .eq("espacio_id", espacioId)
-      .eq("prestamo_id", pago.prestamo_id)
-      .eq("cuenta_dinero_id", pago.cuenta_dinero_id)
-      .eq("tipo", "pago_prestamo")
-      .eq("monto", pago.monto_total)
-      .eq("ocurrido_en", pago.recibido_en)
-      .order("created_at", { ascending: false })
-      .limit(1);
+      .in("id", Array.from(idsTx))
+      .select("*");
 
-    if (candidateTx && candidateTx[0]) {
-      await supabase
-        .from("transacciones")
-        .delete()
-        .eq("id", candidateTx[0].id)
-        .eq("espacio_id", espacioId);
+    if (delTxError) return { error: `No se pudo eliminar el ingreso del cobro: ${delTxError.message}` };
+    txBorradas = borradas ?? [];
+    if (txBorradas.length === 0) {
+      return {
+        error:
+          "No tienes permiso para eliminar movimientos en este espacio. Pide al administrador que aplique el script supabase/setup/7-anulacion-cobros.sql.",
+      };
     }
   }
 
-  // 2. Eliminar el registro del cobro en pagos_prestamos
-  const { error: delError } = await supabase
+  // Borrar el cobro (verificando que realmente se eliminó)
+  const { data: pagosBorrados, error: delError } = await supabase
     .from("pagos_prestamos")
     .delete()
     .eq("id", pagoId)
-    .eq("espacio_id", espacioId);
+    .eq("espacio_id", espacioId)
+    .select("id");
 
-  if (delError) {
-    return { error: delError.message };
+  if (delError || !pagosBorrados || pagosBorrados.length === 0) {
+    // Restaurar el ingreso para no dejar el cobro a medias
+    if (txBorradas.length > 0) {
+      await supabase.from("transacciones").insert(txBorradas);
+    }
+    return {
+      error: delError
+        ? `No se pudo revertir el cobro: ${delError.message}`
+        : "No tienes permiso para eliminar cobros en este espacio. Pide al administrador que aplique el script supabase/setup/7-anulacion-cobros.sql.",
+    };
   }
 
-  // 3. Restaurar el capital pagado y el estado del préstamo
+  // Restaurar capital y estado del préstamo
   if (prestamo) {
     const nuevoCapitalPagado = Math.max(
       0,
@@ -232,15 +311,11 @@ export async function anularPago(pagoId: string, espacioId: string, transaccionI
 
     await supabase
       .from("prestamos")
-      .update({
-        monto_capital_pagado: nuevoCapitalPagado,
-        estado: nuevoEstado,
-      })
+      .update({ monto_capital_pagado: nuevoCapitalPagado, estado: nuevoEstado })
       .eq("id", prestamo.id)
       .eq("espacio_id", espacioId);
   }
 
-  // 4. Registrar en la bitácora de auditoría de cambios
   await supabase.from("auditoria_cambios").insert({
     espacio_id: espacioId,
     entidad: "pagos_prestamos",
@@ -256,20 +331,13 @@ export async function anularPago(pagoId: string, espacioId: string, transaccionI
       cuenta_dinero_id: pago.cuenta_dinero_id,
       cuenta_nombre: cuenta?.nombre ?? null,
       recibido_en: pago.recibido_en,
+      transacciones_eliminadas: txBorradas.length,
     }),
     valor_nuevo: "eliminado",
     motivo: "Cobro revertido y eliminado por corrección del usuario",
-    usuario_id: user.id,
+    usuario_id: userId,
   });
 
-  revalidatePath("/pagos");
-  revalidatePath("/prestamos");
-  revalidatePath("/movimientos");
-  revalidatePath("/cuentas");
-  revalidatePath("/inicio");
-
-  return {
-    success: true,
-    message: "Cobro revertido correctamente. Se eliminó el interés registrado, se restauró el saldo del préstamo y de la cuenta, y quedó registrado en la auditoría.",
-  };
+  revalidarVistasCobro();
+  return { success: true, message: MENSAJE_EXITO_ANULACION };
 }
