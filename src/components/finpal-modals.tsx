@@ -22,6 +22,7 @@ import {
   WalletCards,
   UserCheck,
   Sparkles,
+  RotateCcw,
 } from "lucide-react";
 import {
   money,
@@ -42,6 +43,7 @@ import {
   actualizarPrestamo,
   ampliarCapitalPrestamo,
   archivarPrestamo,
+  anularPrestamo,
 } from "@/app/(dashboard)/prestamos/actions";
 import { actualizarContacto, archivarContacto } from "@/app/(dashboard)/contactos/actions";
 
@@ -600,6 +602,7 @@ export function ModalKardexPrestamo({
   const [tab, setTab] = useState<"kardex" | "ampliar" | "editar">("kardex");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [confirmarRevertir, setConfirmarRevertir] = useState(false);
 
   // Estado formulario Editar
   const [nombre, setNombre] = useState(prestamo.nombre);
@@ -693,6 +696,23 @@ export function ModalKardexPrestamo({
     }
     await onSuccess("Préstamo archivado del listado principal.");
     onClose();
+  };
+
+  const handleAnularYRevertir = async () => {
+    setSubmitting(true);
+    setError(null);
+    const res = await anularPrestamo(prestamo.id, espacioId);
+    setSubmitting(false);
+    if ("error" in res && res.error) {
+      setError(res.error);
+      return false;
+    }
+    if ("success" in res && res.success) {
+      await onSuccess(res.message);
+      onClose();
+      return true;
+    }
+    return false;
   };
 
   const isDirtyEditar = nombre !== prestamo.nombre || cobraInteres !== prestamo.cobra_interes || tasa !== prestamo.tasa_interes_mensual || diaPago !== prestamo.dia_pago || notas !== (prestamo.notas ?? "");
@@ -960,6 +980,55 @@ export function ModalKardexPrestamo({
                   </div>
                 )}
               </div>
+              <div className="pt-3 border-t border-surface-container-low space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-[11px] text-on-surface-variant">
+                    ¿Registraste este préstamo por error? Puedes archivarlo o eliminarlo revirtiendo saldos.
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      disabled={submitting}
+                      onClick={handleArchivar}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-surface-container-high text-on-surface-variant hover:text-on-surface hover:bg-surface-container text-xs font-semibold transition-colors cursor-pointer"
+                    >
+                      <Archive className="w-3.5 h-3.5" />
+                      <span>Archivar</span>
+                    </button>
+                    <button
+                      type="button"
+                      disabled={submitting}
+                      onClick={() => setConfirmarRevertir((v) => !v)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-rose-500/30 text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 text-xs font-semibold transition-colors cursor-pointer"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      <span>{confirmarRevertir ? "Cancelar reversión" : "Eliminar y revertir préstamo"}</span>
+                    </button>
+                  </div>
+                </div>
+
+                {confirmarRevertir && (
+                  <div className="p-3.5 rounded-2xl bg-rose-500/8 border border-rose-500/25 space-y-2.5 text-xs">
+                    <p className="font-bold text-rose-600 dark:text-rose-400 flex items-center gap-1.5">
+                      <RotateCcw className="w-4 h-4 shrink-0" />
+                      Confirmar eliminación y reversión total del préstamo
+                    </p>
+                    <p className="text-on-surface-variant leading-relaxed">
+                      Se eliminará este préstamo y se devolverá el capital desembolsado (<strong className="font-mono text-on-surface">{money(principal)}</strong>) al saldo de la cuenta de origen.
+                      {pagosDelPrestamo.length > 0
+                        ? ` También se revertirán sus ${pagosDelPrestamo.length} cobro(s) registrado(s) para mantener cuadradas tus cuentas.`
+                        : ""}
+                      {" "}Esta acción quedará registrada en la bitácora de auditoría.
+                    </p>
+                    <SlideToConfirm
+                      submitting={submitting}
+                      label="Desliza para eliminar y revertir préstamo"
+                      resetTrigger={`${prestamo.id}-revertir`}
+                      onConfirm={handleAnularYRevertir}
+                    />
+                  </div>
+                )}
+              </div>
             </>
           )}
 
@@ -1132,19 +1201,54 @@ export function ModalKardexPrestamo({
                 onConfirm={handleConfirmEditar}
               />
 
-              <div className="pt-3 border-t border-surface-container-low flex items-center justify-between">
-                <span className="text-[11px] text-on-surface-variant">
-                  ¿Deseas ocultar este préstamo de tu vista activa?
-                </span>
-                <button
-                  type="button"
-                  disabled={submitting}
-                  onClick={handleArchivar}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-rose-500/30 text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 text-xs font-semibold transition-colors cursor-pointer"
-                >
-                  <Archive className="w-3.5 h-3.5" />
-                  <span>Archivar préstamo</span>
-                </button>
+              <div className="pt-3 border-t border-surface-container-low space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-[11px] text-on-surface-variant">
+                    ¿Registraste este préstamo por error? Puedes archivarlo o eliminarlo revirtiendo saldos.
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      disabled={submitting}
+                      onClick={handleArchivar}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-surface-container-high text-on-surface-variant hover:text-on-surface hover:bg-surface-container text-xs font-semibold transition-colors cursor-pointer"
+                    >
+                      <Archive className="w-3.5 h-3.5" />
+                      <span>Archivar</span>
+                    </button>
+                    <button
+                      type="button"
+                      disabled={submitting}
+                      onClick={() => setConfirmarRevertir((v) => !v)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-rose-500/30 text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 text-xs font-semibold transition-colors cursor-pointer"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      <span>{confirmarRevertir ? "Cancelar reversión" : "Eliminar y revertir préstamo"}</span>
+                    </button>
+                  </div>
+                </div>
+
+                {confirmarRevertir && (
+                  <div className="p-3.5 rounded-2xl bg-rose-500/8 border border-rose-500/25 space-y-2.5 text-xs">
+                    <p className="font-bold text-rose-600 dark:text-rose-400 flex items-center gap-1.5">
+                      <RotateCcw className="w-4 h-4 shrink-0" />
+                      Confirmar eliminación y reversión total del préstamo
+                    </p>
+                    <p className="text-on-surface-variant leading-relaxed">
+                      Se eliminará este préstamo y se devolverá el capital desembolsado (<strong className="font-mono text-on-surface">{money(principal)}</strong>) al saldo de la cuenta de origen.
+                      {pagosDelPrestamo.length > 0
+                        ? ` También se revertirán sus ${pagosDelPrestamo.length} cobro(s) registrado(s) para mantener cuadradas tus cuentas.`
+                        : ""}
+                      {" "}Esta acción quedará registrada en la bitácora de auditoría.
+                    </p>
+                    <SlideToConfirm
+                      submitting={submitting}
+                      label="Desliza para eliminar y revertir préstamo"
+                      resetTrigger={`${prestamo.id}-revertir`}
+                      onConfirm={handleAnularYRevertir}
+                    />
+                  </div>
+                )}
               </div>
             </div>
           )}

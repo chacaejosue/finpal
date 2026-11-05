@@ -557,3 +557,261 @@ export async function archivarPrestamo(prestamoId: string, espacioId: string) {
   revalidatePath("/inicio");
   return { success: true };
 }
+
+
+// ── Eliminar y Revertir Préstamo (Desembolso + Cobros + Saldos + Auditoría) ─
+type ResultadoAnulacionPrestamo =
+  | { success: true; message: string; error?: undefined }
+  | { error: string; success?: undefined; message?: undefined };
+
+const MENSAJE_EXITO_ANULACION_PRESTAMO =
+  "Préstamo eliminado y revertido por completo. Se devolvió el capital desembolsado a la cuenta, se revirtieron sus movimientos asociados y quedó registrado en el historial de eliminaciones.";
+
+function revalidarVistasPrestamo() {
+  revalidatePath("/prestamos");
+  revalidatePath("/pagos");
+  revalidatePath("/movimientos");
+  revalidatePath("/cuentas");
+  revalidatePath("/contactos");
+  revalidatePath("/reportes");
+  revalidatePath("/inicio");
+}
+
+function esFuncionRpcInexistente(err: { code?: string; message?: string } | null): boolean {
+  if (!err) return false;
+  return (
+    err.code === "PGRST202" ||
+    err.code === "42883" ||
+    /could not find the function|does not exist/i.test(err.message ?? "")
+  );
+}
+
+export async function anularPrestamo(
+  prestamoId: string,
+  espacioId: string,
+  transaccionId?: string,
+): Promise<ResultadoAnulacionPrestamo> {
+  if (!isValidUuid(prestamoId) || !isValidUuid(espacioId)) {
+    return { error: "Identificadores no válidos" };
+  }
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/iniciar-sesion");
+
+  // 1. Camino preferido: reversión atómica en PostgreSQL vía RPC
+  const { error: rpcError } = await supabase.rpc("fn_anular_prestamo", {
+    p_espacio_id: espacioId,
+    p_prestamo_id: prestamoId,
+    p_transaccion_id: transaccionId && isValidUuid(transaccionId) ? transaccionId : null,
+    p_motivo: null,
+  });
+
+  if (!rpcError) {
+    revalidarVistasPrestamo();
+    return { success: true, message: MENSAJE_EXITO_ANULACION_PRESTAMO };
+  }
+
+  if (!esFuncionRpcInexistente(rpcError)) {
+    return { error: `No se pudo eliminar y revertir el préstamo: ${rpcError.message}` };
+  }
+
+  // 2. Respaldo coordinado con restauración automática si aún no se aplicó fn_anular_prestamo
+  return await anularPrestamoSinRpc(prestamoId, espacioId, user.id, transaccionId);
+}
+
+async function anularPrestamoSinRpc(
+  prestamoId: string,
+  espacioId: string,
+  userId: string,
+  transaccionId?: string,
+): Promise<ResultadoAnulacionPrestamo> {
+  const supabase = await createClient();
+
+  const { data: prestamo } = await supabase
+    .from("prestamos")
+    .select("id, nombre, monto_principal, monto_capital_pagado, fecha_inicio, estado")
+    .eq("id", prestamoId)
+    .eq("espacio_id", espacioId)
+    .maybeSingle();
+
+  if (!prestamo) {
+    return { error: "El préstamo no fue encontrado en este espacio." };
+  }
+
+  // Consultar cobros asociados al préstamo
+  const { data: pagosAsociadosData } = await supabase
+    .from("pagos_prestamos")
+    .select("*")
+    .eq("prestamo_id", prestamoId)
+    .eq("espacio_id", espacioId);
+
+  const pagosAsociados = pagosAsociadosData ?? [];
+  const pagoIds = pagosAsociados.map((p) => p.id);
+
+  // Localizar transacciones vinculadas al préstamo y a sus cobros
+  const idsTx = new Set<string>();
+  if (transaccionId && isValidUuid(transaccionId)) idsTx.add(transaccionId);
+
+  const { data: txDelPrestamo } = await supabase
+    .from("transacciones")
+    .select("id, tipo, cuenta_dinero_id")
+    .eq("espacio_id", espacioId)
+    .eq("prestamo_id", prestamoId);
+
+  let cuentaDesembolsoId: string | null = null;
+  for (const t of txDelPrestamo ?? []) {
+    idsTx.add(t.id);
+    if (t.tipo === "entrega_prestamo" && !cuentaDesembolsoId) {
+      cuentaDesembolsoId = t.cuenta_dinero_id;
+    }
+  }
+
+  if (pagoIds.length > 0) {
+    const { data: txDePagos } = await supabase
+      .from("transacciones")
+      .select("id")
+      .eq("espacio_id", espacioId)
+      .in("pago_prestamo_id", pagoIds);
+    (txDePagos ?? []).forEach((t) => idsTx.add(t.id));
+  }
+
+  // Si no había transacción de desembolso con prestamo_id enlazado, buscar huérfana coincidente
+  if (!cuentaDesembolsoId) {
+    const { data: candidatas } = await supabase
+      .from("transacciones")
+      .select("id, cuenta_dinero_id, ocurrido_en")
+      .eq("espacio_id", espacioId)
+      .eq("tipo", "entrega_prestamo")
+      .is("prestamo_id", null)
+      .eq("monto", prestamo.monto_principal)
+      .order("created_at", { ascending: false })
+      .limit(10);
+
+    const mejor = (candidatas ?? []).sort(
+      (a, b) => Number(b.ocurrido_en === prestamo.fecha_inicio) - Number(a.ocurrido_en === prestamo.fecha_inicio),
+    )[0];
+    if (mejor) {
+      idsTx.add(mejor.id);
+      cuentaDesembolsoId = mejor.cuenta_dinero_id;
+    }
+  }
+
+  let cuentaNombre: string | null = null;
+  if (cuentaDesembolsoId) {
+    const { data: c } = await supabase
+      .from("cuentas_dinero")
+      .select("nombre")
+      .eq("id", cuentaDesembolsoId)
+      .eq("espacio_id", espacioId)
+      .maybeSingle();
+    cuentaNombre = c?.nombre ?? null;
+  }
+
+  // 1. Eliminar transacciones guardando copia para restaurar ante cualquier fallo
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let txBorradas: any[] = [];
+  if (idsTx.size > 0) {
+    const { data: borradas, error: delTxError } = await supabase
+      .from("transacciones")
+      .delete()
+      .eq("espacio_id", espacioId)
+      .in("id", Array.from(idsTx))
+      .select("*");
+
+    if (delTxError) {
+      return { error: `No se pudieron revertir los movimientos del préstamo: ${delTxError.message}` };
+    }
+    txBorradas = borradas ?? [];
+    if (txBorradas.length === 0) {
+      return {
+        error:
+          "No tienes permiso para revertir movimientos en este espacio. Aplica el script supabase/setup/7-anulacion-cobros.sql.",
+      };
+    }
+  }
+
+  // 2. Eliminar cobros asociados al préstamo (si los hubiera)
+  if (pagosAsociados.length > 0) {
+    const { data: pagosBorrados, error: delPagosError } = await supabase
+      .from("pagos_prestamos")
+      .delete()
+      .eq("prestamo_id", prestamoId)
+      .eq("espacio_id", espacioId)
+      .select("id");
+
+    if (delPagosError || !pagosBorrados || pagosBorrados.length === 0) {
+      if (txBorradas.length > 0) {
+        await supabase.from("transacciones").insert(txBorradas);
+      }
+      return {
+        error: delPagosError
+          ? `No se pudieron revertir los cobros del préstamo: ${delPagosError.message}`
+          : "No tienes permiso para eliminar cobros asociados. Aplica el script supabase/setup/7-anulacion-cobros.sql.",
+      };
+    }
+  }
+
+  // 3. Eliminar pagos esperados (si los hubiera)
+  await supabase
+    .from("pagos_esperados")
+    .delete()
+    .eq("prestamo_id", prestamoId)
+    .eq("espacio_id", espacioId);
+
+  // 4. Eliminar el préstamo
+  const { data: prestamoBorrado, error: delPrestamoError } = await supabase
+    .from("prestamos")
+    .delete()
+    .eq("id", prestamoId)
+    .eq("espacio_id", espacioId)
+    .select("id");
+
+  if (delPrestamoError || !prestamoBorrado || prestamoBorrado.length === 0) {
+    // Restaurar cobros y transacciones para no dejar el préstamo a medias
+    if (pagosAsociados.length > 0) {
+      await supabase.from("pagos_prestamos").insert(pagosAsociados);
+    }
+    if (txBorradas.length > 0) {
+      await supabase.from("transacciones").insert(txBorradas);
+    }
+    return {
+      error: delPrestamoError
+        ? `No se pudo eliminar el préstamo: ${delPrestamoError.message}`
+        : "No tienes permiso para eliminar préstamos en este espacio. Aplica el script supabase/setup/7-anulacion-cobros.sql.",
+    };
+  }
+
+  const montoTotalCobrado = pagosAsociados.reduce((acc, p) => acc + Number(p.monto_total), 0);
+  const montoInteresCobrado = pagosAsociados.reduce((acc, p) => acc + Number(p.monto_interes), 0);
+
+  // 5. Registrar en bitácora de auditoría
+  await supabase.from("auditoria_cambios").insert({
+    espacio_id: espacioId,
+    entidad: "prestamos",
+    entidad_id: prestamoId,
+    campo_modificado: "anulacion_prestamo",
+    valor_anterior: JSON.stringify({
+      tipo: "entrega_prestamo",
+      prestamo_id: prestamo.id,
+      prestamo_nombre: prestamo.nombre,
+      monto: Number(prestamo.monto_principal),
+      monto_total: Number(prestamo.monto_principal),
+      monto_principal: Number(prestamo.monto_principal),
+      monto_capital_pagado: Number(prestamo.monto_capital_pagado),
+      monto_interes: montoInteresCobrado,
+      monto_total_cobrado: montoTotalCobrado,
+      cobros_eliminados: pagosAsociados.length,
+      transacciones_eliminadas: txBorradas.length,
+      cuenta_dinero_id: cuentaDesembolsoId,
+      cuenta_nombre: cuentaNombre,
+      ocurrido_en: prestamo.fecha_inicio,
+    }),
+    valor_nuevo: "eliminado",
+    motivo: "Préstamo eliminado y revertido en cuentas y movimientos",
+    usuario_id: userId,
+  });
+
+  revalidarVistasPrestamo();
+  return { success: true, message: MENSAJE_EXITO_ANULACION_PRESTAMO };
+}

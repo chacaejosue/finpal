@@ -9,6 +9,7 @@ import { isValidUuid, sanitizeText } from "@/lib/security";
 import { encryptFieldSync, decryptFieldSync, isEncrypted, autoMigrateRow } from "@/lib/crypto";
 import { checkRateLimit, QUOTAS } from "@/lib/rate-limit";
 import { anularPago } from "@/app/(dashboard)/pagos/actions";
+import { anularPrestamo } from "@/app/(dashboard)/prestamos/actions";
 
 // ── Listar categorías del espacio ─────────────────────────────────────────
 export async function getCategorias(espacioId: string) {
@@ -214,7 +215,7 @@ export async function registrarMovimiento(espacioId: string, formData: FormData)
   return { success: true };
 }
 
-// ── Eliminar movimiento manual, transferencia o cobro ───────────────────
+// ── Eliminar movimiento manual, transferencia, cobro o préstamo ─────────────
 // Supabase no devuelve error cuando RLS bloquea un DELETE (simplemente borra 0 filas),
 // por eso cada borrado se verifica antes de registrar la auditoría.
 const MENSAJE_SIN_PERMISO =
@@ -240,11 +241,70 @@ export async function eliminarMovimiento(txId: string, espacioId: string) {
     return { error: "El movimiento no existe." };
   }
 
-  // 1. Caso Desembolso de préstamo: Proteger integridad del expediente
+  // 1. Caso Desembolso de préstamo: Eliminar y revertir el préstamo completo
   if (tx.tipo === "entrega_prestamo") {
+    let prestamoId = tx.prestamo_id;
+
+    if (!prestamoId) {
+      // Buscar el préstamo coincidente si la transacción histórica no tenía prestamo_id enlazado
+      const { data: prestamosCandidatos } = await supabase
+        .from("prestamos")
+        .select("id, fecha_inicio")
+        .eq("espacio_id", espacioId)
+        .eq("monto_principal", tx.monto)
+        .order("created_at", { ascending: false })
+        .limit(10);
+
+      const candidatos = prestamosCandidatos ?? [];
+      const mejor = candidatos.find((p) => p.fecha_inicio === tx.ocurrido_en) ?? candidatos[0];
+      if (mejor) {
+        prestamoId = mejor.id;
+      }
+    }
+
+    if (prestamoId) {
+      return await anularPrestamo(prestamoId, espacioId, tx.id);
+    }
+
+    // Si es una transacción de desembolso huérfana (su préstamo ya no existe), eliminarla y auditar
+    const { data: txBorradas, error: delTxError } = await supabase
+      .from("transacciones")
+      .delete()
+      .eq("id", txId)
+      .eq("espacio_id", espacioId)
+      .select("id");
+
+    if (delTxError) return { error: delTxError.message };
+    if (!txBorradas || txBorradas.length === 0) return { error: MENSAJE_SIN_PERMISO };
+
+    await supabase.from("auditoria_cambios").insert({
+      espacio_id: espacioId,
+      entidad: "transacciones",
+      entidad_id: txId,
+      campo_modificado: "anulacion_prestamo",
+      valor_anterior: JSON.stringify({
+        tipo: tx.tipo,
+        monto: Number(tx.monto),
+        monto_total: Number(tx.monto),
+        monto_principal: Number(tx.monto),
+        cuenta_dinero_id: tx.cuenta_dinero_id,
+        prestamo_id: tx.prestamo_id,
+        ocurrido_en: tx.ocurrido_en,
+        descripcion: decryptFieldSync(tx.descripcion),
+      }),
+      valor_nuevo: "eliminado",
+      motivo: "Desembolso de préstamo revertido y eliminado por el usuario",
+      usuario_id: user.id,
+    });
+
+    revalidatePath("/movimientos");
+    revalidatePath("/cuentas");
+    revalidatePath("/prestamos");
+    revalidatePath("/inicio");
+
     return {
-      error:
-        "Este movimiento corresponde al desembolso de un préstamo. Para anularlo o modificarlo, gestiona el préstamo desde su expediente para no desajustar el capital original.",
+      success: true,
+      message: "Desembolso revertido correctamente y registrado en la auditoría.",
     };
   }
 
@@ -437,6 +497,7 @@ export async function getAuditoriaEliminaciones(
     .eq("espacio_id", espacioId)
     .in("campo_modificado", [
       "anulacion_cobro",
+      "anulacion_prestamo",
       "eliminacion_movimiento",
       "eliminacion_transferencia",
     ])
