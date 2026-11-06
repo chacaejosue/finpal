@@ -33,7 +33,11 @@ interface DetalleAuditoriaSnapshot {
   monto?: number;
   monto_total?: number;
   monto_principal?: number;
+  monto_capital_pagado?: number;
   monto_interes?: number;
+  monto_total_cobrado?: number;
+  cobros_eliminados?: number;
+  transacciones_eliminadas?: number;
   cuenta_dinero_id?: string;
   cuenta_nombre?: string | null;
   prestamo_id?: string;
@@ -103,7 +107,7 @@ export function ModalAuditoriaEliminaciones({
                   Bitácora de eliminaciones y reversiones
                 </h2>
                 <p className="text-xs text-on-surface-variant">
-                  Historial de cobros deshechos y movimientos eliminados para control contable.
+                  Historial de préstamos, cobros y movimientos revertidos para control contable.
                 </p>
               </div>
             </div>
@@ -143,7 +147,7 @@ export function ModalAuditoriaEliminaciones({
                 </div>
                 <p className="text-sm font-bold text-on-surface">Sin eliminaciones registradas</p>
                 <p className="text-xs text-on-surface-variant max-w-sm">
-                  No se han registrado cobros anulados ni movimientos eliminados recientemente en este espacio de trabajo.
+                  No se han registrado préstamos, cobros ni movimientos eliminados recientemente en este espacio de trabajo.
                 </p>
               </div>
             ) : (
@@ -158,8 +162,11 @@ export function ModalAuditoriaEliminaciones({
                 }
 
                 const esCobro = item.campo_modificado === "anulacion_cobro";
+                const esPrestamo = item.campo_modificado === "anulacion_prestamo";
                 const esTransferencia = item.campo_modificado === "eliminacion_transferencia";
-                const montoDisplay = Number(detalle.monto_total ?? detalle.monto ?? 0);
+                const montoDisplay = Number(
+                  detalle.monto_total ?? detalle.monto_principal ?? detalle.monto ?? 0,
+                );
                 const fechaOperacion = detalle.recibido_en || detalle.ocurrido_en;
 
                 return (
@@ -170,7 +177,11 @@ export function ModalAuditoriaEliminaciones({
                     {/* Fila superior: Tipo de acción y Fecha/Hora del borrado */}
                     <div className="flex items-center justify-between gap-2 flex-wrap">
                       <div className="flex items-center gap-1.5">
-                        {esCobro ? (
+                        {esPrestamo ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-violet-500/10 text-violet-700 dark:text-violet-300 border border-violet-500/20">
+                            <RotateCcw className="w-3 h-3" /> Préstamo eliminado y revertido
+                          </span>
+                        ) : esCobro ? (
                           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20">
                             <RotateCcw className="w-3 h-3" /> Cobro revertido
                           </span>
@@ -197,6 +208,34 @@ export function ModalAuditoriaEliminaciones({
                         {money(montoDisplay)}
                       </div>
                     </div>
+
+                    {/* Fila media: Desglose contable para Préstamo revertido */}
+                    {esPrestamo && (
+                      <div className="p-2.5 rounded-lg bg-surface-container-low/70 border border-surface-container-high/40 flex flex-wrap items-center gap-2">
+                        {typeof detalle.monto_principal === "number" && detalle.monto_principal > 0 && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/25">
+                            Capital devuelto a cuenta: {money(Number(detalle.monto_principal))}
+                          </span>
+                        )}
+                        {typeof detalle.cobros_eliminados === "number" && detalle.cobros_eliminados > 0 && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium text-on-surface-variant bg-surface-container border border-surface-container-high/60">
+                            {detalle.cobros_eliminados} {detalle.cobros_eliminados === 1 ? "cobro revertido" : "cobros revertidos"} ({money(Number(detalle.monto_total_cobrado ?? 0))})
+                          </span>
+                        )}
+                        {detalle.prestamo_nombre && (
+                          <span className="text-[11px] text-on-surface font-medium flex items-center gap-1">
+                            <HandCoins className="w-3 h-3 text-primary" />
+                            {detalle.prestamo_nombre}
+                          </span>
+                        )}
+                        {detalle.cuenta_nombre && (
+                          <span className="text-[11px] text-on-surface-variant flex items-center gap-1">
+                            <Landmark className="w-3 h-3 text-on-surface-variant/70" />
+                            {detalle.cuenta_nombre}
+                          </span>
+                        )}
+                      </div>
+                    )}
 
                     {/* Fila media: Desglose contable (Interés revertido y capital restaurado) */}
                     {esCobro && (

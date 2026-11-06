@@ -63,7 +63,7 @@ import { fixSpanishEncoding } from "@/lib/clean-text";
 import { ContactAvatar } from "@/components/contact-avatar";
 import { BudgetRuleWidget } from "@/components/budget-rule-widget";
 import { useEspacio } from "@/lib/espacio-context";
-import { actualizarEstadoPrestamo } from "@/app/(dashboard)/prestamos/actions";
+import { actualizarEstadoPrestamo, anularPrestamo } from "@/app/(dashboard)/prestamos/actions";
 import { formatDateEs, formatMonthYear } from "@/lib/format-date";
 import { ReportesBiDashboard } from "@/features/reportes/reportes-bi-dashboard";
 import { SlideToConfirm, DashboardRouteSkeleton } from "@/components/dashboard-shell";
@@ -207,6 +207,10 @@ export default function DashboardClient({
         {page === "prestamos" && (
           <PrestamosView
             prestamos={prestamos}
+            pagos={pagos}
+            espacioId={espacioId ?? ""}
+            loadData={loadData}
+            setSuccessNotice={setSuccessNotice}
             openModal={() => openModal("loan")}
             onCobrarPrestamo={(loanId) => openModal("payment", { loanId })}
             onOpenSimulador={() => setSimuladorOpen(true)}
@@ -1714,6 +1718,10 @@ function EstadoPrestamoSelect({
 
 function PrestamosView({
   prestamos,
+  pagos,
+  espacioId,
+  loadData,
+  setSuccessNotice,
   openModal,
   onCobrarPrestamo,
   onOpenSimulador,
@@ -1722,6 +1730,10 @@ function PrestamosView({
   onVerNota,
 }: {
   prestamos: Prestamo[];
+  pagos: Pago[];
+  espacioId: string;
+  loadData: () => Promise<void>;
+  setSuccessNotice: (msg: string | null) => void;
   openModal: () => void;
   onCobrarPrestamo: (loanId: string) => void;
   onOpenSimulador: () => void;
@@ -1732,6 +1744,25 @@ function PrestamosView({
   const [tab, setTab] = useState<"activos" | "pagados">("activos");
   const [busqueda, setBusqueda] = useState("");
   const [subFiltro, setSubFiltro] = useState<"todos" | "al_dia" | "atrasados" | "vencen_hoy">("todos");
+  const [prestamoAAnular, setPrestamoAAnular] = useState<Prestamo | null>(null);
+  const [isAnulandoPrestamo, setIsAnulandoPrestamo] = useState(false);
+
+  const handleConfirmAnularPrestamo = async () => {
+    if (!prestamoAAnular || !espacioId) return;
+    setIsAnulandoPrestamo(true);
+    try {
+      const res = await anularPrestamo(prestamoAAnular.id, espacioId);
+      if ("error" in res && res.error) {
+        setSuccessNotice(res.error);
+      } else if ("success" in res && res.success) {
+        setSuccessNotice(res.message);
+        await loadData();
+      }
+    } finally {
+      setIsAnulandoPrestamo(false);
+      setPrestamoAAnular(null);
+    }
+  };
   const [viewMode, setViewMode] = useState<"grid" | "compact">(() => {
     if (typeof window === "undefined") return "grid";
     try {
@@ -2050,15 +2081,25 @@ function PrestamosView({
 
                 {/* Botones de acción minimalistas (estilo Links GitHub / Tech) */}
                 <div className="pt-2.5 border-t border-surface-container-high/50 flex items-center justify-between gap-2 text-xs">
-                  <button
-                    type="button"
-                    onClick={() => onOpenKardex(l.id)}
-                    className="text-on-surface-variant hover:text-primary font-semibold inline-flex items-center gap-1 cursor-pointer transition-colors"
-                    title="Ver extracto, simulación y expediente completo"
-                  >
-                    <span>Expediente</span>
-                    <ArrowUpRight className="w-3.5 h-3.5" />
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => onOpenKardex(l.id)}
+                      className="text-on-surface-variant hover:text-primary font-semibold inline-flex items-center gap-1 cursor-pointer transition-colors"
+                      title="Ver extracto, simulación y expediente completo"
+                    >
+                      <span>Expediente</span>
+                      <ArrowUpRight className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPrestamoAAnular(l)}
+                      className="p-1.5 rounded-lg text-on-surface-variant hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-500/10 cursor-pointer transition-colors"
+                      title="Eliminar y revertir préstamo (devuelve capital a la cuenta)"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
 
                   {!isPaid && (
                     <button
@@ -2171,6 +2212,15 @@ function PrestamosView({
                     <span className="hidden lg:inline">Expediente</span>
                   </button>
 
+                  <button
+                    type="button"
+                    onClick={() => setPrestamoAAnular(l)}
+                    className="p-1.5 rounded-lg text-on-surface-variant hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-500/10 cursor-pointer transition-colors"
+                    title="Eliminar y revertir préstamo"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                  </button>
+
                   {!isPaid && (
                     <button
                       type="button"
@@ -2187,7 +2237,55 @@ function PrestamosView({
             );
           })}
         </div>
-      )}    </div>
+      )}
+
+      {prestamoAAnular && (() => {
+        const deudorNombre = rel(prestamoAAnular.contactos)?.nombre ?? "Deudor";
+        const cobrosCount = pagos.filter(
+          (pg) => pg.prestamo_id === prestamoAAnular.id || rel(pg.prestamos)?.id === prestamoAAnular.id
+        ).length;
+        return (
+          <ConfirmDialog
+            isOpen={true}
+            title="¿Eliminar y revertir este préstamo?"
+            description={
+              <div className="space-y-2.5 text-xs text-on-surface-variant">
+                <div className="p-3 rounded-xl bg-surface-container-low border border-surface-container-high/70 flex items-center justify-between">
+                  <div>
+                    <span className="font-bold text-on-surface block">
+                      {deudorNombre} · {prestamoAAnular.nombre}
+                    </span>
+                    <span className="text-[11px]">
+                      Inició el {formatDateEs(prestamoAAnular.fecha_inicio)}
+                    </span>
+                  </div>
+                  <span className="font-mono font-extrabold text-sm text-rose-600 dark:text-rose-400">
+                    {money(Number(prestamoAAnular.monto_principal))}
+                  </span>
+                </div>
+                <p className="leading-relaxed">
+                  Se eliminará el préstamo por completo y se devolverá el capital desembolsado (
+                  <strong className="font-mono text-on-surface">
+                    {money(Number(prestamoAAnular.monto_principal))}
+                  </strong>
+                  ) al saldo de la cuenta de origen.
+                  {cobrosCount > 0
+                    ? ` Además, se revertirán los ${cobrosCount} cobro(s) registrado(s) de este préstamo para dejar tus cuentas cuadradas.`
+                    : ""}{" "}
+                  Esta acción quedará registrada en la bitácora de auditoría.
+                </p>
+              </div>
+            }
+            useSlider={true}
+            sliderLabel="Desliza para eliminar y revertir préstamo"
+            submitting={isAnulandoPrestamo}
+            variant="danger"
+            onConfirm={handleConfirmAnularPrestamo}
+            onCancel={() => !isAnulandoPrestamo && setPrestamoAAnular(null)}
+          />
+        );
+      })()}
+    </div>
   );
 }
 
@@ -2597,6 +2695,37 @@ function PagosView({
             );
           })}
         </div>
+      )}
+
+      {pagoAAnular && (
+        <ConfirmDialog
+          isOpen={true}
+          title="¿Deshacer y revertir este cobro?"
+          description={
+            <div className="space-y-2.5 text-xs text-on-surface-variant">
+              <div className="p-3 rounded-xl bg-surface-container-low border border-surface-container-high/70 flex items-center justify-between">
+                <div>
+                  <span className="font-bold text-on-surface block">
+                    {rel(rel(pagoAAnular.prestamos)?.contactos)?.nombre ?? "Deudor"} · {rel(pagoAAnular.prestamos)?.nombre ?? "Préstamo"}
+                  </span>
+                  <span className="text-[11px]">{formatDateEs(pagoAAnular.recibido_en)}</span>
+                </div>
+                <span className="font-mono font-extrabold text-sm text-rose-600 dark:text-rose-400">
+                  {money(Number(pagoAAnular.monto_total))}
+                </span>
+              </div>
+              <p className="leading-relaxed">
+                Se revertirá este cobro por completo: se descontará el interés registrado por error, se restaurará el saldo pendiente del préstamo y se restará el monto cobrado de la cuenta de dinero. Quedará registrado en la auditoría.
+              </p>
+            </div>
+          }
+          useSlider={true}
+          sliderLabel="Desliza para revertir el cobro"
+          submitting={isAnulando}
+          variant="danger"
+          onConfirm={handleConfirmAnular}
+          onCancel={() => !isAnulando && setPagoAAnular(null)}
+        />
       )}
     </div>
   );
@@ -4189,11 +4318,11 @@ function MovimientosView({
                   ) : (
                     <button
                       type="button"
-                      disabled
-                      className="p-2 rounded-xl text-on-surface-variant/30 cursor-not-allowed transition-colors"
-                      title="Desembolso inicial de préstamo (administrable desde su expediente para proteger el balance)"
+                      onClick={() => setMovimientoAEliminar(m)}
+                      className="p-2 rounded-xl text-rose-600 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-300 hover:bg-rose-500/10 cursor-pointer transition-colors"
+                      title="Eliminar y revertir préstamo entregado"
                     >
-                      <Trash2 className="w-4 h-4" />
+                      <RotateCcw className="w-4 h-4" />
                     </button>
                   )}
                 </div>
@@ -4274,11 +4403,11 @@ function MovimientosView({
                   ) : (
                     <button
                       type="button"
-                      disabled
-                      className="p-1.5 rounded-lg text-on-surface-variant/30 cursor-not-allowed transition-colors"
-                      title="Desembolso inicial de préstamo (administrable desde su expediente para proteger el balance)"
+                      onClick={() => setMovimientoAEliminar(m)}
+                      className="p-1.5 rounded-lg text-rose-600 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-300 hover:bg-rose-500/10 cursor-pointer transition-colors"
+                      title="Eliminar y revertir préstamo entregado"
                     >
-                      <Trash2 className="w-3.5 h-3.5" />
+                      <RotateCcw className="w-3.5 h-3.5" />
                     </button>
                   )}
                 </div>
@@ -4291,10 +4420,17 @@ function MovimientosView({
       {/* Modal de Eliminación Seguro con Slider */}
       {movimientoAEliminar && (() => {
         const esCobro = movimientoAEliminar.tipo === "pago_prestamo" || Boolean(movimientoAEliminar.pago_prestamo_id);
+        const esEntregaPrestamo = movimientoAEliminar.tipo === "entrega_prestamo";
         return (
           <ConfirmDialog
             isOpen={true}
-            title={esCobro ? "¿Deshacer y revertir este cobro?" : "¿Eliminar este movimiento?"}
+            title={
+              esEntregaPrestamo
+                ? "¿Eliminar y revertir este préstamo?"
+                : esCobro
+                ? "¿Deshacer y revertir este cobro?"
+                : "¿Eliminar este movimiento?"
+            }
             description={
               <div className="space-y-2.5 text-xs text-on-surface-variant">
                 <div className="p-3 rounded-xl bg-surface-container-low border border-surface-container-high/70 flex items-center justify-between">
@@ -4302,6 +4438,8 @@ function MovimientosView({
                     <span className="font-bold text-on-surface block">
                       {movimientoAEliminar.descripcion
                         ? fixSpanishEncoding(movimientoAEliminar.descripcion)
+                        : esEntregaPrestamo
+                        ? "Préstamo entregado"
                         : esCobro
                         ? "Cobro de cuota"
                         : "Movimiento"}
@@ -4313,7 +4451,9 @@ function MovimientosView({
                   </span>
                 </div>
                 <p className="leading-relaxed">
-                  {esCobro
+                  {esEntregaPrestamo
+                    ? "Se eliminará el préstamo asociado por completo: el capital desembolsado regresará automáticamente al saldo de la cuenta de origen y cualquier cobro vinculado también será revertido. Esta acción quedará registrada en la bitácora de auditoría."
+                    : esCobro
                     ? "Se revertirá este cobro por completo: se descontará el interés registrado por error, se restaurará el saldo pendiente del préstamo y se restará el monto cobrado de la cuenta de dinero. Esta acción quedará registrada en la bitácora de auditoría."
                     : movimientoAEliminar.transfer_group_id
                     ? "Este movimiento forma parte de una transferencia entre cuentas. Se eliminarán ambos asientos (salida y entrada) para mantener cuadradas tus cuentas. Quedará registrado en la auditoría."
@@ -4323,7 +4463,13 @@ function MovimientosView({
               </div>
             }
             useSlider={true}
-            sliderLabel={esCobro ? "Desliza para revertir el cobro" : "Desliza para eliminar movimiento"}
+            sliderLabel={
+              esEntregaPrestamo
+                ? "Desliza para eliminar y revertir préstamo"
+                : esCobro
+                ? "Desliza para revertir el cobro"
+                : "Desliza para eliminar movimiento"
+            }
             submitting={isEliminando}
             variant="danger"
             onConfirm={handleConfirmEliminar}
