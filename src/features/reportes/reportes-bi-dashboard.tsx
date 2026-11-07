@@ -310,6 +310,7 @@ export function ReportesBiDashboard({
         return (
           <BudgetRuleWidget
             movimientos={movimientos}
+            pagos={pagos}
           />
         );
       case "tabla_auditoria":
