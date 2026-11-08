@@ -409,10 +409,10 @@ export default function EspaciosClient({
             </button>
 
             <h2 className="font-heading text-xl font-bold text-on-surface mb-1">
-              Nuevo espacio de trabajo
+              Nuevo espacio
             </h2>
             <p className="text-xs text-on-surface-variant mb-5">
-              Crea un espacio independiente para separar préstamos, cuentas y deudores.
+              Crea un espacio separado para tus préstamos personales, negocio o familia.
             </p>
 
             <form
@@ -429,7 +429,7 @@ export default function EspaciosClient({
                   type="text"
                   name="name"
                   required
-                  placeholder="Ej. Empresa, Familia, Cartera Cochabamba"
+                  placeholder="Ej. Negocio, Préstamos personales, Familia..."
                   className="w-full h-10 px-3.5 rounded-xl bg-surface-container-low border border-surface-container-high/80 text-base sm:text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
                 />
                 {fieldErrors.name && (

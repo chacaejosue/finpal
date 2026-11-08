@@ -3048,7 +3048,7 @@ function ModalDetalleCuenta({
         <div className="p-4 rounded-xl bg-surface-container-low/70 border border-surface-container-high/60 flex items-baseline justify-between">
           <div>
             <span className="font-mono text-[10px] uppercase font-bold text-outline block">
-              Saldo disponible
+              Dinero disponible
             </span>
             <p className="font-mono text-2xl sm:text-3xl font-extrabold text-on-surface mt-0.5">
               {money(cuenta.saldo)}
@@ -3059,25 +3059,25 @@ function ModalDetalleCuenta({
           </span>
         </div>
 
-        {/* Desglose de Información Contable */}
+        {/* Detalles de la cuenta */}
         <div className="space-y-2 text-xs">
           <div className="flex items-center justify-between py-1.5 border-b border-surface-container-high/40">
-            <span className="text-on-surface-variant">Saldo de apertura</span>
+            <span className="text-on-surface-variant">Empezó con</span>
             <span className="font-mono font-semibold text-on-surface">
               {money(cuenta.saldo_inicial)}
             </span>
           </div>
 
           <div className="flex items-center justify-between py-1.5 border-b border-surface-container-high/40">
-            <span className="text-on-surface-variant">Estado operativo</span>
+            <span className="text-on-surface-variant">Estado</span>
             <span className="font-semibold text-emerald-600 dark:text-emerald-400">
-              {cuenta.es_activa ? "Activa y disponible" : "Archivada / Inactiva"}
+              {cuenta.es_activa ? "En uso" : "Archivada / Inactiva"}
             </span>
           </div>
 
           {cuenta.created_at && (
             <div className="flex items-center justify-between py-1.5 border-b border-surface-container-high/40">
-              <span className="text-on-surface-variant">Fecha de registro</span>
+              <span className="text-on-surface-variant">Creada el</span>
               <span className="font-mono text-on-surface">
                 {formatDateEs(cuenta.created_at)}
               </span>
@@ -3273,7 +3273,7 @@ function ModalEditarCuenta({
             </span>
             <div>
               <h2 className="font-heading text-lg font-bold text-on-surface">Editar Cuenta</h2>
-              <p className="text-xs text-on-surface-variant">Modifica nombre o categoría con auditoría completa.</p>
+              <p className="text-xs text-on-surface-variant">Cambia el nombre o tipo de cuenta sin afectar tus números.</p>
             </div>
           </div>
           <button
@@ -3294,7 +3294,7 @@ function ModalEditarCuenta({
               tab === "editar" ? "bg-surface-container-lowest text-on-surface shadow-xs" : "text-on-surface-variant hover:text-on-surface"
             }`}
           >
-            Editar detalles
+            Editar datos
           </button>
           <button
             type="button"
@@ -3313,10 +3313,10 @@ function ModalEditarCuenta({
             <div className="p-3 rounded-xl bg-surface-container-low/50 border border-surface-container-high/60 text-xs text-on-surface-variant space-y-1">
               <p className="font-semibold text-on-surface flex items-center gap-1.5">
                 <CheckCircle2 className="w-3.5 h-3.5 text-primary" />
-                Seguridad financiera garantizada
+                Tus movimientos siguen intactos
               </p>
               <p>
-                Editar el nombre o categoría no altera tus saldos ni tus transacciones pasadas. Tu libro contable permanece 100% íntegro.
+                Cambiar el nombre o tipo de cuenta no modifica tus saldos ni tus movimientos pasados. Todo tu historial queda a salvo.
               </p>
             </div>
 
@@ -3347,7 +3347,7 @@ function ModalEditarCuenta({
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-on-surface mb-1">Motivo del cambio (opcional, para el registro de auditoría)</label>
+              <label className="block text-xs font-semibold text-on-surface mb-1">¿Por qué haces este cambio? (opcional, para recordarlo después)</label>
               <input
                 type="text"
                 value={motivo}

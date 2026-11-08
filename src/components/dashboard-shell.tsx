@@ -28,7 +28,22 @@ import {
   Check,
   PanelLeftClose,
   PanelLeftOpen,
+  LayoutGrid,
   Tag,
+  User,
+  Phone,
+  Mail,
+  Banknote,
+  Landmark,
+  Smartphone,
+  PiggyBank,
+  MoreHorizontal,
+  ArrowDownLeft,
+  ArrowUpRight,
+  Scale,
+  Percent,
+  Clock,
+  Info,
 } from "lucide-react";
 import { useEspacio } from "@/lib/espacio-context";
 import {
@@ -44,6 +59,7 @@ import {
   type ModalPresetOptions,
 } from "@/lib/dashboard-context";
 import { FinPalLogo } from "@/components/finpal-logo";
+import { ModalReciboCobro } from "@/components/finpal-modals";
 import { ImportModal } from "@/features/importacion/import-modal";
 import { signOut } from "@/app/(auth)/actions";
 import { formatDateEs, getLocalDateString } from "@/lib/format-date";
@@ -104,6 +120,8 @@ export function DashboardShell({
     formError,
     successNotice,
     setSuccessNotice,
+    reciboCobroModal,
+    setReciboCobroModal,
     handleSubmitModal,
     preferencias,
   } = useDashboard();
@@ -274,6 +292,16 @@ export function DashboardShell({
   const isRouteLoading = optimisticPath !== null && pathname !== optimisticPath;
   const activePath = isRouteLoading ? optimisticPath : pathname;
   const avatarLetters = userEmail ? userEmail.slice(0, 2).toUpperCase() : "FP";
+  const isMoreActive = useMemo(() => {
+    return [
+      "/contactos",
+      "/pagos",
+      "/cuentas",
+      "/reportes",
+      "/configuracion",
+      "/espacios",
+    ].includes(activePath || "");
+  }, [activePath]);
 
   const isCustomAccent = preferencias.colorAcento && preferencias.colorAcento !== "verde";
   const customAccent =
@@ -850,16 +878,6 @@ export function DashboardShell({
           } right-0 h-16 bg-surface-container-lowest/90 backdrop-blur-md shadow-[0_1px_4px_rgba(0,0,0,0.03)] border-b border-surface-container-high/60 z-30 flex items-center justify-between px-3 sm:px-8 max-w-full transition-[left] duration-300 ease-in-out`}
         >
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-            {/* Botón menú móvil */}
-            <button
-              type="button"
-              onClick={() => setMobileNavOpen(true)}
-              className="md:hidden p-2 -ml-1 text-on-surface hover:bg-surface-container rounded-xl transition-colors cursor-pointer shrink-0"
-              aria-label="Abrir menú"
-            >
-              <Menu className="w-5 h-5 text-on-surface" />
-            </button>
-
             {/* Logo en versión móvil */}
             <div className="flex items-center gap-2 md:hidden min-w-0">
               <FinPalLogo size={32} className="w-8 h-8 shrink-0" colorAcento={preferencias.colorAcento} priority />
@@ -903,7 +921,7 @@ export function DashboardShell({
                 type="button"
                 onClick={() => setShowAlertsDropdown((v) => !v)}
                 className="relative p-2 rounded-xl bg-surface-container-low hover:bg-surface-container text-on-surface border border-surface-container-high/50 transition-colors cursor-pointer"
-                title="Centro de vencimientos y alertas de cartera"
+                title="Avisos de cobros y vencimientos"
                 aria-label="Centro de alertas"
               >
                 <Bell className="w-4 h-4 text-on-surface-variant" />
@@ -932,10 +950,10 @@ export function DashboardShell({
                     <div className="px-4 py-3 border-b border-surface-container-low flex items-center justify-between bg-surface-container-low/50">
                       <div>
                         <h3 className="font-heading text-xs font-extrabold text-on-surface uppercase tracking-wider">
-                          Vencimientos de Cartera
+                          Próximos cobros
                         </h3>
                         <p className="text-[11px] text-on-surface-variant">
-                          Préstamos atrasados, de hoy y próximos 5 días
+                          Pagos retrasados, de hoy y de los próximos 5 días
                         </p>
                       </div>
                       <button
@@ -953,15 +971,15 @@ export function DashboardShell({
                           <div className="w-9 h-9 rounded-full bg-primary/10 text-primary flex items-center justify-center mx-auto">
                             <Check className="w-5 h-5" />
                           </div>
-                          <p className="text-xs font-bold text-on-surface">¡Cartera al día!</p>
+                          <p className="text-xs font-bold text-on-surface">¡Todo al día!</p>
                           <p className="text-[11px] text-on-surface-variant">
-                            No tienes préstamos en mora ni vencimientos en los próximos 5 días.
+                            No tienes cobros pendientes ni vencimientos en los próximos 5 días.
                           </p>
                         </div>
                       ) : (
                         <>
                           {alertLoans.late.map((p) => {
-                            const deudor = rel(p.contactos)?.nombre ?? "Deudor";
+                            const deudor = rel(p.contactos)?.nombre ?? "Contacto";
                             return (
                               <div
                                 key={p.id}
@@ -974,7 +992,7 @@ export function DashboardShell({
                                   </div>
                                   <p className="text-[11px] text-on-surface-variant truncate">{p.nombre}</p>
                                   <p className="text-[10px] font-bold text-error mt-0.5">
-                                    Atrasado ({p.dias_atraso}d) · Saldo: {money(loanBalance(p))}
+                                    Con atraso ({p.dias_atraso}d) · Debe: {money(loanBalance(p))}
                                   </p>
                                 </div>
                                 <button
@@ -992,7 +1010,7 @@ export function DashboardShell({
                           })}
 
                           {alertLoans.today.map((p) => {
-                            const deudor = rel(p.contactos)?.nombre ?? "Deudor";
+                            const deudor = rel(p.contactos)?.nombre ?? "Contacto";
                             return (
                               <div
                                 key={p.id}
@@ -1005,7 +1023,7 @@ export function DashboardShell({
                                   </div>
                                   <p className="text-[11px] text-on-surface-variant truncate">{p.nombre}</p>
                                   <p className="text-[10px] font-bold text-amber-600 dark:text-amber-400 mt-0.5">
-                                    ¡Vence hoy! · Cuota est.: {money(monthlyInterest(p) || loanBalance(p))}
+                                    ¡Toca cobrar hoy! · Cuota aprox.: {money(monthlyInterest(p) || loanBalance(p))}
                                   </p>
                                 </div>
                                 <button
@@ -1023,7 +1041,7 @@ export function DashboardShell({
                           })}
 
                           {alertLoans.soon.map((p) => {
-                            const deudor = rel(p.contactos)?.nombre ?? "Deudor";
+                            const deudor = rel(p.contactos)?.nombre ?? "Contacto";
                             return (
                               <div
                                 key={p.id}
@@ -1036,7 +1054,7 @@ export function DashboardShell({
                                   </div>
                                   <p className="text-[11px] text-on-surface-variant truncate">{p.nombre}</p>
                                   <p className="text-[10px] text-on-surface-variant mt-0.5">
-                                    Vence: {formatDateEs(p.fecha_proximo_pago)}
+                                    Toca cobrar: {formatDateEs(p.fecha_proximo_pago)}
                                   </p>
                                 </div>
                                 <button
@@ -1062,7 +1080,7 @@ export function DashboardShell({
                         onClick={() => setShowAlertsDropdown(false)}
                         className="text-[11px] font-bold text-primary hover:underline"
                       >
-                        Ver toda la cartera de préstamos →
+                        Ver todos los préstamos →
                       </Link>
                     </div>
                   </motion.div>
@@ -1073,9 +1091,14 @@ export function DashboardShell({
             <ThemeToggle />
 
             <div className="flex items-center gap-1.5 sm:gap-2.5 pl-1.5 sm:pl-2 border-l border-surface-container-low shrink-0">
-              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-on-surface text-surface-container-lowest flex items-center justify-center font-bold text-[11px] sm:text-xs ring-2 ring-primary/20 shrink-0">
+              <button
+                type="button"
+                onClick={() => setMobileNavOpen(true)}
+                className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-on-surface text-surface-container-lowest flex items-center justify-center font-bold text-[11px] sm:text-xs ring-2 ring-primary/20 shrink-0 cursor-pointer md:cursor-default"
+                aria-label="Abrir menú de usuario"
+              >
                 {avatarLetters}
-              </div>
+              </button>
               <div className="hidden md:flex flex-col text-left max-w-[140px] lg:max-w-[180px]">
                 <span className="text-xs font-bold text-on-surface leading-tight truncate">{userEmail}</span>
                 <span className="text-[11px] text-on-surface-variant leading-tight truncate">
@@ -1134,8 +1157,8 @@ export function DashboardShell({
                 <HandCoins className="w-4 h-4" />
               </div>
               <div className="text-left">
-                <span className="block font-bold">Nuevo préstamo</span>
-                <span className="block text-[10px] text-on-surface-variant font-normal">Registrar capital otorgado y cuotas</span>
+                <span className="block font-bold">Prestar dinero</span>
+                <span className="block text-[10px] text-on-surface-variant font-normal">Anota a quién le prestas y cuánto</span>
               </div>
             </button>
 
@@ -1151,8 +1174,8 @@ export function DashboardShell({
                 <ReceiptText className="w-4 h-4" />
               </div>
               <div className="text-left">
-                <span className="block font-bold">Registrar cobro</span>
-                <span className="block text-[10px] text-on-surface-variant font-normal">Abonar capital o cobrar cuota de interés</span>
+                <span className="block font-bold">Anotar cobro</span>
+                <span className="block text-[10px] text-on-surface-variant font-normal">Anota el dinero que te están pagando</span>
               </div>
             </button>
 
@@ -1210,116 +1233,120 @@ export function DashboardShell({
         )}
       </AnimatePresence>
 
-      {/* Dock / Barra de Navegación Móvil Inferior */}
+      {/* Dock / Barra de Navegación Móvil Inferior Centrada Simétrica */}
       <nav
         aria-label="Navegación principal móvil"
-        className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-surface-container-lowest/90 backdrop-blur-md border-t border-surface-container-high/60 px-2 py-1.5 flex items-center justify-around shadow-[0_-4px_24px_rgba(0,0,0,0.06)]"
+        className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-surface-container-lowest/95 backdrop-blur-md border-t border-surface-container-high/60 px-3 py-1.5 shadow-[0_-4px_24px_rgba(0,0,0,0.06)]"
       >
-        {/* Inicio */}
-        <Link
-          href="/inicio"
-          prefetch={true}
-          onClick={() => {
-            setOptimisticPath("/inicio");
-            setMobileQuickActionOpen(false);
-          }}
-          className={`flex flex-col items-center gap-0.5 py-1 px-2.5 rounded-xl transition-all cursor-pointer ${
-            activePath === "/inicio"
-              ? "text-primary font-bold"
-              : "text-on-surface-variant hover:text-on-surface"
-          }`}
-        >
-          <div className="relative">
-            <LayoutDashboard className="w-5 h-5" />
-            {activePath === "/inicio" && (
-              <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-primary" />
-            )}
-          </div>
-          <span className="text-[10px]">Inicio</span>
-        </Link>
+        <div className="max-w-md mx-auto grid grid-cols-5 items-center justify-items-center w-full">
+          {/* Inicio */}
+          <Link
+            href="/inicio"
+            prefetch={true}
+            onClick={() => {
+              setOptimisticPath("/inicio");
+              setMobileQuickActionOpen(false);
+            }}
+            className={`w-full flex flex-col items-center justify-center gap-0.5 py-1 px-1 rounded-xl transition-all cursor-pointer text-center ${
+              activePath === "/inicio"
+                ? "text-primary font-bold"
+                : "text-on-surface-variant hover:text-on-surface"
+            }`}
+          >
+            <div className="relative">
+              <LayoutDashboard className="w-5 h-5" />
+              {activePath === "/inicio" && (
+                <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-primary" />
+              )}
+            </div>
+            <span className="text-[10px] truncate max-w-full">Inicio</span>
+          </Link>
 
-        {/* Préstamos */}
-        <Link
-          href="/prestamos"
-          prefetch={true}
-          onClick={() => {
-            setOptimisticPath("/prestamos");
-            setMobileQuickActionOpen(false);
-          }}
-          className={`flex flex-col items-center gap-0.5 py-1 px-2.5 rounded-xl transition-all cursor-pointer ${
-            activePath === "/prestamos"
-              ? "text-primary font-bold"
-              : "text-on-surface-variant hover:text-on-surface"
-          }`}
-        >
-          <div className="relative">
-            <HandCoins className="w-5 h-5" />
-            {activePath === "/prestamos" && (
-              <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-primary" />
-            )}
-          </div>
-          <span className="text-[10px]">Préstamos</span>
-        </Link>
+          {/* Préstamos */}
+          <Link
+            href="/prestamos"
+            prefetch={true}
+            onClick={() => {
+              setOptimisticPath("/prestamos");
+              setMobileQuickActionOpen(false);
+            }}
+            className={`w-full flex flex-col items-center justify-center gap-0.5 py-1 px-1 rounded-xl transition-all cursor-pointer text-center ${
+              activePath === "/prestamos"
+                ? "text-primary font-bold"
+                : "text-on-surface-variant hover:text-on-surface"
+            }`}
+          >
+            <div className="relative">
+              <HandCoins className="w-5 h-5" />
+              {activePath === "/prestamos" && (
+                <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-primary" />
+              )}
+            </div>
+            <span className="text-[10px] truncate max-w-full">Préstamos</span>
+          </Link>
 
-        {/* Botón Central de Acción Rápida (+) */}
-        <button
-          type="button"
-          onClick={() => setMobileQuickActionOpen((v) => !v)}
-          className={`-mt-5 w-11 h-11 rounded-2xl flex items-center justify-center shadow-lg transition-all duration-200 cursor-pointer ${
-            mobileQuickActionOpen
-              ? "bg-on-surface text-surface-container-lowest rotate-45 scale-105"
-              : "bg-primary text-on-primary hover:bg-primary-container shadow-primary/25 hover:scale-105"
-          }`}
-          aria-label={mobileQuickActionOpen ? "Cerrar menú rápido" : "Acción rápida"}
-        >
-          <Plus className="w-6 h-6 transition-transform" />
-        </button>
-
-        {/* Movimientos */}
-        <Link
-          href="/movimientos"
-          prefetch={true}
-          onClick={() => {
-            setOptimisticPath("/movimientos");
-            setMobileQuickActionOpen(false);
-          }}
-          className={`flex flex-col items-center gap-0.5 py-1 px-2.5 rounded-xl transition-all cursor-pointer ${
-            activePath === "/movimientos"
-              ? "text-primary font-bold"
-              : "text-on-surface-variant hover:text-on-surface"
-          }`}
-        >
-          <div className="relative">
-            <ArrowLeftRight className="w-5 h-5" />
-            {activePath === "/movimientos" && (
-              <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-primary" />
-            )}
+          {/* Botón Central de Acción Rápida (+) */}
+          <div className="w-full flex items-center justify-center">
+            <button
+              type="button"
+              onClick={() => setMobileQuickActionOpen((v) => !v)}
+              className={`-mt-5 w-11 h-11 rounded-2xl flex items-center justify-center shadow-lg transition-all duration-200 cursor-pointer ${
+                mobileQuickActionOpen
+                  ? "bg-on-surface text-surface-container-lowest rotate-45 scale-105"
+                  : "bg-primary text-on-primary hover:bg-primary-container shadow-primary/25 hover:scale-105"
+              }`}
+              aria-label={mobileQuickActionOpen ? "Cerrar menú rápido" : "Acción rápida"}
+            >
+              <Plus className="w-6 h-6 transition-transform" />
+            </button>
           </div>
-          <span className="text-[10px]">Movimientos</span>
-        </Link>
 
-        {/* Contactos */}
-        <Link
-          href="/contactos"
-          prefetch={true}
-          onClick={() => {
-            setOptimisticPath("/contactos");
-            setMobileQuickActionOpen(false);
-          }}
-          className={`flex flex-col items-center gap-0.5 py-1 px-2.5 rounded-xl transition-all cursor-pointer ${
-            activePath === "/contactos"
-              ? "text-primary font-bold"
-              : "text-on-surface-variant hover:text-on-surface"
-          }`}
-        >
-          <div className="relative">
-            <UsersRound className="w-5 h-5" />
-            {activePath === "/contactos" && (
-              <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-primary" />
-            )}
-          </div>
-          <span className="text-[10px]">Contactos</span>
-        </Link>
+          {/* Movimientos */}
+          <Link
+            href="/movimientos"
+            prefetch={true}
+            onClick={() => {
+              setOptimisticPath("/movimientos");
+              setMobileQuickActionOpen(false);
+            }}
+            className={`w-full flex flex-col items-center justify-center gap-0.5 py-1 px-1 rounded-xl transition-all cursor-pointer text-center ${
+              activePath === "/movimientos"
+                ? "text-primary font-bold"
+                : "text-on-surface-variant hover:text-on-surface"
+            }`}
+          >
+            <div className="relative">
+              <ArrowLeftRight className="w-5 h-5" />
+              {activePath === "/movimientos" && (
+                <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-primary" />
+              )}
+            </div>
+            <span className="text-[10px] truncate max-w-full">Movimientos</span>
+          </Link>
+
+          {/* Más Secciones */}
+          <button
+            type="button"
+            onClick={() => {
+              setMobileQuickActionOpen(false);
+              setMobileNavOpen((v) => !v);
+            }}
+            className={`w-full flex flex-col items-center justify-center gap-0.5 py-1 px-1 rounded-xl transition-all cursor-pointer text-center ${
+              isMoreActive || mobileNavOpen
+                ? "text-primary font-bold"
+                : "text-on-surface-variant hover:text-on-surface"
+            }`}
+            aria-label="Abrir más secciones"
+          >
+            <div className="relative">
+              <LayoutGrid className="w-5 h-5" />
+              {(isMoreActive || mobileNavOpen) && (
+                <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-primary" />
+              )}
+            </div>
+            <span className="text-[10px] truncate max-w-full">Más</span>
+          </button>
+        </div>
       </nav>
 
       {/* Notificación Circular Animada Estilo Móvil con Timbre Armónico */}
@@ -1330,11 +1357,11 @@ export function DashboardShell({
           <ModalWrapper
             title={
               {
-                contact: "Nuevo contacto",
-                loan: "Nuevo préstamo",
-                payment: "Registrar cobro",
-                account: "Nueva cuenta",
-                movement: "Registrar movimiento",
+                contact: "Agregar persona",
+                loan: "Prestar dinero",
+                payment: "Anotar cobro",
+                account: "Crear cuenta",
+                movement: "Nuevo movimiento",
               }[modal]
             }
             close={handleSafeCloseModal}
@@ -1392,14 +1419,14 @@ export function DashboardShell({
                   }}
                   label={
                     modal === "loan"
-                      ? "Desliza para registrar el préstamo"
+                      ? "Desliza para guardar el préstamo"
                       : modal === "payment"
-                      ? "Desliza para registrar el cobro"
+                      ? "Desliza para anotar este cobro"
                       : modal === "movement"
-                      ? "Desliza para registrar el movimiento"
+                      ? "Desliza para guardar el movimiento"
                       : modal === "account"
                       ? "Desliza para crear la cuenta"
-                      : "Desliza para confirmar y registrar"
+                      : "Desliza para guardar"
                   }
                 />
                 <div className="flex justify-center">
@@ -1408,12 +1435,29 @@ export function DashboardShell({
                     onClick={handleSafeCloseModal}
                     className="text-xs font-semibold text-on-surface-variant hover:text-on-surface py-1 transition-colors cursor-pointer"
                   >
-                    Cancelar y descartar
+                    Cerrar sin guardar
                   </button>
                 </div>
               </div>
             </form>
           </ModalWrapper>
+        )}
+      </AnimatePresence>
+
+      {/* Modal Recibo Oficial de Cobro Digital */}
+      <AnimatePresence>
+        {reciboCobroModal && (
+          <ModalReciboCobro
+            pago={reciboCobroModal}
+            prestamo={
+              prestamos.find((pr) => pr.id === reciboCobroModal.prestamo_id) ??
+              prestamos.find((pr) => pr.nombre === rel(reciboCobroModal.prestamos)?.nombre) ??
+              null
+            }
+            espacioNombre={espaciosDisponibles.find((e) => e.id === espacioId)?.nombre}
+            colorAcento={preferencias.colorAcento}
+            onClose={() => setReciboCobroModal(null)}
+          />
         )}
       </AnimatePresence>
 
@@ -1554,7 +1598,7 @@ function ModalWrapper({
             : { y: 0, opacity: 1 }
         }
         exit={{ y: 20, opacity: 0 }}
-        className="bg-surface-container-lowest rounded-t-3xl sm:rounded-2xl border border-surface-container-high/80 shadow-2xl w-full max-w-lg max-h-[92dvh] sm:max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain p-5 sm:p-6 relative select-text"
+        className="bg-surface-container-lowest rounded-t-3xl sm:rounded-2xl border border-surface-container-high/80 shadow-2xl w-full max-w-xl sm:max-w-[620px] max-h-[92dvh] sm:max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain p-4 sm:p-6 md:p-7 relative select-text"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Aviso flotante sutil al hacer clic fuera mientras se edita */}
@@ -1576,12 +1620,12 @@ function ModalWrapper({
         <button
           type="button"
           onClick={close}
-          className="absolute top-4 right-4 text-on-surface-variant hover:text-on-surface p-1.5 rounded-lg hover:bg-surface-container transition-colors cursor-pointer"
+          className="absolute top-3.5 right-3.5 sm:top-4 sm:right-4 text-on-surface-variant hover:text-on-surface p-1.5 rounded-lg hover:bg-surface-container transition-colors cursor-pointer"
           aria-label="Cerrar modal"
         >
           <X className="w-5 h-5" />
         </button>
-        <h2 className="font-heading text-xl font-bold text-on-surface mb-4 pr-8">{title}</h2>
+        <h2 className="font-heading text-lg sm:text-xl font-bold text-on-surface mb-3.5 sm:mb-4 pr-8">{title}</h2>
         {children}
       </motion.div>
     </motion.div>
@@ -1590,10 +1634,30 @@ function ModalWrapper({
 
 // ─── Campos del Formulario ───────────────────────────────────────────────────
 
-function FormField({ label, children }: { label: string; children: ReactNode }) {
+function FormField({
+  label,
+  hint,
+  required,
+  children,
+}: {
+  label: string;
+  hint?: string;
+  required?: boolean;
+  children: ReactNode;
+}) {
   return (
-    <div>
-      <label className="block text-xs font-semibold text-on-surface mb-1">{label}</label>
+    <div className="space-y-1.5">
+      <div className="flex items-baseline justify-between gap-2">
+        <label className="block text-xs font-semibold text-on-surface">
+          {label}
+          {required && <span className="text-primary ml-0.5">*</span>}
+        </label>
+        {hint && (
+          <span className="text-[11px] text-on-surface-variant font-normal shrink-0 whitespace-nowrap">
+            {hint}
+          </span>
+        )}
+      </div>
       {children}
     </div>
   );
@@ -1616,8 +1680,9 @@ function DateField({
   const currentValue = value ?? internalValue;
 
   return (
-    <div className="relative">
-      <div className={`${inputCls} flex items-center select-none`} aria-hidden="true">
+    <div className="relative flex items-center">
+      <Calendar className="w-4 h-4 text-outline absolute left-3.5 pointer-events-none" />
+      <div className={`${inputCls} pl-10 flex items-center select-none`} aria-hidden="true">
         {formatDateEs(currentValue)}
       </div>
       <input
@@ -1637,54 +1702,140 @@ function DateField({
 }
 
 const inputCls =
-  "w-full h-10 px-3.5 rounded-xl bg-surface-container-lowest border border-surface-container-high/80 text-base sm:text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20";
+  "w-full h-10 px-3.5 rounded-xl bg-surface-container-lowest border border-surface-container-high/90 text-base sm:text-sm text-on-surface placeholder:text-on-surface-variant/40 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all";
 const selectCls =
-  "w-full h-10 pl-3.5 pr-10 rounded-xl bg-surface-container-lowest border border-surface-container-high/80 text-base sm:text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 cursor-pointer";
+  "w-full h-10 pl-3.5 pr-10 rounded-xl bg-surface-container-lowest border border-surface-container-high/90 text-base sm:text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all cursor-pointer";
 
 function ContactoForm() {
   return (
-    <>
-      <FormField label="Nombre completo *">
-        <input type="text" name="nombre" required className={inputCls} placeholder="Ej. Carlos Mendoza" />
+    <div className="space-y-3.5">
+      <FormField label="¿Cómo se llama la persona?" required>
+        <div className="relative flex items-center">
+          <User className="w-4 h-4 text-outline absolute left-3.5 pointer-events-none" />
+          <input
+            type="text"
+            name="nombre"
+            required
+            className={`${inputCls} pl-10`}
+            placeholder="Ej. Carlos Mendoza, Doña María..."
+            autoFocus
+          />
+        </div>
       </FormField>
-      <FormField label="Teléfono (opcional)">
-        <input type="tel" name="telefono" className={inputCls} placeholder="+591 70000000" />
-      </FormField>
-      <FormField label="Email (opcional)">
-        <input type="email" name="email" className={inputCls} placeholder="correo@ejemplo.com" />
-      </FormField>
-      <FormField label="Notas (opcional)">
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <FormField label="Teléfono o WhatsApp" hint="Opcional">
+          <div className="relative flex items-center">
+            <Phone className="w-4 h-4 text-outline absolute left-3.5 pointer-events-none" />
+            <input
+              type="tel"
+              name="telefono"
+              className={`${inputCls} pl-10`}
+              placeholder="+591 70000000 (para avisos amables)"
+            />
+          </div>
+        </FormField>
+        <FormField label="Correo electrónico" hint="Opcional">
+          <div className="relative flex items-center">
+            <Mail className="w-4 h-4 text-outline absolute left-3.5 pointer-events-none" />
+            <input
+              type="email"
+              name="email"
+              className={`${inputCls} pl-10`}
+              placeholder="carlos@ejemplo.com"
+            />
+          </div>
+        </FormField>
+      </div>
+
+      <FormField label="Apuntes o datos útiles" hint="Opcional">
         <textarea
           name="notas"
           rows={2}
-          className={`${inputCls} h-auto py-2.5`}
-          placeholder="Información adicional..."
+          className={`${inputCls} h-auto py-2.5 resize-none`}
+          placeholder="Dirección, referencias, apodo o acuerdos de palabra..."
         />
       </FormField>
-    </>
+    </div>
   );
 }
 
+const TIPOS_CUENTA = [
+  { value: "efectivo", label: "Efectivo", icon: Banknote },
+  { value: "banco", label: "Banco", icon: Landmark },
+  { value: "billetera_movil", label: "Billetera", icon: Smartphone },
+  { value: "ahorro", label: "Ahorros", icon: PiggyBank },
+  { value: "otra", label: "Otra", icon: MoreHorizontal },
+] as const;
+
 function CuentaForm({ codigoMoneda = "BOB" }: { codigoMoneda?: string }) {
+  const [tipo, setTipo] = useState<string>("efectivo");
+
   return (
-    <>
-      <FormField label="Nombre de la cuenta *">
-        <input type="text" name="nombre" required className={inputCls} placeholder="Ej. Banco Nacional" />
+    <div className="space-y-4">
+      <FormField label="¿Cómo llamas a esta cuenta o bolsillo?" required>
+        <div className="relative flex items-center">
+          <Landmark className="w-4 h-4 text-outline absolute left-3.5 pointer-events-none" />
+          <input
+            type="text"
+            name="nombre"
+            required
+            className={`${inputCls} pl-10`}
+            placeholder="Ej. Billetera de bolsillo, BCP Sueldo, Ahorros..."
+            autoFocus
+          />
+        </div>
       </FormField>
-      <FormField label="Tipo *">
-        <select name="tipo" required className={selectCls}>
-          <option value="efectivo">Efectivo</option>
-          <option value="banco">Cuenta bancaria</option>
-          <option value="billetera_movil">Billetera móvil</option>
-          <option value="ahorro">Cuenta de ahorro</option>
-          <option value="otra">Otra</option>
-        </select>
+
+      <div className="space-y-1.5">
+        <label className="block text-xs font-semibold text-on-surface">
+          ¿Qué tipo de cuenta es? <span className="text-primary">*</span>
+        </label>
+        <input type="hidden" name="tipo" value={tipo} />
+        <div className="grid grid-cols-3 sm:grid-cols-5 gap-1.5 sm:gap-2">
+          {TIPOS_CUENTA.map(({ value, label, icon: Icon }) => {
+            const active = tipo === value;
+            return (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setTipo(value)}
+                className={`flex flex-col items-center justify-center gap-1 sm:gap-1.5 p-2 sm:p-2.5 rounded-xl border text-[11px] sm:text-xs transition-all cursor-pointer select-none ${
+                  active
+                    ? "bg-primary/10 border-primary text-primary font-semibold shadow-xs"
+                    : "bg-surface-container-low hover:bg-surface-container text-on-surface-variant hover:text-on-surface border-outline/15"
+                }`}
+              >
+                <Icon className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${active ? "text-primary" : "text-on-surface-variant"}`} />
+                <span>{label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <FormField label="¿Con cuánto dinero empiezas hoy?" hint="Opcional">
+        <div className="relative flex items-center">
+          <span className="absolute left-3.5 text-xs font-bold text-on-surface-variant select-none pointer-events-none">
+            {codigoMoneda}
+          </span>
+          <input
+            type="number"
+            name="saldo_inicial"
+            defaultValue={0}
+            min={0}
+            step="0.01"
+            className={`${inputCls} pl-14 font-mono font-medium`}
+            placeholder="0.00"
+          />
+        </div>
+        <p className="text-[11px] text-on-surface-variant/80 mt-1">
+          Es el dinero que tienes en esta cuenta ahora mismo. Si no estás seguro, puedes dejarlo en 0.
+        </p>
       </FormField>
-      <FormField label={`Saldo inicial (${codigoMoneda}) (opcional)`}>
-        <input type="number" name="saldo_inicial" defaultValue={0} min={0} step="0.01" className={inputCls} />
-      </FormField>
+
       <input type="hidden" name="codigo_moneda" value={codigoMoneda} />
-    </>
+    </div>
   );
 }
 
@@ -1702,127 +1853,229 @@ function PrestamoForm({
   onCreateAccount: () => void;
 }) {
   const initialRate = preset?.tasa !== undefined ? preset.tasa : tasaPredeterminada;
+  const [esNuevoDeudor, setEsNuevoDeudor] = useState(
+    contactos.length === 0 || !preset?.contactId,
+  );
+  const [contactoSeleccionado, setContactoSeleccionado] = useState(
+    preset?.contactId ?? (contactos[0]?.id || ""),
+  );
+  const [contactoNombreNuevo, setContactoNombreNuevo] = useState("");
   const [cobraInteres, setCobraInteres] = useState(initialRate > 0);
-  const [tasaInteres, setTasaInteres] = useState<number | string>(initialRate);
-  const [contactoSeleccionado, setContactoSeleccionado] = useState(preset?.contactId ?? "");
+  const [tasaInteres, setTasaInteres] = useState<number | string>(
+    initialRate > 0 ? initialRate : tasaPredeterminada > 0 ? tasaPredeterminada : 3,
+  );
   const [fechaInicio, setFechaInicio] = useState(() => getLocalDateString());
   const [diaPago, setDiaPago] = useState(preset?.diaPago ?? new Date().getDate());
   const [metodoEntrega, setMetodoEntrega] = useState("");
 
+  const presetsTasa = [2, 3, 5];
+
   return (
-    <>
-      <FormField label="Deudor *">
-        <select
-          name="contacto_id"
-          className={selectCls}
-          value={contactoSeleccionado}
-          onChange={(event) => setContactoSeleccionado(event.target.value)}
-        >
-          <option value="">— Nuevo deudor —</option>
-          {contactos.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.nombre}
-            </option>
-          ))}
-        </select>
-      </FormField>
-      {contactoSeleccionado ? (
-        <input type="hidden" name="contacto_nombre" value="" />
-      ) : (
-        <FormField label="Nombre del nuevo deudor *">
-          <input
-            type="text"
-            name="contacto_nombre"
-            required
-            className={inputCls}
-            placeholder="Ej. Juan Pérez"
-            autoFocus
-          />
-        </FormField>
-      )}
-      <FormField label="Concepto / Alias del préstamo (opcional)">
-        <input
-          type="text"
-          name="nombre"
-          defaultValue={preset?.nombre ?? ""}
-          className={inputCls}
-          placeholder="Ej. Préstamo personal, Moto, Capital de trabajo..."
-        />
-      </FormField>
-      <FormField label="Monto principal *">
-        <input
-          type="number"
-          name="monto_principal"
-          required
-          min={1}
-          step="0.01"
-          defaultValue={preset?.monto ?? ""}
-          className={inputCls}
-        />
-      </FormField>
-      <div className="rounded-xl border border-outline/15 bg-surface-container-low/50 p-3 space-y-2">
-        <div className="flex items-start justify-between gap-3">
-          <label className="flex items-start gap-2.5 text-xs font-semibold text-on-surface cursor-pointer select-none">
-            <input
-              type="checkbox"
-              name="cobra_interes"
-              value="true"
-              checked={cobraInteres}
-              onChange={(e) => {
-                const checked = e.target.checked;
-                setCobraInteres(checked);
-                if (!checked) {
-                  setTasaInteres(0);
-                } else if (Number(tasaInteres) === 0) {
-                  setTasaInteres(tasaPredeterminada > 0 ? tasaPredeterminada : 3);
-                }
-              }}
-              className="mt-0.5 w-4 h-4 rounded accent-primary cursor-pointer"
-            />
-            <div>
-              <span className="block text-xs font-semibold text-on-surface">
-                Genera cobro de interés mensual (el deudor paga intereses)
-              </span>
-              <span className="block text-[11px] font-normal text-on-surface-variant">
-                {cobraInteres
-                  ? "El deudor debe pagar intereses cada mes según la tasa acordada."
-                  : "Préstamo de confianza / sin intereses (0%). Solo devuelve el capital prestado."}
-              </span>
-            </div>
+    <div className="space-y-4">
+      {/* ¿A quién le prestas? */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <label className="text-xs font-semibold text-on-surface">
+            ¿A quién le prestas? <span className="text-primary">*</span>
           </label>
-          {cobraInteres && Number(tasaInteres) === 0 && (
-            <span className="shrink-0 text-[11px] font-semibold text-primary bg-primary/10 px-2 py-0.5 rounded-md">
-              0% (sin interés)
-            </span>
+          {contactos.length > 0 && (
+            <div className="flex items-center gap-1 bg-surface-container-low p-0.5 rounded-lg border border-outline/15 text-[11px]">
+              <button
+                type="button"
+                onClick={() => setEsNuevoDeudor(false)}
+                className={`px-2.5 py-1 rounded-md transition-all cursor-pointer font-medium ${
+                  !esNuevoDeudor
+                    ? "bg-surface-container-lowest text-primary font-semibold shadow-2xs"
+                    : "text-on-surface-variant hover:text-on-surface"
+                }`}
+              >
+                Buscar en contactos
+              </button>
+              <button
+                type="button"
+                onClick={() => setEsNuevoDeudor(true)}
+                className={`px-2.5 py-1 rounded-md transition-all cursor-pointer font-medium ${
+                  esNuevoDeudor
+                    ? "bg-surface-container-lowest text-primary font-semibold shadow-2xs"
+                    : "text-on-surface-variant hover:text-on-surface"
+                }`}
+              >
+                + Nueva persona
+              </button>
+            </div>
           )}
         </div>
+
+        {!esNuevoDeudor && contactos.length > 0 ? (
+          <div>
+            <select
+              name="contacto_id"
+              className={selectCls}
+              value={contactoSeleccionado}
+              onChange={(e) => setContactoSeleccionado(e.target.value)}
+              required
+            >
+              <option value="">— Elige una persona —</option>
+              {contactos.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.nombre} {c.telefono ? `(${c.telefono})` : ""}
+                </option>
+              ))}
+            </select>
+            <input type="hidden" name="contacto_nombre" value="" />
+          </div>
+        ) : (
+          <div>
+            <div className="relative flex items-center">
+              <User className="w-4 h-4 text-outline absolute left-3.5 pointer-events-none" />
+              <input
+                type="text"
+                name="contacto_nombre"
+                required
+                value={contactoNombreNuevo}
+                onChange={(e) => setContactoNombreNuevo(e.target.value)}
+                className={`${inputCls} pl-10`}
+                placeholder="Nombre de la persona"
+                autoFocus
+              />
+            </div>
+            <input type="hidden" name="contacto_id" value="" />
+          </div>
+        )}
       </div>
-      {cobraInteres && (
-        <div>
-          <FormField label="Tasa mensual (%)">
+
+      {/* Monto del préstamo y Motivo */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <FormField label="¿Cuánto dinero vas a prestar?" required>
+          <div className="relative flex items-center">
+            <span className="absolute left-3.5 text-xs font-bold text-on-surface-variant select-none pointer-events-none">
+              BOB
+            </span>
             <input
               type="number"
-              name="tasa_interes_mensual"
+              name="monto_principal"
               required
-              min={0}
-              max={100}
+              min={1}
               step="0.01"
-              className={inputCls}
-              value={tasaInteres}
-              onChange={(e) => setTasaInteres(e.target.value)}
-              placeholder="0 para sin interés o ej. 3"
+              defaultValue={preset?.monto ?? ""}
+              className={`${inputCls} pl-14 font-mono font-semibold`}
+              placeholder="0.00"
             />
-          </FormField>
-          {Number(tasaInteres) > 3 && (
-            <p className="mt-1.5 text-[11px] text-amber-600 dark:text-amber-400 font-medium leading-tight">
-              ⚠️ <b>Nota legal (Bolivia):</b> El Art. 409 del Código Civil fija como tope convencional el 3% mensual. FinPal solo registra cálculos; el ingreso de tasas superiores es bajo tu exclusiva responsabilidad (Términos §2).
-            </p>
-          )}
+          </div>
+        </FormField>
+
+        <FormField label="¿Para qué es o cómo lo recuerdas?" hint="Opcional">
+          <input
+            type="text"
+            name="nombre"
+            defaultValue={preset?.nombre ?? ""}
+            className={inputCls}
+            placeholder="Ej. Mercadería, Moto, Ayuda de palabra..."
+          />
+        </FormField>
+      </div>
+
+      {/* Condición de interés */}
+      <div className="rounded-xl border border-outline/15 bg-surface-container-low/40 p-3 space-y-2.5">
+        <div className="flex items-center justify-between">
+          <label className="text-xs font-semibold text-on-surface flex items-center gap-1.5">
+            <Percent className="w-3.5 h-3.5 text-primary" />
+            <span>Condición del préstamo</span>
+          </label>
+          <input type="hidden" name="cobra_interes" value={cobraInteres ? "true" : "false"} />
         </div>
-      )}
-      {!cobraInteres && <input type="hidden" name="tasa_interes_mensual" value="0" />}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+          <button
+            type="button"
+            onClick={() => {
+              setCobraInteres(true);
+              if (Number(tasaInteres) === 0) {
+                setTasaInteres(tasaPredeterminada > 0 ? tasaPredeterminada : 3);
+              }
+            }}
+            className={`py-2 px-3 rounded-lg border transition-all cursor-pointer font-medium text-center whitespace-nowrap ${
+              cobraInteres
+                ? "bg-primary text-on-primary font-semibold shadow-xs border-primary"
+                : "bg-surface-container-lowest border-outline/15 text-on-surface-variant hover:text-on-surface"
+            }`}
+          >
+            Con interés mensual
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setCobraInteres(false);
+              setTasaInteres(0);
+            }}
+            className={`py-2 px-3 rounded-lg border transition-all cursor-pointer font-medium text-center whitespace-nowrap ${
+              !cobraInteres
+                ? "bg-primary text-on-primary font-semibold shadow-xs border-primary"
+                : "bg-surface-container-lowest border-outline/15 text-on-surface-variant hover:text-on-surface"
+            }`}
+          >
+            Sin interés (amigo o familiar)
+          </button>
+        </div>
+
+        {cobraInteres ? (
+          <div className="space-y-2 pt-1 border-t border-outline/10">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <div className="relative flex items-center flex-1">
+                <input
+                  type="number"
+                  name="tasa_interes_mensual"
+                  required
+                  min={0.01}
+                  max={100}
+                  step="0.01"
+                  className={`${inputCls} pr-16 font-mono`}
+                  value={tasaInteres}
+                  onChange={(e) => setTasaInteres(e.target.value)}
+                  placeholder="3"
+                />
+                <span className="absolute right-3.5 text-xs font-medium text-on-surface-variant pointer-events-none select-none">
+                  % al mes
+                </span>
+              </div>
+              <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
+                {presetsTasa.map((rate) => (
+                  <button
+                    key={rate}
+                    type="button"
+                    onClick={() => setTasaInteres(rate)}
+                    className={`px-2 sm:px-2.5 py-1.5 text-xs rounded-lg border transition-all cursor-pointer ${
+                      Number(tasaInteres) === rate
+                        ? "bg-primary/10 border-primary text-primary font-bold"
+                        : "bg-surface-container-lowest border-outline/15 text-on-surface-variant hover:text-on-surface"
+                    }`}
+                  >
+                    {rate}%
+                  </button>
+                ))}
+              </div>
+            </div>
+            {Number(tasaInteres) > 3 ? (
+              <p className="text-[11px] text-amber-600 dark:text-amber-400 font-medium leading-tight flex items-start gap-1">
+                <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                <span>
+                  <b>Ojo de amigo:</b> En Bolivia la ley fija 3% mensual como tope sugerido (Cód. Civil Art. 409). FinPal guardará el porcentaje que tú decidas.
+                </span>
+              </p>
+            ) : (
+              <p className="text-[11px] text-on-surface-variant flex items-center gap-1">
+                <Info className="w-3.5 h-3.5 text-primary shrink-0" />
+                <span>En Bolivia la ley sugiere hasta un 3% mensual (Código Civil Art. 409).</span>
+              </p>
+            )}
+          </div>
+        ) : (
+          <input type="hidden" name="tasa_interes_mensual" value="0" />
+        )}
+      </div>
+
+      {/* Fechas */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <FormField label="Fecha inicio *">
+        <FormField label="Fecha de entrega" required>
           <DateField
             name="fecha_inicio"
             required
@@ -1833,92 +2086,104 @@ function PrestamoForm({
             }}
           />
         </FormField>
-        <FormField label="Día de pago *">
-          <input
-            type="number"
-            name="dia_pago"
-            required
-            min={1}
-            max={31}
-            className={inputCls}
-            value={diaPago}
-            onChange={(event) => setDiaPago(Number(event.target.value))}
-          />
+        <FormField label="Día de cobro mensual" hint="Ej. 15 o 30" required>
+          <div className="relative flex items-center">
+            <Clock className="w-4 h-4 text-outline absolute left-3.5 pointer-events-none" />
+            <input
+              type="number"
+              name="dia_pago"
+              required
+              min={1}
+              max={31}
+              className={`${inputCls} pl-10 font-mono`}
+              value={diaPago}
+              onChange={(event) => setDiaPago(Number(event.target.value))}
+            />
+          </div>
         </FormField>
       </div>
+
+      {/* Cuenta de origen */}
       <div className="space-y-1.5">
-        <FormField label="Cuenta de origen *">
+        <FormField label="¿De dónde salió el dinero prestado?" required>
           <select name="cuenta_dinero_id" required className={selectCls}>
-            <option value="">— Selecciona cuenta —</option>
+            <option value="">— Elige de dónde sale —</option>
             {cuentas.map((c) => (
               <option key={c.id} value={c.id}>
-                {c.nombre} ({money(c.saldo)})
+                {c.nombre} (Tiene: {money(c.saldo)})
               </option>
             ))}
           </select>
         </FormField>
         {cuentas.length === 0 ? (
-          <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 px-3 py-2.5 text-[11px] text-on-surface-variant">
-            <p>Primero necesitas una cuenta para registrar de dónde sale el dinero.</p>
+          <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-on-surface-variant flex items-center justify-between">
+            <span>Primero necesitas una cuenta para saber de dónde salió el dinero.</span>
             <button
               type="button"
               onClick={onCreateAccount}
-              className="mt-2 font-bold text-primary hover:underline cursor-pointer"
+              className="font-bold text-primary hover:underline cursor-pointer"
             >
-              + Crear nueva cuenta
+              + Crear cuenta
             </button>
           </div>
         ) : (
-          <button
-            type="button"
-            onClick={onCreateAccount}
-            className="text-[11px] font-semibold text-primary hover:underline cursor-pointer"
-          >
-            + Crear otra cuenta
-          </button>
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={onCreateAccount}
+              className="text-[11px] font-semibold text-primary hover:underline cursor-pointer"
+            >
+              + Crear otra cuenta
+            </button>
+          </div>
         )}
       </div>
-      <FormField label="Método de entrega (opcional)">
-        <div className="space-y-2">
-          <input
-            type="text"
-            name="metodo_entrega"
-            className={inputCls}
-            value={metodoEntrega}
-            onChange={(e) => setMetodoEntrega(e.target.value)}
-            placeholder="Efectivo, transferencia, QR..."
-          />
-          <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-            <span className="text-[11px] text-on-surface-variant">Opciones rápidas:</span>
-            {["Efectivo", "Transferencia bancaria", "Pago QR", "Depósito"].map((metodo) => (
+
+      {/* Método de entrega */}
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between">
+          <label className="text-xs font-semibold text-on-surface">¿Cómo le entregaste el dinero?</label>
+          <span className="text-[11px] text-on-surface-variant">Opcional</span>
+        </div>
+        <div className="flex flex-wrap items-center gap-1.5">
+          {["Efectivo en mano", "Transferencia bancaria", "Pago QR", "Depósito"].map((m) => {
+            const active = metodoEntrega === m;
+            return (
               <button
-                key={metodo}
+                key={m}
                 type="button"
-                onClick={() => setMetodoEntrega(metodo)}
-                className={`text-[11px] px-2.5 py-1 rounded-lg border transition-all cursor-pointer ${
-                  metodoEntrega === metodo
+                onClick={() => setMetodoEntrega(active ? "" : m)}
+                className={`text-xs px-2.5 py-1 rounded-lg border transition-all cursor-pointer ${
+                  active
                     ? "bg-primary text-on-primary border-primary font-semibold shadow-xs"
                     : "bg-surface-container-low hover:bg-surface-container text-on-surface-variant hover:text-on-surface border-outline/15"
                 }`}
               >
-                {metodo}
+                {m}
               </button>
-            ))}
-          </div>
+            );
+          })}
         </div>
-      </FormField>
-      <FormField label="Notas (opcional)">
+        <input
+          type="text"
+          name="metodo_entrega"
+          value={metodoEntrega}
+          onChange={(e) => setMetodoEntrega(e.target.value)}
+          placeholder="O escribe otro medio (ej. Cheque, Tigo Money...)"
+          className={`${inputCls} h-9 text-xs`}
+        />
+      </div>
+
+      {/* Notas */}
+      <FormField label="Detalles o acuerdos de palabra" hint="Opcional">
         <textarea
           name="notas"
           rows={2}
-          className={`${inputCls} h-auto py-2.5`}
-          placeholder="Detalles adicionales, recordatorios, acuerdos especiales..."
+          className={`${inputCls} h-auto py-2 resize-none`}
+          placeholder="Garantías, acuerdos especiales, recordatorios..."
         />
       </FormField>
-      <p className="text-[11px] text-on-surface-variant bg-surface-container-low rounded-xl px-3 py-2">
-        Próximo vencimiento sugerido: día {diaPago} del siguiente mes. Puedes ingresar 0% o desactivar la casilla para registrar préstamos sin interés.
-      </p>
-    </>
+    </div>
   );
 }
 
@@ -1931,7 +2196,6 @@ function PagoForm({
   cuentas: Cuenta[];
   initialLoanId?: string;
 }) {
-  // Solo préstamos que tienen deuda pendiente activa (> 0.01) y no están saldados ni cancelados
   const prestamosPendientes = useMemo(() => {
     return prestamos.filter(
       (p) => p.estado !== "pagado" && p.estado !== "cancelado" && loanBalance(p) > 0.01,
@@ -1947,9 +2211,8 @@ function PagoForm({
   }, [prestamosPendientes, initialLoanId]);
 
   const [prestamoId, setPrestamoId] = useState<string>(defaultLoan?.id ?? "");
-  const [total, setTotal] = useState<number | "">("");
-  const [principal, setPrincipal] = useState<number | "">("");
   const [metodoPago, setMetodoPago] = useState("");
+  const [showPeriodPicker, setShowPeriodPicker] = useState(false);
   const [useCustomFecha, setUseCustomFecha] = useState(false);
   const [fechaEsperada, setFechaEsperada] = useState(
     defaultLoan?.periodos_sugeridos?.[0]?.fecha ??
@@ -1973,42 +2236,107 @@ function PagoForm({
   }, [prestamoId, prestamoSeleccionado]);
 
   const capitalPendiente = prestamoSeleccionado ? loanBalance(prestamoSeleccionado) : 0;
-  const numTotal = typeof total === "number" ? total : 0;
-  const numPrincipal = typeof principal === "number" ? principal : 0;
-  const interes = Math.max(0, numTotal - numPrincipal);
   const interesEstimado = prestamoSeleccionado ? monthlyInterest(prestamoSeleccionado) : 0;
+  const cobraInteres = Boolean(prestamoSeleccionado?.cobra_interes && interesEstimado > 0);
 
+  // Modo de cobro amigable:
+  // "interes": Solo el interés mensual (la cuota habitual para estar al día)
+  // "liquidar": Liquidar todo (deuda total + interés)
+  // "personalizado": Ingresar un monto libre recibido
+  const [modoCobro, setModoCobro] = useState<"interes" | "liquidar" | "personalizado">(() => {
+    return cobraInteres ? "interes" : "liquidar";
+  });
+
+  const [montoLibre, setMontoLibre] = useState<number | "">("");
+  const [prioridadAbono, setPrioridadAbono] = useState<"interes_primero" | "todo_capital">("interes_primero");
+  const [modoAvanzado, setModoAvanzado] = useState(false);
+  const [manualPrincipal, setManualPrincipal] = useState<number | "">("");
+
+  // Si cambia el préstamo, sincronizamos modo adecuado
   const handleSelectPrestamo = (p: Prestamo) => {
     setPrestamoId(p.id);
     setUseCustomFecha(false);
+    setShowPeriodPicker(false);
     const primerSugerido = p.periodos_sugeridos?.[0]?.fecha ?? p.fecha_proximo_pago ?? getLocalDateString();
     setFechaEsperada(primerSugerido);
+    const hasInt = Boolean(p.cobra_interes && monthlyInterest(p) > 0);
+    setModoCobro(hasInt ? "interes" : "liquidar");
+    setMontoLibre("");
+    setManualPrincipal("");
+    setModoAvanzado(false);
   };
 
-  const handleFillOnlyInterest = () => {
-    if (!prestamoSeleccionado) return;
-    const estInt = monthlyInterest(prestamoSeleccionado);
-    setTotal(estInt);
-    setPrincipal(0);
-  };
+  // Cálculo en tiempo real de los 3 valores que requiere el sistema
+  const { montoTotal, montoPrincipal, montoInteres } = useMemo(() => {
+    if (modoCobro === "interes") {
+      return {
+        montoTotal: interesEstimado,
+        montoPrincipal: 0,
+        montoInteres: interesEstimado,
+      };
+    }
 
-  const handleFillOnlyCapital = () => {
-    if (!prestamoSeleccionado) return;
-    const balance = loanBalance(prestamoSeleccionado);
-    setTotal(balance);
-    setPrincipal(balance);
-  };
+    if (modoCobro === "liquidar") {
+      const tot = capitalPendiente + (cobraInteres ? interesEstimado : 0);
+      return {
+        montoTotal: tot,
+        montoPrincipal: capitalPendiente,
+        montoInteres: cobraInteres ? interesEstimado : 0,
+      };
+    }
 
-  const handleFillFullBalance = () => {
-    if (!prestamoSeleccionado) return;
-    const balance = loanBalance(prestamoSeleccionado);
-    const estInt = monthlyInterest(prestamoSeleccionado);
-    setTotal(balance + estInt);
-    setPrincipal(balance);
-  };
+    // Modo Personalizado
+    const rawTotal = typeof montoLibre === "number" ? Math.max(0, montoLibre) : 0;
+    if (rawTotal <= 0) {
+      return { montoTotal: 0, montoPrincipal: 0, montoInteres: 0 };
+    }
+
+    if (modoAvanzado && typeof manualPrincipal === "number") {
+      const p = Math.min(Math.max(0, manualPrincipal), Math.min(rawTotal, capitalPendiente));
+      const i = Math.max(0, rawTotal - p);
+      return { montoTotal: rawTotal, montoPrincipal: p, montoInteres: i };
+    }
+
+    if (!cobraInteres || prioridadAbono === "todo_capital") {
+      const p = Math.min(rawTotal, capitalPendiente);
+      const i = Math.max(0, rawTotal - p);
+      return { montoTotal: rawTotal, montoPrincipal: p, montoInteres: i };
+    }
+
+    // Priorizar cuota mensual de interés primero, el excedente a capital
+    const i = Math.min(rawTotal, interesEstimado);
+    const p = Math.min(Math.max(0, rawTotal - i), capitalPendiente);
+    return {
+      montoTotal: rawTotal,
+      montoPrincipal: p,
+      montoInteres: Math.max(0, rawTotal - p),
+    };
+  }, [
+    modoCobro,
+    interesEstimado,
+    capitalPendiente,
+    cobraInteres,
+    montoLibre,
+    prioridadAbono,
+    modoAvanzado,
+    manualPrincipal,
+  ]);
+
+  const saldoRestante = Math.max(0, capitalPendiente - montoPrincipal);
+
+  const periodoActivoLabel = useMemo(() => {
+    if (!prestamoSeleccionado) return "";
+    const encontrado = prestamoSeleccionado.periodos_sugeridos?.find((p) => p.fecha === fechaEsperada);
+    if (encontrado) return encontrado.label;
+    if (prestamoSeleccionado.fecha_proximo_pago) {
+      return `Cuota del ${formatDateEs(prestamoSeleccionado.fecha_proximo_pago)}`;
+    }
+    return formatDateEs(fechaEsperada);
+  }, [prestamoSeleccionado, fechaEsperada]);
 
   return (
-    <>
+    <div className="space-y-4">
+      {/* Selector de Deudor y Préstamo */}
       <DeudorPrestamoPicker
         prestamos={prestamos}
         selectedId={prestamoId}
@@ -2016,14 +2344,14 @@ function PagoForm({
       />
 
       {prestamoSeleccionado && (
-        <div className="rounded-2xl border border-primary/20 bg-primary/5 p-3.5 space-y-2.5">
+        <div className="rounded-2xl border border-primary/20 bg-primary/5 p-3 sm:p-3.5 space-y-2.5">
           <div className="flex items-center justify-between gap-2">
             <span className="text-xs font-bold text-primary flex items-center gap-1.5">
               <Calendar className="w-4 h-4 text-primary shrink-0" />
-              <span>Estado del préstamo y cuotas</span>
+              <span>Estado del préstamo</span>
             </span>
             <span
-              className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+              className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
                 prestamoSeleccionado.meses_atrasados > 0
                   ? "bg-error-container text-on-error-container"
                   : prestamoSeleccionado.vence_hoy
@@ -2032,224 +2360,415 @@ function PagoForm({
               }`}
             >
               {prestamoSeleccionado.meses_atrasados > 0
-                ? `${prestamoSeleccionado.meses_atrasados} cuota(s) atrasada(s)`
+                ? `${prestamoSeleccionado.meses_atrasados} cuota(s) pendiente(s)`
                 : prestamoSeleccionado.vence_hoy
                 ? "Vence hoy"
                 : "Al día"}
             </span>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-            <div className="bg-surface-container-lowest/80 rounded-xl p-2.5 border border-surface-container-high/40">
-              <span className="text-[10px] text-on-surface-variant block font-medium">Último pago registrado</span>
-              {prestamoSeleccionado.ultimo_pago ? (
-                <div className="mt-0.5">
-                  <p className="text-xs font-bold text-on-surface">
-                    {money(prestamoSeleccionado.ultimo_pago.monto_total)} ·{" "}
-                    {formatDateEs(prestamoSeleccionado.ultimo_pago.recibido_en)}
-                  </p>
-                  <span className="block text-[10px] text-primary font-medium">
-                    Cubrió: {prestamoSeleccionado.ultimo_mes_cubierto || "Período anterior"}
-                  </span>
-                </div>
-              ) : (
-                <p className="text-xs text-on-surface-variant italic mt-0.5">Sin cobros previos registrados</p>
-              )}
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
+            <div className="bg-surface-container-lowest/90 rounded-xl p-2 sm:p-2.5 border border-outline/10">
+              <span className="text-[10px] text-on-surface-variant block">Deuda pendiente</span>
+              <p className="text-xs sm:text-sm font-bold font-mono text-on-surface mt-0.5">{money(capitalPendiente)}</p>
             </div>
-
-            <div className="bg-surface-container-lowest/80 rounded-xl p-2.5 border border-surface-container-high/40">
-              <span className="text-[10px] text-on-surface-variant block font-medium">Próximo vencimiento adeudado</span>
-              <p className="text-xs font-bold text-on-surface mt-0.5">
+            <div className="bg-surface-container-lowest/90 rounded-xl p-2 sm:p-2.5 border border-outline/10">
+              <span className="text-[10px] text-on-surface-variant block">Interés del mes</span>
+              <p className="text-xs sm:text-sm font-bold font-mono text-primary mt-0.5">
+                {cobraInteres ? money(interesEstimado) : "Sin interés (de confianza)"}
+              </p>
+            </div>
+            <div className="col-span-2 sm:col-span-1 bg-surface-container-lowest/90 rounded-xl p-2 sm:p-2.5 border border-outline/10">
+              <span className="text-[10px] text-on-surface-variant block">Próximo pago acordado</span>
+              <p className="text-xs sm:text-sm font-bold text-on-surface mt-0.5">
                 {prestamoSeleccionado.fecha_proximo_pago
                   ? formatDateEs(prestamoSeleccionado.fecha_proximo_pago)
                   : "Al día"}
               </p>
-              {prestamoSeleccionado.dias_atraso > 0 && (
-                <span className="text-[10px] text-error font-bold block">
-                  ⚠️ Atrasado hace {prestamoSeleccionado.dias_atraso} días
-                </span>
-              )}
             </div>
           </div>
         </div>
       )}
 
-      <FormField label="Período / Cuota a la que corresponde este cobro *">
-        {prestamoSeleccionado &&
-        prestamoSeleccionado.periodos_sugeridos &&
-        prestamoSeleccionado.periodos_sugeridos.length > 0 &&
-        !useCustomFecha ? (
-          <div className="space-y-1.5">
-            <select
-              value={fechaEsperada}
-              onChange={(e) => {
-                if (e.target.value === "__custom__") {
-                  setUseCustomFecha(true);
-                } else {
-                  setFechaEsperada(e.target.value);
-                }
-              }}
-              className={selectCls}
-            >
-              {prestamoSeleccionado.periodos_sugeridos.map((per) => (
-                <option key={per.fecha} value={per.fecha}>
-                  {per.label}
-                </option>
-              ))}
-              <option value="__custom__">⚙️ Otra fecha personalizada...</option>
-            </select>
-            <input type="hidden" name="fecha_esperada" value={fechaEsperada} />
-            <div className="flex items-center justify-between text-[11px] text-on-surface-variant px-1">
-              <span>
-                Período a saldar: <strong className="text-primary">{formatDateEs(fechaEsperada)}</strong>
-              </span>
-              <button
-                type="button"
-                onClick={() => setUseCustomFecha(true)}
-                className="text-primary hover:underline font-medium cursor-pointer"
-              >
-                Ingresar fecha manual
-              </button>
-            </div>
-          </div>
-        ) : (
-          <div className="space-y-1">
-            <DateField name="fecha_esperada" required value={fechaEsperada} onChange={setFechaEsperada} />
-            {prestamoSeleccionado?.periodos_sugeridos &&
-              prestamoSeleccionado.periodos_sugeridos.length > 0 && (
-                <button
-                  type="button"
-                  onClick={() => setUseCustomFecha(false)}
-                  className="text-[11px] text-primary hover:underline font-medium cursor-pointer"
-                >
-                  ↩ Volver a las cuotas sugeridas del préstamo
-                </button>
-              )}
-          </div>
-        )}
-      </FormField>
+      {/* Selector Intuitivo de Tipo de Cobro */}
+      <div className="space-y-2">
+        <label className="block text-xs font-semibold text-on-surface">
+          ¿Qué tipo de cobro estás anotando?
+        </label>
 
-      <FormField label="Fecha real en que recibiste el dinero (Fecha de cobro) *">
-        <DateField name="recibido_en" required defaultValue={getLocalDateString()} />
-      </FormField>
-
-      <div className="space-y-1.5">
-        <FormField label="Monto total cobrado *">
-          <input
-            type="number"
-            name="monto_total"
-            required
-            min={0.01}
-            step="0.01"
-            className={inputCls}
-            value={total}
-            onChange={(e) => setTotal(e.target.value === "" ? "" : Number(e.target.value))}
-            placeholder="0.00"
-          />
-        </FormField>
-
-        {prestamoSeleccionado && (
-          <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-            <span className="text-[10px] text-on-surface-variant font-medium">Llenado rápido:</span>
-            {interesEstimado > 0 && (
-              <button
-                type="button"
-                onClick={handleFillOnlyInterest}
-                className="px-2.5 py-1 rounded-lg text-[11px] font-semibold badge-amber hover:opacity-90 transition-opacity cursor-pointer"
-              >
-                Solo interés mensual ({money(interesEstimado)})
-              </button>
-            )}
+        {cobraInteres ? (
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            {/* Opción 1: Interés del mes */}
             <button
               type="button"
-              onClick={handleFillOnlyCapital}
-              className="px-2.5 py-1 rounded-lg text-[11px] font-semibold badge-emerald hover:opacity-90 transition-opacity cursor-pointer"
+              onClick={() => setModoCobro("interes")}
+              className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between gap-1.5 ${
+                modoCobro === "interes"
+                  ? "bg-primary/10 border-primary shadow-xs ring-1 ring-primary/30"
+                  : "bg-surface-container-low hover:bg-surface-container border-outline/15 text-on-surface-variant"
+              }`}
             >
-              Solo capital ({money(capitalPendiente)})
+              <div className="flex items-center justify-between gap-1">
+                <span className="text-xs font-bold text-on-surface whitespace-nowrap">Interés mensual</span>
+                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-primary/15 text-primary whitespace-nowrap shrink-0">
+                  Habitual
+                </span>
+              </div>
+              <p className="text-base font-bold font-mono text-primary">{money(interesEstimado)}</p>
+              <p className="text-[11px] text-on-surface-variant leading-tight">
+                Paga la ganancia del mes.
+              </p>
             </button>
-            {interesEstimado > 0 && (
-              <button
-                type="button"
-                onClick={handleFillFullBalance}
-                className="px-2.5 py-1 rounded-lg text-[11px] font-bold badge-neutral hover:opacity-90 transition-opacity cursor-pointer border border-primary/30"
-              >
-                ⚡ Liquidar todo ({money(capitalPendiente + interesEstimado)})
-              </button>
-            )}
+
+            {/* Opción 2: Liquidar deuda */}
+            <button
+              type="button"
+              onClick={() => setModoCobro("liquidar")}
+              className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between gap-1.5 ${
+                modoCobro === "liquidar"
+                  ? "bg-primary/10 border-primary shadow-xs ring-1 ring-primary/30"
+                  : "bg-surface-container-low hover:bg-surface-container border-outline/15 text-on-surface-variant"
+              }`}
+            >
+              <div className="flex items-center justify-between gap-1">
+                <span className="text-xs font-bold text-on-surface whitespace-nowrap">Pagar todo</span>
+                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 whitespace-nowrap shrink-0">
+                  Total
+                </span>
+              </div>
+              <p className="text-base font-bold font-mono text-on-surface">{money(capitalPendiente + interesEstimado)}</p>
+              <p className="text-[11px] text-on-surface-variant leading-tight">
+                Cancela la deuda completa.
+              </p>
+            </button>
+
+            {/* Opción 3: Monto personalizado */}
+            <button
+              type="button"
+              onClick={() => setModoCobro("personalizado")}
+              className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between gap-1.5 ${
+                modoCobro === "personalizado"
+                  ? "bg-primary/10 border-primary shadow-xs ring-1 ring-primary/30"
+                  : "bg-surface-container-low hover:bg-surface-container border-outline/15 text-on-surface-variant"
+              }`}
+            >
+              <div className="flex items-center justify-between gap-1">
+                <span className="text-xs font-bold text-on-surface whitespace-nowrap">Otro monto</span>
+                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-surface-container text-on-surface-variant whitespace-nowrap shrink-0">
+                  Abono
+                </span>
+              </div>
+              <p className="text-base font-bold font-mono text-on-surface">
+                {typeof montoLibre === "number" && montoLibre > 0 ? money(montoLibre) : "Ingresar"}
+              </p>
+              <p className="text-[11px] text-on-surface-variant leading-tight">
+                Monto libre a cuenta.
+              </p>
+            </button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {/* Opción Liquidar (Sin interés) */}
+            <button
+              type="button"
+              onClick={() => setModoCobro("liquidar")}
+              className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between gap-1.5 ${
+                modoCobro === "liquidar"
+                  ? "bg-primary/10 border-primary shadow-xs ring-1 ring-primary/30"
+                  : "bg-surface-container-low hover:bg-surface-container border-outline/15 text-on-surface-variant"
+              }`}
+            >
+              <span className="text-xs font-bold text-on-surface whitespace-nowrap">Pagar toda la deuda</span>
+              <p className="text-base font-bold font-mono text-primary">{money(capitalPendiente)}</p>
+              <p className="text-[11px] text-on-surface-variant leading-tight">
+                Devuelve todo el dinero prestado.
+              </p>
+            </button>
+
+            {/* Opción Abono Parcial (Sin interés) */}
+            <button
+              type="button"
+              onClick={() => setModoCobro("personalizado")}
+              className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between gap-1.5 ${
+                modoCobro === "personalizado"
+                  ? "bg-primary/10 border-primary shadow-xs ring-1 ring-primary/30"
+                  : "bg-surface-container-low hover:bg-surface-container border-outline/15 text-on-surface-variant"
+              }`}
+            >
+              <span className="text-xs font-bold text-on-surface whitespace-nowrap">Otro monto</span>
+              <p className="text-base font-bold font-mono text-on-surface">
+                {typeof montoLibre === "number" && montoLibre > 0 ? money(montoLibre) : "Ingresar"}
+              </p>
+              <p className="text-[11px] text-on-surface-variant leading-tight">
+                Abono para achicar la deuda.
+              </p>
+            </button>
           </div>
         )}
       </div>
 
-      <FormField label={`Capital abonado · Interés calculado: ${money(interes)}`}>
-        <input
-          type="number"
-          name="monto_principal"
-          required
-          min={0}
-          max={numTotal > 0 ? Math.min(numTotal, capitalPendiente) : capitalPendiente}
-          step="0.01"
-          className={inputCls}
-          value={principal}
-          onChange={(e) => setPrincipal(e.target.value === "" ? "" : Number(e.target.value))}
-          placeholder={`Máx ${money(numTotal > 0 ? Math.min(numTotal, capitalPendiente) : capitalPendiente)}`}
-        />
-      </FormField>
-      <input type="hidden" name="monto_interes" value={interes} />
+      {/* Si eligió monto personalizado: único campo numérico + distribución clara */}
+      {modoCobro === "personalizado" && (
+        <div className="rounded-2xl border border-outline/15 bg-surface-container-low/50 p-3.5 space-y-3">
+          <FormField label="¿Cuánto dinero te entregó?" required>
+            <div className="relative flex items-center">
+              <span className="absolute left-3.5 text-xs font-bold text-on-surface-variant select-none pointer-events-none">
+                BOB
+              </span>
+              <input
+                type="number"
+                required
+                min={0.01}
+                step="0.01"
+                className={`${inputCls} pl-14 font-mono font-bold text-base`}
+                value={montoLibre}
+                onChange={(e) => {
+                  const val = e.target.value === "" ? "" : Number(e.target.value);
+                  setMontoLibre(val);
+                }}
+                placeholder="0.00"
+                autoFocus
+              />
+            </div>
+          </FormField>
 
-      <p className="text-[11px] text-on-surface-variant bg-surface-container-low rounded-xl px-3 py-2 leading-relaxed">
-        Cada abono descuenta el capital pendiente y acumula los intereses correspondientes en el historial. Saldo deudor pendiente:{" "}
-        <strong className="font-mono text-on-surface">{money(capitalPendiente)}</strong>.
-      </p>
+          {cobraInteres && (
+            <div className="space-y-1.5 pt-1 border-t border-outline/10">
+              <div className="flex items-center justify-between text-[11px] text-on-surface-variant">
+                <span>¿Cómo quieres repartir este dinero?</span>
+                <button
+                  type="button"
+                  onClick={() => setModoAvanzado(!modoAvanzado)}
+                  className="text-primary hover:underline font-semibold cursor-pointer"
+                >
+                  {modoAvanzado ? "Modo automático" : "Repartir a mi gusto"}
+                </button>
+              </div>
 
-      <FormField label="Cuenta de destino del dinero *">
+              {!modoAvanzado ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setPrioridadAbono("interes_primero")}
+                    className={`p-2 rounded-lg border text-left transition-all cursor-pointer ${
+                      prioridadAbono === "interes_primero"
+                        ? "bg-primary text-on-primary border-primary font-semibold shadow-xs"
+                        : "bg-surface-container-lowest border-outline/15 text-on-surface-variant hover:text-on-surface"
+                    }`}
+                  >
+                    Cobrar mi ganancia ({money(interesEstimado)}) y el resto a la deuda
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPrioridadAbono("todo_capital")}
+                    className={`p-2 rounded-lg border text-left transition-all cursor-pointer ${
+                      prioridadAbono === "todo_capital"
+                        ? "bg-primary text-on-primary border-primary font-semibold shadow-xs"
+                        : "bg-surface-container-lowest border-outline/15 text-on-surface-variant hover:text-on-surface"
+                    }`}
+                  >
+                    Todo directo a bajar el dinero prestado
+                  </button>
+                </div>
+              ) : (
+                <div className="pt-1">
+                  <FormField label="¿Cuánto resta a la deuda prestada?">
+                    <input
+                      type="number"
+                      min={0}
+                      max={typeof montoLibre === "number" ? Math.min(montoLibre, capitalPendiente) : capitalPendiente}
+                      step="0.01"
+                      className={`${inputCls} font-mono`}
+                      value={manualPrincipal}
+                      onChange={(e) => setManualPrincipal(e.target.value === "" ? "" : Number(e.target.value))}
+                      placeholder="0.00"
+                    />
+                  </FormField>
+                  <p className="text-[11px] text-on-surface-variant/80 mt-1">
+                    La diferencia se anotará automáticamente como ganancia de interés.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Tarjeta de Claridad Financiera: Desglose en vivo de qué pasa con el dinero */}
+      {montoTotal > 0 && (
+        <div className="rounded-2xl border border-primary/20 bg-primary/5 p-3.5 space-y-2 text-xs">
+          <div className="flex items-center justify-between font-bold text-on-surface">
+            <span>Así se reparte este dinero:</span>
+            <span className="font-mono text-sm sm:text-base text-primary font-bold">Total: {money(montoTotal)}</span>
+          </div>
+
+          <div className="pt-2 border-t border-primary/10 space-y-1.5 text-on-surface-variant">
+            <div className="flex items-center justify-between">
+              <span className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block shrink-0" />
+                <span>Resta a lo que te debe:</span>
+              </span>
+              <span className="font-mono font-bold text-on-surface">{money(montoPrincipal)}</span>
+            </div>
+
+            <div className="flex items-center justify-between">
+              <span className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-amber-500 inline-block shrink-0" />
+                <span>Tu ganancia (interés):</span>
+              </span>
+              <span className="font-mono font-bold text-primary">{money(montoInteres)}</span>
+            </div>
+
+            <div className="flex items-center justify-between pt-1.5 border-t border-primary/10 font-medium">
+              <span>Le queda debiendo:</span>
+              <span className="font-mono font-bold text-on-surface">{money(saldoRestante)}</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Inputs ocultos sincronizados que envían los valores exactos a la acción */}
+      <input type="hidden" name="prestamo_id" value={prestamoId} />
+      <input type="hidden" name="monto_total" value={montoTotal} />
+      <input type="hidden" name="monto_principal" value={montoPrincipal} />
+      <input type="hidden" name="monto_interes" value={montoInteres} />
+
+      {/* Fecha de cobro y Período al que aplica */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-start">
+        <FormField label="Fecha de cobro" hint="Hoy" required>
+          <DateField name="recibido_en" required defaultValue={getLocalDateString()} />
+        </FormField>
+
+        {prestamoSeleccionado ? (
+          <div className="space-y-1.5">
+            <div className="flex items-baseline justify-between gap-2">
+              <label className="block text-xs font-semibold text-on-surface whitespace-nowrap">
+                Mes o cuota que cubre
+              </label>
+              <button
+                type="button"
+                onClick={() => setShowPeriodPicker(!showPeriodPicker)}
+                className="text-primary hover:underline font-semibold text-[11px] shrink-0 cursor-pointer"
+              >
+                {showPeriodPicker ? "Cerrar" : "Cambiar"}
+              </button>
+            </div>
+
+            <div className="h-10 px-3 rounded-xl border border-outline/15 bg-surface-container-low flex items-center justify-between gap-2 text-xs">
+              <span className="flex items-center gap-1.5 text-on-surface truncate">
+                <Calendar className="w-3.5 h-3.5 text-primary shrink-0" />
+                <span className="font-semibold truncate">{periodoActivoLabel || formatDateEs(fechaEsperada)}</span>
+              </span>
+            </div>
+
+            {showPeriodPicker && (
+              <div className="pt-1 space-y-1.5 animate-fade-in">
+                <div className="flex items-center justify-between text-[11px] text-on-surface-variant">
+                  <span>Seleccionar:</span>
+                  <button
+                    type="button"
+                    onClick={() => setUseCustomFecha(!useCustomFecha)}
+                    className="text-primary hover:underline font-medium cursor-pointer"
+                  >
+                    {useCustomFecha ? "Sugeridos" : "Fecha libre"}
+                  </button>
+                </div>
+
+                {!useCustomFecha &&
+                prestamoSeleccionado.periodos_sugeridos &&
+                prestamoSeleccionado.periodos_sugeridos.length > 0 ? (
+                  <select
+                    value={fechaEsperada}
+                    onChange={(e) => {
+                      if (e.target.value === "__custom__") {
+                        setUseCustomFecha(true);
+                      } else {
+                        setFechaEsperada(e.target.value);
+                      }
+                    }}
+                    className={selectCls}
+                  >
+                    {prestamoSeleccionado.periodos_sugeridos.map((per) => (
+                      <option key={per.fecha} value={per.fecha}>
+                        {per.label}
+                      </option>
+                    ))}
+                    <option value="__custom__">🗓️ Elegir otra fecha en calendario...</option>
+                  </select>
+                ) : (
+                  <DateField name="_fecha_esperada_custom" value={fechaEsperada} onChange={setFechaEsperada} />
+                )}
+              </div>
+            )}
+          </div>
+        ) : (
+          <FormField label="Mes o cuota que cubre">
+            <div className="h-10 px-3.5 rounded-xl border border-outline/15 bg-surface-container-low flex items-center text-xs text-on-surface-variant/60">
+              Selecciona un préstamo primero
+            </div>
+          </FormField>
+        )}
+
+        <input type="hidden" name="fecha_esperada" value={fechaEsperada} />
+      </div>
+
+      {/* Cuenta de destino */}
+      <FormField label="¿Dónde guardaste este dinero?" required>
         <select name="cuenta_dinero_id" required className={selectCls}>
-          <option value="">— Selecciona cuenta —</option>
+          <option value="">— Elige dónde guardarlo —</option>
           {cuentas.map((c) => (
             <option key={c.id} value={c.id}>
-              {c.nombre} (Saldo: {money(Number(c.saldo || 0))})
+              {c.nombre} (Tiene: {money(Number(c.saldo || 0))})
             </option>
           ))}
         </select>
       </FormField>
 
-      <FormField label="Método de pago (opcional)">
-        <div className="space-y-1.5">
-          <input
-            type="text"
-            name="metodo_pago"
-            className={inputCls}
-            value={metodoPago}
-            onChange={(e) => setMetodoPago(e.target.value)}
-            placeholder="Efectivo, transferencia bancaria, QR..."
-          />
-          <div className="flex flex-wrap items-center gap-1.5">
-            {["Efectivo", "Transferencia bancaria", "Pago QR", "Depósito"].map((m) => (
+      {/* Método de pago */}
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between">
+          <label className="text-xs font-semibold text-on-surface">¿Cómo te pagó?</label>
+          <span className="text-[11px] text-on-surface-variant">Opcional</span>
+        </div>
+        <div className="flex flex-wrap items-center gap-1.5">
+          {["Efectivo en mano", "Transferencia bancaria", "Pago QR", "Depósito"].map((m) => {
+            const active = metodoPago === m;
+            return (
               <button
                 key={m}
                 type="button"
-                onClick={() => setMetodoPago(m)}
-                className={`text-[11px] px-2.5 py-0.5 rounded-lg border transition-all cursor-pointer ${
-                  metodoPago === m
-                    ? "bg-primary text-on-primary border-primary font-semibold"
-                    : "bg-surface-container-low text-on-surface-variant hover:text-on-surface border-outline/15"
+                onClick={() => setMetodoPago(active ? "" : m)}
+                className={`text-xs px-2.5 py-1 rounded-lg border transition-all cursor-pointer ${
+                  active
+                    ? "bg-primary text-on-primary border-primary font-semibold shadow-xs"
+                    : "bg-surface-container-low hover:bg-surface-container text-on-surface-variant hover:text-on-surface border-outline/15"
                 }`}
               >
                 {m}
               </button>
-            ))}
-          </div>
+            );
+          })}
         </div>
-      </FormField>
+        <input
+          type="text"
+          name="metodo_pago"
+          value={metodoPago}
+          onChange={(e) => setMetodoPago(e.target.value)}
+          placeholder="O escribe otro medio (ej. Tigo Money, cheque...)"
+          className={`${inputCls} h-9 text-xs`}
+        />
+      </div>
 
-      <FormField label="Notas del cobro (opcional)">
+      {/* Notas */}
+      <FormField label="Notas o detalle" hint="Opcional">
         <textarea
           name="notas"
           rows={2}
-          className={`${inputCls} h-auto py-2.5`}
-          placeholder="Ej. Pagó en efectivo, comprobante #1234..."
+          className={`${inputCls} h-auto py-2 resize-none`}
+          placeholder="Ej. Pagó en efectivo, número de comprobante..."
         />
       </FormField>
-    </>
+    </div>
   );
 }
 
@@ -2270,6 +2789,33 @@ const SUGERENCIAS_CATEGORIA_GASTO = [
   "Personal / Hogar",
 ];
 
+const MOV_TYPES = [
+  {
+    value: "ingreso",
+    label: "Entró dinero",
+    icon: ArrowDownLeft,
+    activeCls: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/50 font-bold",
+  },
+  {
+    value: "gasto",
+    label: "Salió dinero",
+    icon: ArrowUpRight,
+    activeCls: "bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/50 font-bold",
+  },
+  {
+    value: "transferencia",
+    label: "Pasar dinero",
+    icon: ArrowLeftRight,
+    activeCls: "bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/50 font-bold",
+  },
+  {
+    value: "ajuste",
+    label: "Corregir saldo",
+    icon: Scale,
+    activeCls: "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/50 font-bold",
+  },
+] as const;
+
 function MovimientoForm({
   cuentas,
   categorias = [],
@@ -2277,7 +2823,8 @@ function MovimientoForm({
   cuentas: Cuenta[];
   categorias?: Categoria[];
 }) {
-  const [tipo, setTipo] = useState("ingreso");
+  const [tipo, setTipo] = useState<"ingreso" | "gasto" | "transferencia" | "ajuste">("ingreso");
+  const [ajusteSentido, setAjusteSentido] = useState<"sumar" | "restar">("sumar");
   const [cuentaOrigenId, setCuentaOrigenId] = useState(cuentas[0]?.id ?? "");
   const [categoriaNombre, setCategoriaNombre] = useState("");
 
@@ -2292,92 +2839,173 @@ function MovimientoForm({
   }, [tipo, categoriasDelTipo]);
 
   return (
-    <>
-      <FormField label="Tipo de movimiento *">
-        <select
-          name="tipo"
-          required
-          className={selectCls}
-          value={tipo}
-          onChange={(event) => {
-            setTipo(event.target.value);
-            setCategoriaNombre("");
-          }}
-        >
-          <option value="ingreso">Ingreso de dinero</option>
-          <option value="gasto">Gasto / Salida</option>
-          <option value="transferencia">Transferencia entre mis cuentas</option>
-          <option value="ajuste">Ajuste contable de saldo</option>
-        </select>
-      </FormField>
+    <div className="space-y-4">
+      {/* Selector de Tipo en Segmented Control Tabs */}
+      <div className="space-y-1.5">
+        <label className="block text-xs font-semibold text-on-surface">¿Qué movimiento quieres hacer?</label>
+        <input type="hidden" name="tipo" value={tipo} />
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 p-1 bg-surface-container-low rounded-xl border border-outline/15">
+          {MOV_TYPES.map(({ value, label, icon: Icon, activeCls }) => {
+            const active = tipo === value;
+            return (
+              <button
+                key={value}
+                type="button"
+                onClick={() => {
+                  setTipo(value);
+                  setCategoriaNombre("");
+                }}
+                className={`flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-lg text-xs transition-all cursor-pointer select-none border ${
+                  active
+                    ? `${activeCls} shadow-xs`
+                    : "border-transparent text-on-surface-variant hover:text-on-surface hover:bg-surface-container"
+                }`}
+              >
+                <Icon className="w-3.5 h-3.5 shrink-0" />
+                <span>{label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
 
+      {/* Si es Corregir saldo (Ajuste), elegir si faltaba sumar o restar */}
       {tipo === "ajuste" && (
-        <FormField label="Efecto del ajuste *">
-          <select name="ajuste_sentido" required className={selectCls} defaultValue="">
-            <option value="" disabled>
-              — Selecciona —
-            </option>
-            <option value="sumar">Sumar dinero a la cuenta</option>
-            <option value="restar">Restar dinero de la cuenta</option>
-          </select>
-        </FormField>
+        <div className="rounded-xl border border-amber-500/25 bg-amber-500/5 p-3 space-y-2">
+          <label className="block text-xs font-semibold text-on-surface">¿Qué pasó con el saldo de esta cuenta?</label>
+          <input type="hidden" name="ajuste_sentido" value={ajusteSentido} />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => setAjusteSentido("sumar")}
+              className={`py-2 px-3 rounded-lg text-xs font-semibold border transition-all cursor-pointer text-left ${
+                ajusteSentido === "sumar"
+                  ? "bg-emerald-500/15 border-emerald-500 text-emerald-700 dark:text-emerald-300 shadow-2xs"
+                  : "bg-surface-container-lowest border-outline/15 text-on-surface-variant hover:text-on-surface"
+              }`}
+            >
+              + Me faltaba sumar dinero
+            </button>
+            <button
+              type="button"
+              onClick={() => setAjusteSentido("restar")}
+              className={`py-2 px-3 rounded-lg text-xs font-semibold border transition-all cursor-pointer text-left ${
+                ajusteSentido === "restar"
+                  ? "bg-rose-500/15 border-rose-500 text-rose-700 dark:text-rose-300 shadow-2xs"
+                  : "bg-surface-container-lowest border-outline/15 text-on-surface-variant hover:text-on-surface"
+              }`}
+            >
+              - Me faltaba restar dinero
+            </button>
+          </div>
+        </div>
       )}
       {tipo !== "ajuste" && <input type="hidden" name="ajuste_sentido" value="" />}
 
-      <FormField label="Monto *">
-        <input type="number" name="monto" required min={0.01} step="0.01" className={inputCls} placeholder="0.00" />
-      </FormField>
+      {/* Monto y Fecha */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <FormField label="¿Cuánto dinero?" required>
+          <div className="relative flex items-center">
+            <span className="absolute left-3.5 text-xs font-bold text-on-surface-variant select-none pointer-events-none">
+              BOB
+            </span>
+            <input
+              type="number"
+              name="monto"
+              required
+              min={0.01}
+              step="0.01"
+              className={`${inputCls} pl-14 font-mono font-semibold text-base`}
+              placeholder="0.00"
+              autoFocus
+            />
+          </div>
+        </FormField>
 
-      <FormField label="Fecha *">
-        <DateField name="ocurrido_en" required defaultValue={getLocalDateString()} />
-      </FormField>
+        <FormField label="¿Qué día fue?" required>
+          <DateField name="ocurrido_en" required defaultValue={getLocalDateString()} />
+        </FormField>
+      </div>
 
-      <FormField label={tipo === "transferencia" ? "Cuenta de origen (de donde sale) *" : "Cuenta *"}>
-        <select
-          name="cuenta_dinero_id"
-          required
-          className={selectCls}
-          value={cuentaOrigenId}
-          onChange={(e) => setCuentaOrigenId(e.target.value)}
-        >
-          <option value="">— Selecciona cuenta —</option>
-          {cuentas.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.nombre} (Saldo: {money(c.saldo)})
-            </option>
-          ))}
-        </select>
-      </FormField>
-
-      {tipo === "transferencia" && (
-        <FormField label="Cuenta de destino (a donde entra) *">
-          <select name="cuenta_destino_id" required className={selectCls} defaultValue="">
-            <option value="" disabled>
-              — Selecciona cuenta de destino —
-            </option>
-            {cuentas
-              .filter((c) => c.id !== cuentaOrigenId)
-              .map((c) => (
+      {/* Cuentas de origen y destino */}
+      {tipo === "transferencia" ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 rounded-xl border border-blue-500/20 bg-blue-500/5">
+          <FormField label="¿De qué cuenta sale?" required>
+            <select
+              name="cuenta_dinero_id"
+              required
+              className={selectCls}
+              value={cuentaOrigenId}
+              onChange={(e) => setCuentaOrigenId(e.target.value)}
+            >
+              <option value="">— Elige origen —</option>
+              {cuentas.map((c) => (
                 <option key={c.id} value={c.id}>
-                  {c.nombre} (Saldo: {money(c.saldo)})
+                  {c.nombre} (Tiene: {money(c.saldo)})
                 </option>
               ))}
-          </select>
-        </FormField>
+            </select>
+          </FormField>
+
+          <FormField label="¿A qué cuenta entra?" required>
+            <select name="cuenta_destino_id" required className={selectCls} defaultValue="">
+              <option value="" disabled>
+                — Elige destino —
+              </option>
+              {cuentas
+                .filter((c) => c.id !== cuentaOrigenId)
+                .map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.nombre} (Tiene: {money(c.saldo)})
+                  </option>
+                ))}
+            </select>
+          </FormField>
+        </div>
+      ) : (
+        <div>
+          <FormField
+            label={
+              tipo === "ajuste"
+                ? "¿Qué cuenta vas a corregir?"
+                : tipo === "ingreso"
+                ? "¿A qué cuenta entra el dinero?"
+                : "¿De qué cuenta sale el dinero?"
+            }
+            required
+          >
+            <select
+              name="cuenta_dinero_id"
+              required
+              className={selectCls}
+              value={cuentaOrigenId}
+              onChange={(e) => setCuentaOrigenId(e.target.value)}
+            >
+              <option value="">— Elige una cuenta —</option>
+              {cuentas.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.nombre} (Tiene: {money(c.saldo)})
+                </option>
+              ))}
+            </select>
+          </FormField>
+          <input type="hidden" name="cuenta_destino_id" value="" />
+        </div>
       )}
 
+      {/* Categoría (solo para ingresos y gastos) */}
       {(tipo === "ingreso" || tipo === "gasto") && (
-        <FormField label="Categoría (opcional)">
-          <div className="space-y-1.5">
-            <div className="relative">
-              <Tag className="w-3.5 h-3.5 text-on-surface-variant absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+        <FormField label="Categoría" hint="Opcional">
+          <div className="space-y-2">
+            <div className="relative flex items-center">
+              <Tag className="w-3.5 h-3.5 text-outline absolute left-3.5 pointer-events-none" />
               <input
                 type="text"
                 name="categoria_nombre"
                 value={categoriaNombre}
                 onChange={(e) => setCategoriaNombre(e.target.value)}
-                className={`${inputCls} pl-8`}
-                placeholder="Elige abajo o escribe una categoría..."
+                className={`${inputCls} pl-9`}
+                placeholder="Escribe o elige abajo..."
               />
             </div>
             <div className="flex flex-wrap items-center gap-1.5">
@@ -2386,7 +3014,7 @@ function MovimientoForm({
                   key={cat}
                   type="button"
                   onClick={() => setCategoriaNombre(cat === categoriaNombre ? "" : cat)}
-                  className={`text-[11px] px-2.5 py-0.5 rounded-lg border transition-all cursor-pointer ${
+                  className={`text-xs px-2.5 py-1 rounded-lg border transition-all cursor-pointer ${
                     categoriaNombre === cat
                       ? "bg-primary text-on-primary border-primary font-semibold"
                       : "bg-surface-container-low text-on-surface-variant hover:text-on-surface border-outline/15"
@@ -2400,7 +3028,12 @@ function MovimientoForm({
         </FormField>
       )}
 
-      <FormField label={tipo === "ajuste" ? "Justificación (obligatoria) *" : "Descripción / Nota (opcional)"}>
+      {/* Descripción o Justificación */}
+      <FormField
+        label={tipo === "ajuste" ? "¿Por qué haces esta corrección?" : "Detalle o motivo"}
+        hint={tipo === "ajuste" ? "Obligatorio" : "Opcional"}
+        required={tipo === "ajuste"}
+      >
         <input
           type="text"
           name="descripcion"
@@ -2408,13 +3041,15 @@ function MovimientoForm({
           className={inputCls}
           placeholder={
             tipo === "ajuste"
-              ? "Ej. Corregí un saldo digitado por error"
+              ? "Ej. Conté mal el dinero en mano o error al tipear..."
               : tipo === "transferencia"
-              ? "Ej. Retiro de cajero o fondeo de cuenta..."
-              : "Descripción del movimiento..."
+              ? "Ej. Retiro de cajero, traspaso del mes..."
+              : tipo === "ingreso"
+              ? "Ej. Sueldo, honorarios, venta de hoy..."
+              : "Ej. Pago de luz, compras del mes, transporte..."
           }
         />
       </FormField>
-    </>
+    </div>
   );
 }

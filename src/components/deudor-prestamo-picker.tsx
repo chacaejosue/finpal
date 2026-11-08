@@ -111,9 +111,9 @@ export function DeudorPrestamoPicker({
         <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto mb-2">
           <CheckCircle2 className="w-5 h-5" />
         </div>
-        <h4 className="text-xs font-bold text-on-surface">¡Cartera al día!</h4>
+        <h4 className="text-xs font-bold text-on-surface">¡Todo al día!</h4>
         <p className="text-[11px] text-on-surface-variant mt-0.5">
-          No tienes deudores con saldo pendiente de pago en este momento.
+          No tienes cobros pendientes por ahora.
         </p>
         <input type="hidden" name="prestamo_id" value="" />
       </div>
@@ -132,12 +132,12 @@ export function DeudorPrestamoPicker({
     return (
       <div className="space-y-1.5">
         <label className="block text-xs font-semibold text-on-surface">
-          Deudor y préstamo seleccionado *
+          ¿A quién le estás cobrando?
         </label>
         <div className="bg-surface-container-low border border-primary/40 rounded-2xl p-3.5 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-start gap-3 min-w-0">
             <ContactAvatar
-              name={contacto?.nombre ?? "Deudor"}
+              name={contacto?.nombre ?? "Contacto"}
               size={40}
               className="rounded-xl shrink-0 shadow-2xs mt-0.5"
             />
@@ -194,7 +194,7 @@ export function DeudorPrestamoPicker({
           <div className="flex items-center justify-between sm:justify-end gap-3 pt-2 sm:pt-0 border-t sm:border-t-0 border-surface-container-high/60 shrink-0">
             <div className="text-left sm:text-right">
               <span className="text-[10px] text-on-surface-variant block uppercase font-bold tracking-wider">
-                Saldo pendiente
+                Debe actualmente
               </span>
               <span className={`font-mono text-sm sm:text-base font-extrabold ${isAtrasado ? "text-error" : "text-primary"}`}>
                 {money(balance)}
@@ -205,7 +205,7 @@ export function DeudorPrestamoPicker({
               type="button"
               onClick={() => setIsSearching(true)}
               className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-surface-container-lowest text-primary text-xs font-bold border border-primary/30 hover:bg-primary/10 transition-colors cursor-pointer shadow-2xs"
-              title="Cambiar deudor o préstamo"
+              title="Cambiar persona o préstamo"
             >
               <RefreshCw className="w-3.5 h-3.5" />
               <span>Cambiar</span>
@@ -222,7 +222,7 @@ export function DeudorPrestamoPicker({
     <div className="space-y-2">
       <div className="flex items-center justify-between">
         <label className="block text-xs font-semibold text-on-surface">
-          Selecciona el deudor y préstamo a cobrar *
+          Elige a quién le vas a cobrar *
         </label>
         {selectedPrestamo && (
           <button
@@ -243,7 +243,7 @@ export function DeudorPrestamoPicker({
           <input
             ref={searchInputRef}
             type="text"
-            placeholder="Buscar por nombre, teléfono, apodo o concepto..."
+            placeholder="Buscar por nombre, apodo o motivo..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             className="w-full pl-9 pr-8 py-2 rounded-xl bg-surface-container-low text-on-surface text-xs font-medium border border-surface-container-high/60 focus:outline-none focus:ring-2 focus:ring-primary/20 placeholder:text-on-surface-variant/60"
@@ -284,7 +284,7 @@ export function DeudorPrestamoPicker({
                     : "text-rose-600 dark:text-rose-400 hover:bg-rose-500/10"
                 }`}
               >
-                Atrasados ({countAtrasados})
+                Con atraso ({countAtrasados})
               </button>
             )}
 
@@ -310,7 +310,7 @@ export function DeudorPrestamoPicker({
         <div className="max-h-60 overflow-y-auto space-y-1.5 pr-1 divide-y divide-surface-container-low">
           {filteredList.length === 0 ? (
             <div className="py-6 text-center text-xs text-on-surface-variant">
-              No se encontraron deudores coincidentes con tu búsqueda.
+              No encontramos a nadie con ese dato.
             </div>
           ) : (
             filteredList.map((p) => {
@@ -338,7 +338,7 @@ export function DeudorPrestamoPicker({
                   {/* Avatar + Detalles del Contacto & Préstamo */}
                   <div className="flex items-start gap-2.5 min-w-0">
                     <ContactAvatar
-                      name={contacto?.nombre ?? "Deudor"}
+                      name={contacto?.nombre ?? "Contacto"}
                       size={36}
                       className="rounded-xl shrink-0 shadow-2xs mt-0.5"
                     />

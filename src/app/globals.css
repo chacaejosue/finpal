@@ -645,7 +645,7 @@ html, body, div, main, section {
 @media print {
   @page {
     size: A4 portrait;
-    margin: 12mm 14mm;
+    margin: 8mm 12mm;
   }
 
   html, body {
@@ -653,12 +653,37 @@ html, body, div, main, section {
     color: #0f172a !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
-    font-size: 11pt !important;
+    font-size: 10.5pt !important;
   }
 
   /* Ocultar elementos de navegación y decorativos en el reporte impreso */
   header, aside, nav, .print\:hidden, button {
     display: none !important;
+  }
+
+  /* Si se está imprimiendo el recibo oficial para el deudor, aislarlo completamente */
+  body.imprimiendo-recibo-cliente header,
+  body.imprimiendo-recibo-cliente aside,
+  body.imprimiendo-recibo-cliente nav,
+  body.imprimiendo-recibo-cliente main,
+  body.imprimiendo-recibo-cliente footer,
+  body.imprimiendo-recibo-cliente .modal-interfaz-cobro {
+    display: none !important;
+    visibility: hidden !important;
+  }
+
+  body.imprimiendo-recibo-cliente #recibo-cliente-impresion {
+    display: block !important;
+    visibility: visible !important;
+    position: static !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 auto !important;
+    padding: 0 !important;
+    background-color: #ffffff !important;
+    color: #0f172a !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
   }
 
   main {

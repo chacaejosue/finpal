@@ -130,6 +130,8 @@ interface DashboardContextValue {
   formError: string | null;
   successNotice: string | null;
   setSuccessNotice: (v: string | null) => void;
+  reciboCobroModal: Pago | null;
+  setReciboCobroModal: (p: Pago | null) => void;
   handleSubmitModal: (e: React.FormEvent<HTMLFormElement>) => Promise<void>;
   userEmail: string;
   isNavigating: boolean;
@@ -168,6 +170,7 @@ export function DashboardProvider({
   const [successNotice, setSuccessNotice] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [isNavigating, setIsNavigating] = useState(false);
+  const [reciboCobroModal, setReciboCobroModal] = useState<Pago | null>(null);
   const [preferencias, setPreferencias] = useState<Preferencias>({
     colorAcento: (["verde", "azul", "violeta", "naranja", "rosa"].includes(initialColorAcento)
       ? initialColorAcento
@@ -360,6 +363,9 @@ export function DashboardProvider({
       window.setTimeout(() => setSuccessNotice(null), 3500);
       closeModal();
       await loadData();
+      if (modal === "payment" && (result as any)?.pago) {
+        setReciboCobroModal((result as any).pago);
+      }
     }
   }
 
@@ -386,6 +392,8 @@ export function DashboardProvider({
         formError,
         successNotice,
         setSuccessNotice,
+        reciboCobroModal,
+        setReciboCobroModal,
         handleSubmitModal,
         userEmail,
         isNavigating,

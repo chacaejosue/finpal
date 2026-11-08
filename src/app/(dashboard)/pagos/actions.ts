@@ -120,11 +120,34 @@ export async function registrarPago(espacioId: string, formData: FormData) {
     return { error: { _global: [rpcError.message] } };
   }
 
+  // Consultar el registro de cobro recién creado para emitir el comprobante
+  const { data: nuevoPago } = await supabase
+    .from("pagos_prestamos")
+    .select(`
+      id, prestamo_id, cuenta_dinero_id, fecha_esperada, recibido_en, monto_total, monto_principal, monto_interes,
+      metodo_pago, notas, created_at,
+      prestamos (id, nombre, monto_principal, monto_capital_pagado, tasa_interes_mensual, cobra_interes, contactos (id, nombre, telefono, email)),
+      cuentas_dinero (id, nombre, codigo_moneda)
+    `)
+    .eq("espacio_id", espacioId)
+    .eq("prestamo_id", parsed.data.prestamo_id)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
   revalidatePath("/pagos");
   revalidatePath("/prestamos");
   revalidatePath("/inicio");
   revalidatePath("/cuentas");
-  return { success: true };
+  return {
+    success: true,
+    pago: nuevoPago
+      ? {
+          ...nuevoPago,
+          notas: decryptFieldSync(nuevoPago.notas),
+        }
+      : undefined,
+  };
 }
 
 // ── Anular / Revertir un cobro registrado por error ────────────────────────
