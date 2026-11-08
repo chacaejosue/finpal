@@ -11,22 +11,8 @@ import {
 
 import { isValidUuid, sanitizeText } from "@/lib/security";
 import { encryptFieldSync, decryptFieldSync, isEncrypted, autoMigrateRow } from "@/lib/crypto";
-import { getLocalDateString, formatMonthYear, formatDateEs } from "@/lib/format-date";
+import { getLocalDateString, formatMonthYear, formatDateEs, isoDate, dueDateForMonth, nextMonthDate } from "@/lib/format-date";
 import { checkRateLimit, QUOTAS } from "@/lib/rate-limit";
-
-function isoDate(date: Date) {
-  return date.toISOString().slice(0, 10);
-}
-
-function dueDateForMonth(year: number, month: number, day: number) {
-  const lastDay = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
-  return isoDate(new Date(Date.UTC(year, month, Math.min(day, lastDay))));
-}
-
-function nextMonthDate(date: string, day: number) {
-  const current = new Date(`${date}T00:00:00Z`);
-  return dueDateForMonth(current.getUTCFullYear(), current.getUTCMonth() + 1, day);
-}
 
 // ── Listar préstamos del espacio ──────────────────────────────────────────
 export async function getPrestamos(espacioId: string) {
@@ -267,6 +253,11 @@ export async function getPrestamos(espacioId: string) {
 
 // ── Crear préstamo + transacción de entrega ────────────────────────────────
 export async function crearPrestamo(espacioId: string, formData: FormData) {
+  const esHistorico = formData.get("es_historico") === "true";
+  const descontarDeCuenta = formData.get("descontar_de_cuenta") !== "false";
+  const cuotasHistoricasPagadas = (formData.get("cuotas_historicas_pagadas") as string) || "[]";
+  const capitalAmortizadoPrevio = formData.get("capital_amortizado_previo") || "0";
+
   const parsed = prestamoSchema.safeParse({
     contacto_id: (formData.get("contacto_id") as string) || undefined,
     contacto_nombre: (formData.get("contacto_nombre") as string) || undefined,
@@ -278,7 +269,11 @@ export async function crearPrestamo(espacioId: string, formData: FormData) {
     dia_pago: formData.get("dia_pago"),
     metodo_entrega: (formData.get("metodo_entrega") as string) || undefined,
     notas: (formData.get("notas") as string) || undefined,
-    cuenta_dinero_id: formData.get("cuenta_dinero_id"),
+    cuenta_dinero_id: (formData.get("cuenta_dinero_id") as string) || undefined,
+    es_historico: esHistorico,
+    descontar_de_cuenta: descontarDeCuenta,
+    cuotas_historicas_pagadas: cuotasHistoricasPagadas,
+    capital_amortizado_previo: capitalAmortizadoPrevio,
   });
 
   if (!parsed.success) return { error: parsed.error.flatten().fieldErrors };
@@ -357,6 +352,12 @@ export async function crearPrestamo(espacioId: string, formData: FormData) {
 
   const nombrePrestamo =
     parsed.data.nombre?.trim() || (nombreDeudor ? `Préstamo a ${nombreDeudor}` : "Préstamo");
+
+  const capitalAmortizadoVal = parsed.data.es_historico
+    ? Math.min(parsed.data.monto_principal, parsed.data.capital_amortizado_previo)
+    : 0;
+  const estadoInicial = capitalAmortizadoVal >= parsed.data.monto_principal ? "pagado" : "activo";
+
   const { data: prestamo, error: errPrestamo } = await supabase
     .from("prestamos")
     .insert({
@@ -364,10 +365,12 @@ export async function crearPrestamo(espacioId: string, formData: FormData) {
       contacto_id: contactoId,
       nombre: nombrePrestamo,
       monto_principal: parsed.data.monto_principal,
+      monto_capital_pagado: capitalAmortizadoVal,
       cobra_interes: parsed.data.cobra_interes,
       tasa_interes_mensual: parsed.data.tasa_interes_mensual,
       fecha_inicio: parsed.data.fecha_inicio,
       dia_pago: parsed.data.dia_pago,
+      estado: estadoInicial,
       metodo_entrega: parsed.data.metodo_entrega || null,
       notas: encryptFieldSync(parsed.data.notas) || null,
     })
@@ -376,20 +379,96 @@ export async function crearPrestamo(espacioId: string, formData: FormData) {
 
   if (errPrestamo || !prestamo) return { error: { _global: [errPrestamo?.message ?? "Error al crear el préstamo"] } };
 
-  // Registrar transacción de entrega (salida de dinero)
-  await supabase.from("transacciones").insert({
-    espacio_id: espacioId,
-    cuenta_dinero_id: parsed.data.cuenta_dinero_id,
-    tipo: "entrega_prestamo",
-    monto: parsed.data.monto_principal,
-    ocurrido_en: parsed.data.fecha_inicio,
-    prestamo_id: prestamo.id,
-    descripcion: encryptFieldSync(`Préstamo entregado: ${nombrePrestamo}`),
-  });
+  // Registrar desembolso en transacciones únicamente si no es histórico o si el usuario pide descontar
+  if (!parsed.data.es_historico || parsed.data.descontar_de_cuenta) {
+    if (parsed.data.cuenta_dinero_id) {
+      await supabase.from("transacciones").insert({
+        espacio_id: espacioId,
+        cuenta_dinero_id: parsed.data.cuenta_dinero_id,
+        tipo: "entrega_prestamo",
+        monto: parsed.data.monto_principal,
+        ocurrido_en: parsed.data.fecha_inicio,
+        prestamo_id: prestamo.id,
+        descripcion: encryptFieldSync(`Préstamo entregado: ${nombrePrestamo}`),
+      });
+    }
+  }
+
+  // Registrar cuotas históricas ya cubiertas previamente (sin crear transacciones de caja que alteren saldos)
+  if (parsed.data.es_historico) {
+    let cuotasFechas: string[] = [];
+    try {
+      cuotasFechas = JSON.parse(parsed.data.cuotas_historicas_pagadas);
+    } catch {
+      cuotasFechas = [];
+    }
+
+    if (Array.isArray(cuotasFechas) && cuotasFechas.length > 0) {
+      // Determinar una cuenta válida para satisfacer la restricción NOT NULL en pagos_prestamos
+      let cuentaParaPagosId = parsed.data.cuenta_dinero_id;
+      if (!cuentaParaPagosId) {
+        const { data: cDefault } = await supabase
+          .from("cuentas_dinero")
+          .select("id")
+          .eq("espacio_id", espacioId)
+          .limit(1)
+          .maybeSingle();
+        cuentaParaPagosId = cDefault?.id || "";
+      }
+
+      if (cuentaParaPagosId) {
+        const totalCuotas = cuotasFechas.length;
+        const totalCapitalAmortizado = capitalAmortizadoVal;
+        const capitalPorCuota = Math.round((totalCapitalAmortizado / totalCuotas) * 100) / 100;
+        let capitalAcumulado = 0;
+
+        const tasa = parsed.data.tasa_interes_mensual;
+        const interesPorCuota = parsed.data.cobra_interes && tasa > 0
+          ? Math.max(0, Math.round((parsed.data.monto_principal * (tasa / 100)) * 100) / 100)
+          : 0;
+
+        const pagosPayload = cuotasFechas.map((fechaVenc, idx) => {
+          let principalThis = capitalPorCuota;
+          if (idx === totalCuotas - 1) {
+            principalThis = Math.max(0, Math.round((totalCapitalAmortizado - capitalAcumulado) * 100) / 100);
+          } else {
+            capitalAcumulado += capitalPorCuota;
+          }
+
+          let interesThis = interesPorCuota;
+          let totalThis = Math.round((principalThis + interesThis) * 100) / 100;
+
+          // chk_desglose_pago exige monto_total > 0 y monto_principal + monto_interes = monto_total
+          if (totalThis <= 0) {
+            interesThis = 0.01;
+            totalThis = 0.01;
+          }
+
+          return {
+            espacio_id: espacioId,
+            prestamo_id: prestamo.id,
+            recibido_en: fechaVenc,
+            fecha_esperada: fechaVenc,
+            monto_total: totalThis,
+            monto_principal: principalThis,
+            monto_interes: interesThis,
+            cuenta_dinero_id: cuentaParaPagosId,
+            metodo_pago: "Registro histórico",
+            notas: encryptFieldSync(
+              `[Migración previa a FinPal] Cuota de ${formatMonthYear(fechaVenc)} cubierta en Excel antes de registrar en FinPal.`
+            ),
+          };
+        });
+
+        await supabase.from("pagos_prestamos").insert(pagosPayload);
+      }
+    }
+  }
 
   revalidatePath("/prestamos");
   revalidatePath("/inicio");
   revalidatePath("/cuentas");
+  revalidatePath("/pagos");
   return { success: true };
 }
 
@@ -408,6 +487,7 @@ export async function actualizarPrestamo(
     cobra_interes: formData.get("cobra_interes") === "true",
     tasa_interes_mensual: formData.get("tasa_interes_mensual"),
     dia_pago: formData.get("dia_pago"),
+    fecha_inicio: (formData.get("fecha_inicio") as string) || undefined,
     notas: sanitizeText(formData.get("notas"), 1000),
   });
 
@@ -417,15 +497,20 @@ export async function actualizarPrestamo(
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/iniciar-sesion");
 
+  const updateData: Record<string, unknown> = {
+    nombre: parsed.data.nombre,
+    cobra_interes: parsed.data.cobra_interes,
+    tasa_interes_mensual: parsed.data.tasa_interes_mensual,
+    dia_pago: parsed.data.dia_pago,
+    notas: encryptFieldSync(parsed.data.notas) || null,
+  };
+  if (parsed.data.fecha_inicio) {
+    updateData.fecha_inicio = parsed.data.fecha_inicio;
+  }
+
   const { error } = await supabase
     .from("prestamos")
-    .update({
-      nombre: parsed.data.nombre,
-      cobra_interes: parsed.data.cobra_interes,
-      tasa_interes_mensual: parsed.data.tasa_interes_mensual,
-      dia_pago: parsed.data.dia_pago,
-      notas: encryptFieldSync(parsed.data.notas) || null,
-    })
+    .update(updateData)
     .eq("id", prestamoId)
     .eq("espacio_id", espacioId);
 

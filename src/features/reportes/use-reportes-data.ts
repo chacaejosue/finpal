@@ -95,6 +95,9 @@ export function useReportesData({
   // 2. Filtered Pagos
   const filteredPagos = useMemo(() => {
     return pagos.filter((pago) => {
+      // Excluir registros históricos previos a FinPal para no distorsionar ingresos ni flujos operativos
+      if (pago.metodo_pago === "Registro histórico") return false;
+
       // Filtro por período
       if (dateThreshold) {
         const pDate = parseLocalDate(pago.recibido_en || pago.created_at);
