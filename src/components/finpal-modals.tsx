@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useRef, useEffect } from "react";
 import { motion } from "framer-motion";
+import { toPng } from "html-to-image";
 import {
   X,
   Check,
@@ -23,6 +24,12 @@ import {
   UserCheck,
   Sparkles,
   RotateCcw,
+  MessageCircle,
+  ShieldCheck,
+  Barcode,
+  Image as ImageIcon,
+  Download,
+  Eye,
 } from "lucide-react";
 import {
   money,
@@ -53,7 +60,200 @@ const selectCls =
   "w-full h-10 pl-3.5 pr-10 rounded-xl bg-surface-container-lowest border border-surface-container-high/80 text-base sm:text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 cursor-pointer";
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 1. MODAL DE COMPROBANTE / RECIBO DIGITAL DE COBRO
+// 1. COMPROBANTE OFICIAL DE PAGO PARA EL DEUDOR (IMAGEN Y PDF/IMPRESIÓN)
+// ═══════════════════════════════════════════════════════════════════════════
+
+export function ReciboClienteDocumento({
+  pago,
+  espacioNombre,
+  colorAcento,
+  deudorNombre,
+  prestamoNombre,
+  folio,
+  saldoActualPrestamo,
+  fechaHoraRegistro,
+  puntualidad,
+}: {
+  pago: Pago;
+  espacioNombre?: string;
+  colorAcento?: string;
+  deudorNombre: string;
+  prestamoNombre: string;
+  folio: string;
+  saldoActualPrestamo: number | null;
+  fechaHoraRegistro: string;
+  puntualidad: {
+    esPuntual: boolean;
+    diasDiferencia: number;
+    mensaje: string;
+  };
+}) {
+  return (
+    <div
+      className="bg-white text-slate-900 w-full max-w-[740px] mx-auto p-6 sm:p-7 rounded-2xl border border-slate-200 shadow-xs relative overflow-hidden font-sans print:border-none print:shadow-none print:p-6 print:rounded-none"
+      style={{ boxSizing: "border-box" }}
+    >
+      {/* Banda decorativa superior oficial FinPal */}
+      <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-emerald-600 via-teal-500 to-emerald-600" />
+
+      {/* Cabecera Oficial del Comprobante */}
+      <div className="flex items-start justify-between gap-4 pb-4 border-b border-dashed border-slate-200 mt-1">
+        <div className="flex items-center gap-3">
+          <FinPalLogo size={42} className="w-10 h-10 shrink-0" colorAcento={colorAcento} />
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-xl sm:text-2xl font-black tracking-tight text-slate-900 font-heading">
+                Fin<span className="text-emerald-600">Pal</span>
+              </span>
+              <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200">
+                #REC-{folio}
+              </span>
+            </div>
+            <p className="text-[11px] font-bold tracking-wider uppercase text-emerald-700 mt-0.5">
+              Comprobante Oficial de Pago
+            </p>
+            {espacioNombre && (
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                Emitido por: <strong className="text-slate-700 font-semibold">{espacioNombre}</strong>
+              </p>
+            )}
+          </div>
+        </div>
+
+        <div className="text-right shrink-0">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-bold whitespace-nowrap mb-1">
+            <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+            <span>PAGO CONFIRMADO</span>
+          </div>
+          <p className="text-[10px] text-slate-500 font-mono">
+            {fechaHoraRegistro}
+          </p>
+        </div>
+      </div>
+
+      {/* Monto Recibido - Tarjeta Hero Horizontal Amplia */}
+      <div className="my-4 rounded-2xl bg-gradient-to-r from-emerald-50/80 via-teal-50/50 to-emerald-50/80 border border-emerald-200/80 p-4 sm:p-5 text-center relative overflow-hidden">
+        <div className="absolute -right-6 -bottom-6 w-24 h-24 rounded-full bg-emerald-200/30 blur-lg pointer-events-none" />
+        <span className="text-[10px] font-extrabold uppercase tracking-widest text-emerald-800 block mb-1">
+          Monto Total Recibido
+        </span>
+        <div className="font-mono text-3xl sm:text-4xl font-black text-slate-900 tracking-tight">
+          {money(Number(pago.monto_total))}
+        </div>
+        <p className="text-xs text-slate-600 mt-1">
+          Acreditado con éxito el <strong className="text-slate-800 font-semibold">{formatDateEs(pago.recibido_en)}</strong>
+        </p>
+      </div>
+
+      {/* Datos del Cliente y la Operación en 2 Columnas Anchas */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4 text-xs">
+        {/* Columna Izquierda: Cliente & Crédito */}
+        <div className="bg-slate-50 rounded-xl border border-slate-200/80 p-3 space-y-2">
+          <div className="flex items-center justify-between pb-1.5 border-b border-slate-200/70">
+            <span className="text-slate-500 font-medium">Cliente / Pagador:</span>
+            <span className="font-bold text-slate-900 text-right truncate max-w-[190px]">
+              {deudorNombre}
+            </span>
+          </div>
+
+          <div className="flex items-center justify-between pb-1.5 border-b border-slate-200/70">
+            <span className="text-slate-500 font-medium">Concepto / Motivo:</span>
+            <span className="font-semibold text-slate-800 text-right truncate max-w-[190px]">
+              {prestamoNombre}
+            </span>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <span className="text-slate-500 font-medium">Mes o cuota:</span>
+            <span className="font-bold text-emerald-700 text-right">
+              {pago.fecha_esperada ? formatMonthYear(pago.fecha_esperada) : "A cuenta general"}
+            </span>
+          </div>
+        </div>
+
+        {/* Columna Derecha: Método y Puntualidad */}
+        <div className="bg-slate-50 rounded-xl border border-slate-200/80 p-3 space-y-2">
+          <div className="flex items-center justify-between pb-1.5 border-b border-slate-200/70">
+            <span className="text-slate-500 font-medium">Forma de entrega:</span>
+            <span className="font-semibold text-slate-800 text-right">
+              {pago.metodo_pago || "Efectivo / Transferencia"}
+            </span>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <span className="text-slate-500 font-medium">Cumplimiento:</span>
+            <span
+              className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md font-bold text-[11px] ${
+                puntualidad.esPuntual
+                  ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
+                  : "bg-amber-100 text-amber-800 border border-amber-300"
+              }`}
+            >
+              {puntualidad.esPuntual ? "✓ Pago puntual" : puntualidad.mensaje}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Estado del Crédito para el Cliente (Sin notas privadas ni desglose de ganancias) */}
+      <div className="mb-4">
+        {saldoActualPrestamo !== null && saldoActualPrestamo <= 0.01 ? (
+          <div className="rounded-xl bg-emerald-50 border border-emerald-300 p-3 text-center space-y-0.5">
+            <div className="flex items-center justify-center gap-2 text-emerald-800 font-black text-xs sm:text-sm">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span>¡CRÉDITO 100% SALDADO Y CANCELADO!</span>
+            </div>
+            <p className="text-[11px] text-emerald-700">
+              Certificamos que esta deuda ha quedado completamente liquidada. Saldo pendiente: <strong>0.00</strong>.
+            </p>
+          </div>
+        ) : saldoActualPrestamo !== null && saldoActualPrestamo > 0.01 ? (
+          <div className="rounded-xl bg-slate-50 border border-slate-200 p-3 flex items-center justify-between text-xs">
+            <span className="text-slate-600 font-medium">Saldo restante de su crédito:</span>
+            <span className="font-mono font-extrabold text-sm text-slate-900">
+              {money(saldoActualPrestamo)}
+            </span>
+          </div>
+        ) : null}
+      </div>
+
+      {/* Mensaje de Agradecimiento y Confianza Institucional */}
+      <div className="rounded-xl bg-emerald-50/60 border border-emerald-200/70 p-3 mb-4 text-xs text-emerald-950 flex items-start gap-2.5">
+        <Sparkles className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+        <div className="space-y-0.5">
+          <p className="font-bold">¡Muchas gracias por su confianza y cumplimiento!</p>
+          <p className="text-slate-600 leading-relaxed text-[11px]">
+            Estimado(a) <strong>{deudorNombre}</strong>: su puntualidad mantiene abiertas las puertas para futuros respaldos financieros. Es un placer contar con usted.
+          </p>
+        </div>
+      </div>
+
+      {/* Pie de Certificación y Seguridad Digital */}
+      <div className="pt-3 border-t border-dashed border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left text-[11px] text-slate-500">
+        <div className="flex items-center gap-2.5">
+          <div className="font-mono text-sm tracking-tighter text-slate-400 select-none">
+            ❚❙❘❚❙❚❘❙❚❘❚❙❘
+          </div>
+          <div>
+            <p className="font-mono font-bold text-slate-700">
+              ID: FP-{folio}-{pago.prestamo_id.slice(0, 4).toUpperCase()}
+            </p>
+            <p className="text-[10px] text-slate-500">
+              Comprobante digital emitido en FinPal · Documento oficial de respaldo
+            </p>
+          </div>
+        </div>
+
+        <div className="text-[10px] text-slate-400 font-mono">
+          Folio #{folio}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MODAL DE COMPROBANTE DE COBRO (INTERFAZ DE PANEL + GENERADOR)
 // ═══════════════════════════════════════════════════════════════════════════
 
 export function ModalReciboCobro({
@@ -70,12 +270,15 @@ export function ModalReciboCobro({
   onClose: () => void;
 }) {
   const [copiado, setCopiado] = useState(false);
+  const [generandoImagen, setGenerandoImagen] = useState(false);
+  const [imagenDescargada, setImagenDescargada] = useState(false);
+  const reciboDocRef = useRef<HTMLDivElement>(null);
 
   const prestamoRel = rel(pago.prestamos);
   const contactoRel = rel(prestamoRel?.contactos);
   const cuentaRel = rel(pago.cuentas_dinero);
 
-  const deudorNombre = contactoRel?.nombre ?? (prestamo ? rel(prestamo.contactos)?.nombre : null) ?? "Cliente";
+  const deudorNombre = contactoRel?.nombre ?? (prestamo ? rel(prestamo.contactos)?.nombre : null) ?? "Contacto";
   const prestamoNombre = prestamoRel?.nombre ?? prestamo?.nombre ?? "Préstamo";
   const cuentaNombre = cuentaRel?.nombre ?? "Cuenta registrada";
   const folio = pago.id.slice(0, 8).toUpperCase();
@@ -85,174 +288,313 @@ export function ModalReciboCobro({
     ? Math.max(0, Number(prestamoRel.monto_principal) - Number(prestamoRel.monto_capital_pagado))
     : null;
 
-  const textoResumen = useMemo(() => {
-    const lines = [
-      `COMPROBANTE DE COBRO — ${espacioNombre || "FinPal"}`,
-      `Folio: #${folio}`,
-      `Fecha de pago: ${formatDateEs(pago.recibido_en)}`,
-      `Deudor: ${deudorNombre}`,
-      `Concepto: ${prestamoNombre}`,
-      `Período cubierto: ${pago.fecha_esperada ? formatMonthYear(pago.fecha_esperada) : "Abono general"}`,
-      `----------------------------------------`,
-      `Total recibido: ${money(Number(pago.monto_total))}`,
-      `• Abono a capital: ${money(Number(pago.monto_principal))}`,
-      `• Interés pagado: ${money(Number(pago.monto_interes))}`,
-      ...(saldoActualPrestamo !== null ? [`Saldo de capital restante: ${money(saldoActualPrestamo)}`] : []),
-      ...(pago.metodo_pago ? [`Método de pago: ${pago.metodo_pago}`] : []),
-      ...(pago.notas ? [`Nota: ${pago.notas}`] : []),
-    ];
-    return lines.join("\n");
-  }, [pago, folio, deudorNombre, prestamoNombre, saldoActualPrestamo, espacioNombre]);
-
-  const handleCopiar = async () => {
+  const fechaHoraRegistro = useMemo(() => {
     try {
-      await navigator.clipboard.writeText(textoResumen);
+      const d = pago.created_at ? new Date(pago.created_at) : new Date();
+      return `${formatDateEs(pago.recibido_en || getLocalDateString())} · ${d.toLocaleTimeString("es-BO", { hour: "2-digit", minute: "2-digit" })}`;
+    } catch {
+      return formatDateEs(pago.recibido_en);
+    }
+  }, [pago]);
+
+  // Cálculo de puntualidad
+  const puntualidad = useMemo(() => {
+    if (!pago.fecha_esperada) {
+      return { esPuntual: true, diasDiferencia: 0, mensaje: "✓ Al día" };
+    }
+    try {
+      const rec = new Date(pago.recibido_en).getTime();
+      const esp = new Date(pago.fecha_esperada).getTime();
+      const diffMs = rec - esp;
+      const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+      if (diffDays <= 0) {
+        return { esPuntual: true, diasDiferencia: 0, mensaje: "✓ Pago puntual" };
+      }
+      return {
+        esPuntual: false,
+        diasDiferencia: diffDays,
+        mensaje: `${diffDays}d posterior a fecha acordada`,
+      };
+    } catch {
+      return { esPuntual: true, diasDiferencia: 0, mensaje: "✓ Al día" };
+    }
+  }, [pago]);
+
+  // Mensaje de texto amigable para el deudor (sin notas internas ni desglose de ganancia)
+  const textoParaDeudor = useMemo(() => {
+    const lines = [
+      `🧾 *COMPROBANTE OFICIAL DE PAGO — FinPal*`,
+      `*Comprobante N.º:* #${folio}`,
+      `──────────────────────────`,
+      `👤 *Cliente:* ${deudorNombre}`,
+      `💰 *Monto recibido:* ${money(Number(pago.monto_total))}`,
+      `📅 *Fecha:* ${formatDateEs(pago.recibido_en)}`,
+      `📌 *Concepto:* ${prestamoNombre}`,
+      `🗓️ *Período / Cuota:* ${pago.fecha_esperada ? formatMonthYear(pago.fecha_esperada) : "A cuenta general"}`,
+      `✅ *Cumplimiento:* ${puntualidad.esPuntual ? "Pago puntual y al día" : puntualidad.mensaje}`,
+      saldoActualPrestamo !== null && saldoActualPrestamo > 0.01
+        ? `💵 *Saldo restante de su crédito:* ${money(saldoActualPrestamo)}`
+        : saldoActualPrestamo !== null && saldoActualPrestamo <= 0.01
+        ? `🎉 *¡Crédito 100% saldado y liquidado!*`
+        : "",
+      `──────────────────────────`,
+      `_¡Muchas gracias por su puntualidad y confianza!_`,
+      `_Comprobante digital oficial emitido a través de FinPal._`,
+    ];
+    return lines.filter(Boolean).join("\n");
+  }, [pago, folio, deudorNombre, prestamoNombre, puntualidad, saldoActualPrestamo]);
+
+  const handleCopiarTexto = async () => {
+    try {
+      await navigator.clipboard.writeText(textoParaDeudor);
       setCopiado(true);
-      setTimeout(() => setCopiado(false), 2200);
+      setTimeout(() => setCopiado(false), 2400);
     } catch {}
   };
 
+  const handleGenerarImagen = async () => {
+    if (!reciboDocRef.current) return;
+    setGenerandoImagen(true);
+    try {
+      const dataUrl = await toPng(reciboDocRef.current, {
+        pixelRatio: 2.5,
+        cacheBust: true,
+        backgroundColor: "#ffffff",
+      });
+      const link = document.createElement("a");
+      const safeName = deudorNombre.replace(/[^a-zA-Z0-9_-]/g, "_");
+      link.download = `Comprobante-REC-${folio}-${safeName}.png`;
+      link.href = dataUrl;
+      link.click();
+      setImagenDescargada(true);
+      setTimeout(() => setImagenDescargada(false), 3000);
+    } catch (err) {
+      console.error("Error al generar imagen de recibo:", err);
+    } finally {
+      setGenerandoImagen(false);
+    }
+  };
+
+  const handleImprimir = () => {
+    document.body.classList.add("imprimiendo-recibo-cliente");
+    window.print();
+    const cleanClass = () => document.body.classList.remove("imprimiendo-recibo-cliente");
+    window.addEventListener("afterprint", cleanClass, { once: true });
+    setTimeout(cleanClass, 3000);
+  };
+
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      transition={{ duration: 0.16 }}
-      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4"
-      onClick={onClose}
-    >
+    <>
+      {/* Contenedor Exclusivo de Impresión (aislado en 1 sola página para @media print) */}
+      <div id="recibo-cliente-impresion" className="hidden">
+        <ReciboClienteDocumento
+          pago={pago}
+          espacioNombre={espacioNombre}
+          colorAcento={colorAcento}
+          deudorNombre={deudorNombre}
+          prestamoNombre={prestamoNombre}
+          folio={folio}
+          saldoActualPrestamo={saldoActualPrestamo}
+          fechaHoraRegistro={fechaHoraRegistro}
+          puntualidad={puntualidad}
+        />
+      </div>
+
+      {/* Modal Interactivo en Pantalla (para el prestamista) */}
       <motion.div
-        initial={{ opacity: 0, scale: 0.94, y: 14 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.94, y: 14 }}
-        transition={{ type: "spring", damping: 25, stiffness: 350 }}
-        className="bg-surface-container-lowest border border-surface-container-high/80 rounded-3xl max-w-md w-full p-5 sm:p-6 shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto"
-        onClick={(e) => e.stopPropagation()}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.16 }}
+        className="fixed inset-0 z-50 bg-black/65 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 modal-interfaz-cobro select-none print:hidden"
+        onClick={onClose}
       >
-        {/* Cabecera del Recibo */}
-        <div className="flex items-start justify-between gap-3 pb-3 border-b border-dashed border-surface-container-high">
-          <div className="flex items-center gap-2.5">
-            <FinPalLogo size={36} className="w-9 h-9 shrink-0" colorAcento={colorAcento} />
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="font-heading text-base font-extrabold text-on-surface">
-                  Fin<span className="text-primary">Pal</span>
+        <motion.div
+          initial={{ opacity: 0, scale: 0.94, y: 14 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.94, y: 14 }}
+          transition={{ type: "spring", damping: 25, stiffness: 350 }}
+          className="bg-surface-container-lowest border border-surface-container-high/90 rounded-3xl max-w-2xl w-full shadow-2xl overflow-hidden flex flex-col max-h-[94vh] relative select-text"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Banda decorativa superior */}
+          <div className="h-2 w-full bg-gradient-to-r from-primary via-emerald-500 to-primary/80 shrink-0" />
+
+          {/* Encabezado del modal */}
+          <div className="p-4 sm:p-5 border-b border-surface-container-high/80 flex items-center justify-between gap-3 shrink-0">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-full bg-emerald-500/15 text-emerald-600 flex items-center justify-center shrink-0">
+                <CheckCircle2 className="w-5 h-5" />
+              </div>
+              <div>
+                <h2 className="font-heading text-base sm:text-lg font-bold text-on-surface">
+                  ¡Cobro registrado con éxito!
+                </h2>
+                <p className="text-[11px] text-on-surface-variant">
+                  Guardado en tu panel. Abajo tienes tu resumen interno y el comprobante listo para tu cliente.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-1.5 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors cursor-pointer"
+              aria-label="Cerrar modal"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          {/* Cuerpo con Scroll: Resumen Interno + Comprobante para el Cliente */}
+          <div className="p-4 sm:p-6 space-y-4 overflow-y-auto flex-1">
+            {/* Tarjeta de Resumen Interno (Privado para el usuario) */}
+            <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4 space-y-2 text-xs">
+              <div className="flex items-center justify-between font-bold text-on-surface">
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-primary" />
+                  <span>Resumen interno de este cobro:</span>
                 </span>
-                <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary">
-                  #{folio}
+                <span className="font-mono text-sm sm:text-base text-primary font-bold">
+                  {money(Number(pago.monto_total))}
                 </span>
               </div>
-              <p className="text-[11px] text-on-surface-variant">
-                Comprobante Digital de Cobro · {espacioNombre || "Cartera"}
-              </p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-1.5 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors cursor-pointer print:hidden"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
 
-        {/* Monto Destacado */}
-        <div className="rounded-2xl bg-primary/8 border border-primary/20 p-4 text-center space-y-1">
-          <span className="inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider text-primary">
-            <CheckCircle2 className="w-3.5 h-3.5" /> Pago Recibido
-          </span>
-          <div className="font-mono text-2xl sm:text-3xl font-extrabold text-on-surface">
-            {money(Number(pago.monto_total))}
-          </div>
-          <p className="text-xs text-on-surface-variant">
-            Cobrado el <strong className="text-on-surface">{formatDateEs(pago.recibido_en)}</strong>
-          </p>
-        </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2 border-t border-primary/10 text-on-surface-variant">
+                <div className="flex items-center justify-between">
+                  <span>Resta a la deuda de capital:</span>
+                  <strong className="font-mono text-on-surface">{money(Number(pago.monto_principal))}</strong>
+                </div>
 
-        {/* Detalles del Comprobante */}
-        <div className="rounded-2xl bg-surface-container-low/60 border border-surface-container-high/60 p-4 space-y-2.5 text-xs">
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-on-surface-variant">Deudor / Cliente</span>
-            <span className="font-bold text-on-surface text-right">{deudorNombre}</span>
-          </div>
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-on-surface-variant">Préstamo</span>
-            <span className="font-semibold text-on-surface text-right">{prestamoNombre}</span>
-          </div>
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-on-surface-variant">Período / Cuota</span>
-            <span className="font-semibold text-primary text-right">
-              {pago.fecha_esperada ? formatMonthYear(pago.fecha_esperada) : "Abono general"}
-            </span>
-          </div>
-          <div className="border-t border-dashed border-surface-container-high pt-2.5 flex items-center justify-between gap-2">
-            <span className="text-on-surface-variant">Abono a capital</span>
-            <span className="font-mono font-semibold text-on-surface">{money(Number(pago.monto_principal))}</span>
-          </div>
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-on-surface-variant">Interés cobrado</span>
-            <span className="font-mono font-semibold text-on-surface">{money(Number(pago.monto_interes))}</span>
-          </div>
-          {saldoActualPrestamo !== null && (
-            <div className="border-t border-dashed border-surface-container-high pt-2.5 flex items-center justify-between gap-2">
-              <span className="text-on-surface-variant font-medium">Saldo de capital restante</span>
-              <span className="font-mono font-extrabold text-on-surface">{money(saldoActualPrestamo)}</span>
-            </div>
-          )}
-          <div className="border-t border-surface-container-low pt-2 flex items-center justify-between gap-2 text-[11px]">
-            <span className="text-on-surface-variant">Cuenta receptora</span>
-            <span className="font-medium text-on-surface">
-              {cuentaNombre}
-              {pago.metodo_pago ? ` (${pago.metodo_pago})` : ""}
-            </span>
-          </div>
-          {pago.notas && (
-            <div className="pt-2 border-t border-surface-container-low text-[11px]">
-              <span className="text-on-surface-variant block mb-0.5">Observaciones:</span>
-              <p className="text-on-surface italic">{pago.notas}</p>
-            </div>
-          )}
-        </div>
+                <div className="flex items-center justify-between">
+                  <span>Tu ganancia por interés:</span>
+                  <strong className="font-mono text-primary">{money(Number(pago.monto_interes))}</strong>
+                </div>
 
-        {/* Botones de Acción */}
-        <div className="flex flex-wrap items-center justify-between gap-2 pt-1 print:hidden">
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={handleCopiar}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-surface-container-high bg-surface-container-lowest hover:bg-surface-container text-xs font-semibold text-on-surface transition-colors cursor-pointer"
-            >
-              {copiado ? (
-                <>
-                  <Check className="w-4 h-4 text-emerald-500" />
-                  <span className="text-emerald-500">¡Copiado!</span>
-                </>
-              ) : (
-                <>
-                  <Copy className="w-4 h-4 text-primary" />
-                  <span>Copiar recibo</span>
-                </>
+                <div className="flex items-center justify-between">
+                  <span>Ingresado en cuenta:</span>
+                  <strong className="text-on-surface truncate max-w-[140px]">{cuentaNombre}</strong>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <span>Deuda que le queda:</span>
+                  <strong className="font-mono text-on-surface">
+                    {saldoActualPrestamo !== null ? money(saldoActualPrestamo) : "0.00"}
+                  </strong>
+                </div>
+              </div>
+
+              {pago.notas && (
+                <div className="pt-2 border-t border-primary/10 text-[11px] text-on-surface-variant">
+                  <span className="font-semibold text-on-surface">Tu apunte interno:</span>{" "}
+                  <span className="italic">{pago.notas}</span>
+                </div>
               )}
-            </button>
+            </div>
+
+            {/* Separador con Título de la Sección del Cliente */}
+            <div className="pt-1">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-bold text-on-surface flex items-center gap-1.5">
+                  <ReceiptText className="w-4 h-4 text-emerald-600" />
+                  <span>Comprobante para entregar a {deudorNombre}</span>
+                </span>
+                <span className="text-[11px] text-on-surface-variant">
+                  Sin notas privadas ni desglose de ganancia
+                </span>
+              </div>
+
+              {/* Documento Renderizado (Servirá para la Imagen y Previsualización) */}
+              <div
+                ref={reciboDocRef}
+                className="bg-white rounded-2xl overflow-hidden border border-slate-200/90 shadow-sm"
+              >
+                <ReciboClienteDocumento
+                  pago={pago}
+                  espacioNombre={espacioNombre}
+                  colorAcento={colorAcento}
+                  deudorNombre={deudorNombre}
+                  prestamoNombre={prestamoNombre}
+                  folio={folio}
+                  saldoActualPrestamo={saldoActualPrestamo}
+                  fechaHoraRegistro={fechaHoraRegistro}
+                  puntualidad={puntualidad}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Barra de Acciones */}
+          <div className="p-4 bg-surface-container-low/80 border-t border-outline/15 flex flex-wrap items-center justify-between gap-2.5 shrink-0">
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Botón Generar Imagen (PNG) */}
+              <button
+                type="button"
+                onClick={handleGenerarImagen}
+                disabled={generandoImagen}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs transition-colors cursor-pointer disabled:opacity-50"
+                title="Generar y descargar imagen PNG del comprobante"
+              >
+                {generandoImagen ? (
+                  <>
+                    <Clock className="w-4 h-4 animate-spin" />
+                    <span>Generando...</span>
+                  </>
+                ) : imagenDescargada ? (
+                  <>
+                    <Check className="w-4 h-4 text-white" />
+                    <span>¡Imagen guardada!</span>
+                  </>
+                ) : (
+                  <>
+                    <Download className="w-4 h-4" />
+                    <span>Generar imagen</span>
+                  </>
+                )}
+              </button>
+
+              {/* Botón Imprimir / PDF */}
+              <button
+                type="button"
+                onClick={handleImprimir}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-outline/20 bg-surface-container-lowest hover:bg-surface-container text-xs font-semibold text-on-surface transition-colors cursor-pointer"
+                title="Imprimir o guardar como PDF en 1 sola hoja"
+              >
+                <Printer className="w-3.5 h-3.5 text-on-surface-variant" />
+                <span>Imprimir / PDF</span>
+              </button>
+
+              {/* Botón Copiar Texto */}
+              <button
+                type="button"
+                onClick={handleCopiarTexto}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-outline/20 bg-surface-container-lowest hover:bg-surface-container text-xs font-semibold text-on-surface transition-colors cursor-pointer"
+                title="Copiar texto formateado para enviar por WhatsApp o mensaje"
+              >
+                {copiado ? (
+                  <>
+                    <Check className="w-3.5 h-3.5 text-emerald-500" />
+                    <span className="text-emerald-500 font-bold">¡Copiado!</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-3.5 h-3.5 text-primary" />
+                    <span>Copiar texto</span>
+                  </>
+                )}
+              </button>
+            </div>
+
             <button
               type="button"
-              onClick={() => window.print()}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-surface-container-high bg-surface-container-lowest hover:bg-surface-container text-xs font-semibold text-on-surface transition-colors cursor-pointer"
+              onClick={onClose}
+              className="px-4 py-2 rounded-xl bg-primary hover:bg-primary-container text-on-primary text-xs font-bold shadow-xs transition-colors cursor-pointer ml-auto"
             >
-              <Printer className="w-4 h-4 text-on-surface-variant" />
-              <span>Imprimir</span>
+              Listo
             </button>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 rounded-xl bg-primary hover:bg-primary-container text-on-primary text-xs font-semibold shadow-xs transition-colors cursor-pointer"
-          >
-            Cerrar
-          </button>
-        </div>
+        </motion.div>
       </motion.div>
-    </motion.div>
+    </>
   );
 }
 
@@ -380,10 +722,10 @@ export function ModalSimuladorPrestamo({
             </span>
             <div>
               <h2 className="font-heading text-lg font-bold text-on-surface">
-                Simulador y Calculadora de Préstamos
+                Calculadora de préstamos
               </h2>
               <p className="text-xs text-on-surface-variant">
-                Proyecta intereses, rendimientos y cronograma de cuotas antes de desembolsar.
+                Calcula cuánto ganarás y cómo quedarán los pagos antes de prestar el dinero.
               </p>
             </div>
           </div>
@@ -400,7 +742,7 @@ export function ModalSimuladorPrestamo({
           {/* Controles de Simulación */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
-              <label className="block text-xs font-semibold text-on-surface mb-1">Capital a prestar</label>
+              <label className="block text-xs font-semibold text-on-surface mb-1">¿Cuánto vas a prestar?</label>
               <input
                 type="number"
                 min={1}
@@ -412,10 +754,10 @@ export function ModalSimuladorPrestamo({
             </div>
             <div>
               <div className="flex items-center justify-between mb-1">
-                <label className="block text-xs font-semibold text-on-surface">Tasa mensual (%)</label>
+                <label className="block text-xs font-semibold text-on-surface">Interés mensual (%)</label>
                 {tasa > 3 && (
                   <span className="text-[10px] text-amber-600 dark:text-amber-400 font-bold">
-                    &gt; 3% (Tope Art. 409 Bolivia)
+                    &gt; 3% (Tope sugerido Bolivia)
                   </span>
                 )}
               </div>
@@ -430,7 +772,7 @@ export function ModalSimuladorPrestamo({
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-on-surface mb-1">N.º de períodos</label>
+              <label className="block text-xs font-semibold text-on-surface mb-1">Cantidad de cuotas o meses</label>
               <input
                 type="number"
                 min={1}
@@ -444,27 +786,27 @@ export function ModalSimuladorPrestamo({
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-semibold text-on-surface mb-1">Frecuencia de cobro</label>
+              <label className="block text-xs font-semibold text-on-surface mb-1">¿Cada cuánto te pagará?</label>
               <select
                 value={frecuencia}
                 onChange={(e) => setFrecuencia(e.target.value as typeof frecuencia)}
                 className={selectCls}
               >
-                <option value="mensual">Mensual (cada 30 días)</option>
+                <option value="mensual">Mensual (cada mes)</option>
                 <option value="quincenal">Quincenal (cada 15 días)</option>
                 <option value="semanal">Semanal (cada 7 días)</option>
               </select>
             </div>
             <div>
-              <label className="block text-xs font-semibold text-on-surface mb-1">Modalidad de amortización</label>
+              <label className="block text-xs font-semibold text-on-surface mb-1">¿Cómo te devolverá el dinero?</label>
               <select
                 value={modalidad}
                 onChange={(e) => setModalidad(e.target.value as typeof modalidad)}
                 className={selectCls}
               >
-                <option value="solo_interes">Interés periódico + Capital al final (Estándar FinPal)</option>
-                <option value="capital_fijo">Abono fijo a capital + Interés sobre saldo</option>
-                <option value="cuota_fija">Cuota fija nivelada (Sistema Francés)</option>
+                <option value="solo_interes">Paga solo interés cada mes y devuelve todo el dinero al final</option>
+                <option value="capital_fijo">Devuelve una parte del dinero cada mes + su interés</option>
+                <option value="cuota_fija">Cuotas iguales todos los meses (dinero + interés)</option>
               </select>
             </div>
           </div>
@@ -473,7 +815,7 @@ export function ModalSimuladorPrestamo({
             <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/25 text-amber-800 dark:text-amber-300 text-[11px] leading-relaxed flex items-start gap-2">
               <AlertCircle className="w-4 h-4 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
               <span>
-                <b>Aviso legal (Bolivia):</b> El Art. 409 del Código Civil fija como tope de interés convencional el <b>3% mensual</b>. FinPal es solo una calculadora contable; el ingreso de tasas mayores es bajo tu exclusiva responsabilidad.
+                <b>Nota amistosa:</b> En Bolivia la ley sugiere hasta un 3% mensual como referencia. FinPal guardará el porcentaje que decidas.
               </span>
             </div>
           )}
@@ -490,7 +832,7 @@ export function ModalSimuladorPrestamo({
             </div>
             <div className="p-3 rounded-2xl bg-surface-container-low/80 border border-surface-container-high/60">
               <span className="text-[10px] font-bold uppercase text-on-surface-variant block">
-                Ganancia en intereses
+                Ganancia total esperada
               </span>
               <span className="font-mono text-sm sm:text-base font-extrabold text-emerald-600 dark:text-emerald-400 block mt-0.5">
                 +{money(simulacion.totalInteres)}
@@ -498,7 +840,7 @@ export function ModalSimuladorPrestamo({
             </div>
             <div className="p-3 rounded-2xl bg-surface-container-low/80 border border-surface-container-high/60">
               <span className="text-[10px] font-bold uppercase text-on-surface-variant block">
-                Total a recaudar
+                Total que recibirás
               </span>
               <span className="font-mono text-sm sm:text-base font-extrabold text-on-surface block mt-0.5">
                 {money(simulacion.totalPagado)}
@@ -506,7 +848,7 @@ export function ModalSimuladorPrestamo({
             </div>
             <div className="p-3 rounded-2xl bg-surface-container-low/80 border border-surface-container-high/60">
               <span className="text-[10px] font-bold uppercase text-on-surface-variant block">
-                Rendimiento (ROI)
+                Rendimiento total
               </span>
               <span className="font-mono text-sm sm:text-base font-extrabold text-on-surface block mt-0.5">
                 +{simulacion.roi.toFixed(1)}%
@@ -517,7 +859,7 @@ export function ModalSimuladorPrestamo({
           {/* Tabla de Cronograma Proyectado */}
           <div className="rounded-2xl border border-surface-container-high/70 overflow-hidden">
             <div className="px-3.5 py-2 bg-surface-container-low text-xs font-bold text-on-surface flex items-center justify-between">
-              <span>Cronograma proyectado ({simulacion.filas.length} períodos)</span>
+              <span>Pagos proyectados ({simulacion.filas.length} cuotas)</span>
               <span className="text-[11px] font-normal text-on-surface-variant capitalize">
                 Frecuencia {frecuencia}
               </span>
@@ -527,10 +869,10 @@ export function ModalSimuladorPrestamo({
                 <thead className="bg-surface-container-low/50 text-[10px] uppercase text-on-surface-variant font-bold sticky top-0">
                   <tr>
                     <th className="py-2 px-3">#</th>
-                    <th className="py-2 px-3">Cuota Total</th>
-                    <th className="py-2 px-3">Capital</th>
-                    <th className="py-2 px-3">Interés</th>
-                    <th className="py-2 px-3 text-right">Saldo Restante</th>
+                    <th className="py-2 px-3">Pago Total</th>
+                    <th className="py-2 px-3">Dinero devuelto</th>
+                    <th className="py-2 px-3">Tu ganancia</th>
+                    <th className="py-2 px-3 text-right">Deuda pendiente</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-surface-container-low font-mono">
@@ -800,7 +1142,7 @@ export function ModalKardexPrestamo({
                   {prestamo.estado === "atrasado"
                     ? "Con atraso"
                     : prestamo.estado === "pagado"
-                    ? "Saldado"
+                    ? "Totalmente pagado"
                     : "Al día"}
                 </span>
               </div>
@@ -832,7 +1174,7 @@ export function ModalKardexPrestamo({
                 : "text-on-surface-variant hover:text-on-surface"
             }`}
           >
-            Expediente & Cobros ({pagosDelPrestamo.length})
+            Historial de cobros ({pagosDelPrestamo.length})
           </button>
           <button
             type="button"
@@ -847,7 +1189,7 @@ export function ModalKardexPrestamo({
             }`}
           >
             <PlusCircle className="w-3.5 h-3.5" />
-            <span>Ampliar capital</span>
+            <span>Prestar más dinero</span>
           </button>
           <button
             type="button"
@@ -862,7 +1204,7 @@ export function ModalKardexPrestamo({
             }`}
           >
             <Pencil className="w-3.5 h-3.5" />
-            <span>Editar préstamo</span>
+            <span>Editar condiciones</span>
           </button>
         </div>
 
@@ -873,7 +1215,7 @@ export function ModalKardexPrestamo({
               {/* Barra de Progreso de Amortización */}
               <div className="p-4 rounded-2xl bg-surface-container-low/60 border border-surface-container-high/60 space-y-2.5">
                 <div className="flex items-center justify-between text-xs">
-                  <span className="font-semibold text-on-surface">Progreso de devolución de capital</span>
+                  <span className="font-semibold text-on-surface">Progreso de devolución del dinero</span>
                   <span className="font-mono font-bold text-primary">{progresoPct}% recuperado</span>
                 </div>
                 <div className="w-full h-2.5 rounded-full bg-surface-container-high overflow-hidden">
@@ -884,21 +1226,21 @@ export function ModalKardexPrestamo({
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 text-xs">
                   <div>
-                    <span className="text-[10px] text-on-surface-variant block uppercase">Capital prestado</span>
+                    <span className="text-[10px] text-on-surface-variant block uppercase">Dinero prestado</span>
                     <span className="font-mono font-bold text-on-surface">{money(principal)}</span>
                   </div>
                   <div>
-                    <span className="text-[10px] text-on-surface-variant block uppercase">Capital devuelto</span>
+                    <span className="text-[10px] text-on-surface-variant block uppercase">Dinero devuelto</span>
                     <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">
                       {money(pagadoCap)}
                     </span>
                   </div>
                   <div>
-                    <span className="text-[10px] text-on-surface-variant block uppercase">Saldo por cobrar</span>
+                    <span className="text-[10px] text-on-surface-variant block uppercase">Falta cobrar</span>
                     <span className="font-mono font-extrabold text-primary">{money(balance)}</span>
                   </div>
                   <div>
-                    <span className="text-[10px] text-on-surface-variant block uppercase">Interés ganado</span>
+                    <span className="text-[10px] text-on-surface-variant block uppercase">Ganancia generada</span>
                     <span className="font-mono font-bold text-on-surface">
                       {money(prestamo.interes_pagado_total)}
                     </span>
@@ -919,7 +1261,7 @@ export function ModalKardexPrestamo({
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <h3 className="text-xs font-bold uppercase tracking-wider text-on-surface-variant">
-                    Historial de abonos y cobros ({pagosDelPrestamo.length})
+                    Historial de pagos recibidos ({pagosDelPrestamo.length})
                   </h3>
                   {balance > 0.01 && (
                     <button
@@ -931,7 +1273,7 @@ export function ModalKardexPrestamo({
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary text-on-primary text-xs font-bold shadow-2xs hover:bg-primary-container transition-colors cursor-pointer"
                     >
                       <ReceiptText className="w-3.5 h-3.5" />
-                      <span>Registrar cobro ahora</span>
+                      <span>Anotar cobro ahora</span>
                     </button>
                   )}
                 </div>
@@ -1039,8 +1381,8 @@ export function ModalKardexPrestamo({
                   <TrendingUp className="w-4 h-4" /> Ampliación / Recarga de Capital
                 </p>
                 <p className="text-on-surface-variant leading-relaxed">
-                  Suma capital adicional a este mismo préstamo y descuenta automáticamente el desembolso de la cuenta de origen seleccionada. Capital actual:{" "}
-                  <strong className="font-mono text-on-surface">{money(principal)}</strong> (Saldo pendiente:{" "}
+                  Suma dinero adicional a este mismo préstamo y descuenta el desembolso de la cuenta de origen que elijas. Dinero prestado total:{" "}
+                  <strong className="font-mono text-on-surface">{money(principal)}</strong> (Falta cobrar:{" "}
                   <strong className="font-mono text-primary">{money(balance)}</strong>).
                 </p>
               </div>
@@ -1048,7 +1390,7 @@ export function ModalKardexPrestamo({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-on-surface mb-1">
-                    Monto adicional a entregar *
+                    ¿Cuánto dinero adicional vas a prestar? *
                   </label>
                   <input
                     type="number"
@@ -1061,7 +1403,7 @@ export function ModalKardexPrestamo({
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-on-surface mb-1">Fecha de entrega *</label>
+                  <label className="block text-xs font-semibold text-on-surface mb-1">¿Qué fecha entregas este dinero? *</label>
                   <input
                     type="date"
                     value={fechaAmpliacion}
@@ -1073,17 +1415,17 @@ export function ModalKardexPrestamo({
 
               <div>
                 <label className="block text-xs font-semibold text-on-surface mb-1">
-                  Cuenta de donde sale el dinero *
+                  ¿De qué cuenta sale el dinero? *
                 </label>
                 <select
                   value={cuentaAmpliacionId}
                   onChange={(e) => setCuentaAmpliacionId(e.target.value)}
                   className={selectCls}
                 >
-                  <option value="">— Selecciona cuenta —</option>
+                  <option value="">— Elige una cuenta —</option>
                   {cuentas.map((c) => (
                     <option key={c.id} value={c.id}>
-                      {c.nombre} (Saldo: {money(c.saldo)})
+                      {c.nombre} (Tiene: {money(c.saldo)})
                     </option>
                   ))}
                 </select>
@@ -1091,7 +1433,7 @@ export function ModalKardexPrestamo({
 
               <div>
                 <label className="block text-xs font-semibold text-on-surface mb-1">
-                  Motivo o nota de la ampliación (opcional)
+                  ¿Para qué es o cómo lo recuerdas? (opcional)
                 </label>
                 <input
                   type="text"
@@ -1110,7 +1452,7 @@ export function ModalKardexPrestamo({
 
               <SlideToConfirm
                 submitting={submitting}
-                label="Desliza para desembolsar ampliación"
+                label="Desliza para prestar este dinero adicional"
                 resetTrigger={`${prestamo.id}-ampliar`}
                 onConfirm={handleConfirmAmpliar}
               />
@@ -1122,7 +1464,7 @@ export function ModalKardexPrestamo({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-on-surface mb-1">
-                    Concepto / Nombre del préstamo *
+                    ¿Para qué es o cómo recuerdas el préstamo? *
                   </label>
                   <input
                     type="text"
@@ -1133,7 +1475,7 @@ export function ModalKardexPrestamo({
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-on-surface mb-1">
-                    Día de cobro mensual (1 - 31) *
+                    ¿Qué día de cada mes te pagará? (1 - 31) *
                   </label>
                   <input
                     type="number"
@@ -1320,16 +1662,16 @@ export function ModalFichaContacto({
     let reputacionLabel = "Sin historial de cobros";
     let reputacionBadge = "badge-neutral";
     if (tieneMora) {
-      reputacionLabel = "Con cuota en mora";
+      reputacionLabel = "Tiene pagos retrasados";
       reputacionBadge = "badge-atrasado";
     } else if (scoreRatio !== null && scoreRatio >= 85) {
-      reputacionLabel = `Excelente pagador (${scoreRatio}% puntual)`;
+      reputacionLabel = `Muy puntual (${scoreRatio}% a tiempo)`;
       reputacionBadge = "badge-al-dia";
     } else if (scoreRatio !== null && scoreRatio >= 50) {
       reputacionLabel = `Pagador regular (${scoreRatio}% puntual)`;
       reputacionBadge = "badge-amber";
     } else if (saldados.length > 0) {
-      reputacionLabel = "Cumplidor";
+      reputacionLabel = "Ha pagado todos sus préstamos";
       reputacionBadge = "badge-saldado";
     }
 
@@ -1484,7 +1826,7 @@ export function ModalFichaContacto({
                 : "text-on-surface-variant hover:text-on-surface"
             }`}
           >
-            Ficha 360° & Préstamos ({prestamosContacto.length})
+            Perfil y préstamos ({prestamosContacto.length})
           </button>
           <button
             type="button"
@@ -1499,7 +1841,7 @@ export function ModalFichaContacto({
             }`}
           >
             <Pencil className="w-3.5 h-3.5" />
-            <span>Editar contacto</span>
+            <span>Editar datos</span>
           </button>
         </div>
 
@@ -1508,23 +1850,23 @@ export function ModalFichaContacto({
             <>
               <div className="grid grid-cols-3 gap-2.5 text-xs">
                 <div className="p-3 rounded-2xl bg-surface-container-low/70 border border-surface-container-high/60">
-                  <span className="text-[10px] text-on-surface-variant block uppercase font-bold">Por cobrar hoy</span>
+                  <span className="text-[10px] text-on-surface-variant block uppercase font-bold">Deuda activa</span>
                   <span className="font-mono text-sm sm:text-base font-extrabold text-primary block mt-0.5">
                     {money(metricasContacto.deudaViva)}
                   </span>
                 </div>
                 <div className="p-3 rounded-2xl bg-surface-container-low/70 border border-surface-container-high/60">
                   <span className="text-[10px] text-on-surface-variant block uppercase font-bold">
-                    Intereses pagados
+                    Ganancias recibidas
                   </span>
                   <span className="font-mono text-sm sm:text-base font-extrabold text-emerald-600 dark:text-emerald-400 block mt-0.5">
                     +{money(metricasContacto.interesTotalGenerado)}
                   </span>
                 </div>
                 <div className="p-3 rounded-2xl bg-surface-container-low/70 border border-surface-container-high/60">
-                  <span className="text-[10px] text-on-surface-variant block uppercase font-bold">Créditos</span>
+                  <span className="text-[10px] text-on-surface-variant block uppercase font-bold">Préstamos</span>
                   <span className="font-heading text-sm sm:text-base font-extrabold text-on-surface block mt-0.5">
-                    {metricasContacto.activos.length} activos · {metricasContacto.saldados.length} saldados
+                    {metricasContacto.activos.length} vigentes · {metricasContacto.saldados.length} completados
                   </span>
                 </div>
               </div>
@@ -1541,7 +1883,7 @@ export function ModalFichaContacto({
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <h3 className="text-xs font-bold uppercase tracking-wider text-on-surface-variant">
-                    Préstamos asociados
+                    Préstamos registrados
                   </h3>
                   <button
                     type="button"
@@ -1552,7 +1894,7 @@ export function ModalFichaContacto({
                     className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-primary text-on-primary text-xs font-bold hover:bg-primary-container transition-colors cursor-pointer"
                   >
                     <HandCoins className="w-3.5 h-3.5" />
-                    <span>+ Nuevo préstamo</span>
+                    <span>+ Prestar dinero</span>
                   </button>
                 </div>
 
