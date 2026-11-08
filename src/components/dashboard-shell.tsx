@@ -44,6 +44,8 @@ import {
   Percent,
   Clock,
   Info,
+  History,
+  CheckCircle2,
 } from "lucide-react";
 import { useEspacio } from "@/lib/espacio-context";
 import {
@@ -62,7 +64,7 @@ import { FinPalLogo } from "@/components/finpal-logo";
 import { ModalReciboCobro } from "@/components/finpal-modals";
 import { ImportModal } from "@/features/importacion/import-modal";
 import { signOut } from "@/app/(auth)/actions";
-import { formatDateEs, getLocalDateString } from "@/lib/format-date";
+import { formatDateEs, getLocalDateString, getMesesTranscurridosPrestamo } from "@/lib/format-date";
 import { InactivityMonitor } from "@/components/inactivity-monitor";
 import { DeudorPrestamoPicker } from "@/components/deudor-prestamo-picker";
 import { NotificationToast } from "@/components/notification-toast";
@@ -1678,14 +1680,49 @@ function DateField({
 }) {
   const [internalValue, setInternalValue] = useState(value ?? defaultValue ?? "");
   const currentValue = value ?? internalValue;
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (value !== undefined) {
+      setInternalValue(value);
+    }
+  }, [value]);
+
+  const handleOpenPicker = () => {
+    try {
+      inputRef.current?.showPicker();
+    } catch {
+      inputRef.current?.focus();
+    }
+  };
 
   return (
-    <div className="relative flex items-center">
-      <Calendar className="w-4 h-4 text-outline absolute left-3.5 pointer-events-none" />
-      <div className={`${inputCls} pl-10 flex items-center select-none`} aria-hidden="true">
-        {formatDateEs(currentValue)}
+    <div
+      onClick={handleOpenPicker}
+      className="relative flex items-center cursor-pointer group"
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          handleOpenPicker();
+        }
+      }}
+    >
+      <Calendar className="w-4 h-4 text-outline group-hover:text-primary transition-colors absolute left-3.5 pointer-events-none z-10" />
+      <div
+        className={`${inputCls} pl-10 pr-14 flex items-center justify-between select-none group-hover:border-primary/60 transition-colors`}
+        aria-hidden="true"
+      >
+        <span className={currentValue ? "text-on-surface font-medium truncate" : "text-on-surface-variant/40"}>
+          {currentValue ? formatDateEs(currentValue) : "Seleccionar fecha"}
+        </span>
+        <span className="text-[10px] uppercase tracking-wider text-primary font-bold bg-primary/10 px-1.5 py-0.5 rounded shrink-0 pointer-events-none">
+          Elegir
+        </span>
       </div>
       <input
+        ref={inputRef}
         type="date"
         name={name}
         value={currentValue}
@@ -1694,7 +1731,12 @@ function DateField({
           if (value === undefined) setInternalValue(event.target.value);
           onChange?.(event.target.value);
         }}
-        className="absolute inset-0 h-10 w-full cursor-pointer opacity-0"
+        onClick={(e) => {
+          try {
+            e.currentTarget.showPicker();
+          } catch {}
+        }}
+        className="absolute inset-0 h-full w-full cursor-pointer opacity-0 z-20"
         aria-label="Seleccionar fecha"
       />
     </div>
@@ -1868,13 +1910,56 @@ function PrestamoForm({
   const [diaPago, setDiaPago] = useState(preset?.diaPago ?? new Date().getDate());
   const [metodoEntrega, setMetodoEntrega] = useState("");
 
+  // Estados para Préstamo Histórico / Migrado
+  const [esHistorico, setEsHistorico] = useState(false);
+  const [descontarDeCuenta, setDescontarDeCuenta] = useState(true);
+  const [cuotasSeleccionadas, setCuotasSeleccionadas] = useState<string[]>([]);
+  const [huboAmortizacion, setHuboAmortizacion] = useState(false);
+  const [capitalAmortizado, setCapitalAmortizado] = useState<number | string>(0);
+
   const presetsTasa = [2, 3, 5];
+
+  // Cálculo de los meses transcurridos entre la fecha de inicio y hoy
+  const mesesTranscurridos = useMemo(() => {
+    return getMesesTranscurridosPrestamo(fechaInicio, Number(diaPago));
+  }, [fechaInicio, diaPago]);
+
+  const handleToggleHistorico = () => {
+    setEsHistorico((prev) => {
+      const next = !prev;
+      if (next) {
+        setDescontarDeCuenta(false);
+        // Pre-seleccionar todos los meses transcurridos por defecto para dejarlo al día
+        setCuotasSeleccionadas(mesesTranscurridos.map((m) => m.fecha));
+      } else {
+        setDescontarDeCuenta(true);
+        setCuotasSeleccionadas([]);
+        setHuboAmortizacion(false);
+        setCapitalAmortizado(0);
+      }
+      return next;
+    });
+  };
+
+  const handleMarcarTodos = () => {
+    setCuotasSeleccionadas(mesesTranscurridos.map((m) => m.fecha));
+  };
+
+  const handleDesmarcarTodos = () => {
+    setCuotasSeleccionadas([]);
+  };
+
+  const toggleCuota = (fecha: string) => {
+    setCuotasSeleccionadas((prev) =>
+      prev.includes(fecha) ? prev.filter((f) => f !== fecha) : [...prev, fecha]
+    );
+  };
 
   return (
     <div className="space-y-4">
       {/* ¿A quién le prestas? */}
       <div className="space-y-2">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-1.5">
           <label className="text-xs font-semibold text-on-surface">
             ¿A quién le prestas? <span className="text-primary">*</span>
           </label>
@@ -2103,38 +2188,236 @@ function PrestamoForm({
         </FormField>
       </div>
 
+      {/* Sección Préstamo Histórico / Migración de Excel */}
+      <div className="rounded-2xl border border-primary/25 bg-primary/5 p-3 sm:p-4 space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+              <History className="w-4 h-4" />
+            </div>
+            <div>
+              <p className="text-xs sm:text-sm font-semibold text-on-surface">
+                ¿Es un préstamo anterior que ya estaba en curso?
+              </p>
+              <p className="text-[11px] text-on-surface-variant leading-tight">
+                Para préstamos traídos de Excel, cuadernos o meses pasados
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={esHistorico}
+            onClick={handleToggleHistorico}
+            className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary/20 ${
+              esHistorico ? "bg-primary" : "bg-outline/25 hover:bg-outline/40"
+            }`}
+          >
+            <span
+              className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                esHistorico ? "translate-x-5" : "translate-x-0"
+              }`}
+            />
+          </button>
+        </div>
+
+        {esHistorico && (
+          <div className="pt-2 border-t border-primary/15 space-y-3">
+            {/* Protección de Saldos en Cuentas */}
+            <div className="rounded-xl border border-outline/15 bg-surface-container-lowest p-3">
+              <label className="flex items-start gap-2.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={!descontarDeCuenta}
+                  onChange={(e) => setDescontarDeCuenta(!e.target.checked)}
+                  className="w-4 h-4 mt-0.5 rounded accent-primary cursor-pointer shrink-0"
+                />
+                <div className="text-xs">
+                  <span className="font-semibold text-on-surface block">
+                    El dinero ya fue entregado en el pasado (no descontar de mis cuentas)
+                  </span>
+                  <span className="text-[11px] text-on-surface-variant block mt-0.5 leading-relaxed">
+                    Recomendado. No restará dinero del saldo actual de tu caja o banco ni creará salidas de efectivo hoy.
+                  </span>
+                </div>
+              </label>
+            </div>
+
+            {/* Asistente de cuotas ya cubiertas */}
+            <div className="rounded-xl border border-outline/15 bg-surface-container-lowest p-3 space-y-2.5">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <span className="text-xs font-semibold text-on-surface flex items-center gap-1.5">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-primary" />
+                    ¿Qué meses ya te pagaron antes de hoy?
+                  </span>
+                  <span className="text-[11px] text-on-surface-variant block">
+                    {mesesTranscurridos.length} cuota{mesesTranscurridos.length === 1 ? "" : "s"} transcurrida{mesesTranscurridos.length === 1 ? "" : "s"} desde la fecha de entrega
+                  </span>
+                </div>
+                {mesesTranscurridos.length > 0 && (
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={handleMarcarTodos}
+                      className="text-[11px] font-bold text-primary hover:underline px-2 py-1 rounded bg-primary/10 transition-colors cursor-pointer"
+                    >
+                      Marcar todos al día
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleDesmarcarTodos}
+                      className="text-[11px] text-on-surface-variant hover:text-on-surface px-2 py-1 transition-colors cursor-pointer"
+                    >
+                      Desmarcar
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {mesesTranscurridos.length > 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 max-h-48 overflow-y-auto pr-1">
+                  {mesesTranscurridos.map((m) => {
+                    const checked = cuotasSeleccionadas.includes(m.fecha);
+                    return (
+                      <label
+                        key={m.fecha}
+                        className={`flex items-center gap-2 p-2 rounded-lg border text-xs cursor-pointer transition-all ${
+                          checked
+                            ? "bg-primary/10 border-primary/50 text-on-surface font-medium"
+                            : "bg-surface-container-low/60 border-outline/10 text-on-surface-variant hover:bg-surface-container-low"
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleCuota(m.fecha)}
+                          className="w-4 h-4 rounded accent-primary cursor-pointer shrink-0"
+                        />
+                        <span className="truncate">{m.label}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="p-2.5 rounded-lg bg-surface-container-low/50 border border-outline/10 text-xs text-on-surface-variant flex items-center gap-2">
+                  <Info className="w-4 h-4 text-primary shrink-0" />
+                  <span>
+                    La fecha de entrega seleccionada es reciente. No hay cuotas vencidas antes de hoy; el primer cobro vencerá en la fecha programada.
+                  </span>
+                </div>
+              )}
+
+              {/* Amortización de capital acumulado en esos meses */}
+              <div className="pt-2 border-t border-outline/10 space-y-2">
+                <label className="text-xs font-semibold text-on-surface block">
+                  ¿Te devolvieron parte del capital en estos meses?
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setHuboAmortizacion(false);
+                      setCapitalAmortizado(0);
+                    }}
+                    className={`py-1.5 px-3 rounded-lg border transition-all cursor-pointer font-medium text-center ${
+                      !huboAmortizacion
+                        ? "bg-primary text-on-primary font-semibold shadow-xs border-primary"
+                        : "bg-surface-container-lowest border-outline/15 text-on-surface-variant hover:text-on-surface"
+                    }`}
+                  >
+                    Solo pagaron intereses
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setHuboAmortizacion(true)}
+                    className={`py-1.5 px-3 rounded-lg border transition-all cursor-pointer font-medium text-center ${
+                      huboAmortizacion
+                        ? "bg-primary text-on-primary font-semibold shadow-xs border-primary"
+                        : "bg-surface-container-lowest border-outline/15 text-on-surface-variant hover:text-on-surface"
+                    }`}
+                  >
+                    También devolvieron capital
+                  </button>
+                </div>
+                {huboAmortizacion && (
+                  <div className="pt-1 space-y-1">
+                    <div className="relative flex items-center">
+                      <span className="absolute left-3 text-xs font-bold text-on-surface-variant pointer-events-none select-none">
+                        BOB
+                      </span>
+                      <input
+                        type="number"
+                        min={0}
+                        step="0.01"
+                        value={capitalAmortizado || ""}
+                        onChange={(e) => setCapitalAmortizado(e.target.value === "" ? 0 : Number(e.target.value))}
+                        placeholder="Monto de capital ya devuelto"
+                        className={`${inputCls} pl-12 font-mono`}
+                      />
+                    </div>
+                    <p className="text-[11px] text-on-surface-variant leading-tight">
+                      El saldo pendiente del préstamo se inicializará descontando este abono previo.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        <input type="hidden" name="es_historico" value={esHistorico ? "true" : "false"} />
+        <input type="hidden" name="descontar_de_cuenta" value={descontarDeCuenta ? "true" : "false"} />
+        <input type="hidden" name="cuotas_historicas_pagadas" value={JSON.stringify(cuotasSeleccionadas)} />
+        <input type="hidden" name="capital_amortizado_previo" value={String(capitalAmortizado || 0)} />
+      </div>
+
       {/* Cuenta de origen */}
       <div className="space-y-1.5">
-        <FormField label="¿De dónde salió el dinero prestado?" required>
-          <select name="cuenta_dinero_id" required className={selectCls}>
-            <option value="">— Elige de dónde sale —</option>
-            {cuentas.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.nombre} (Tiene: {money(c.saldo)})
-              </option>
-            ))}
-          </select>
-        </FormField>
-        {cuentas.length === 0 ? (
-          <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-on-surface-variant flex items-center justify-between">
-            <span>Primero necesitas una cuenta para saber de dónde salió el dinero.</span>
-            <button
-              type="button"
-              onClick={onCreateAccount}
-              className="font-bold text-primary hover:underline cursor-pointer"
-            >
-              + Crear cuenta
-            </button>
-          </div>
+        {!esHistorico || descontarDeCuenta ? (
+          <>
+            <FormField label="¿De dónde salió el dinero prestado?" required>
+              <select name="cuenta_dinero_id" required className={selectCls}>
+                <option value="">— Elige de dónde sale —</option>
+                {cuentas.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.nombre} (Tiene: {money(c.saldo)})
+                  </option>
+                ))}
+              </select>
+            </FormField>
+            {cuentas.length === 0 ? (
+              <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-on-surface-variant flex items-center justify-between">
+                <span>Primero necesitas una cuenta para saber de dónde salió el dinero.</span>
+                <button
+                  type="button"
+                  onClick={onCreateAccount}
+                  className="font-bold text-primary hover:underline cursor-pointer"
+                >
+                  + Crear cuenta
+                </button>
+              </div>
+            ) : (
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={onCreateAccount}
+                  className="text-[11px] font-semibold text-primary hover:underline cursor-pointer"
+                >
+                  + Crear otra cuenta
+                </button>
+              </div>
+            )}
+          </>
         ) : (
-          <div className="flex justify-end">
-            <button
-              type="button"
-              onClick={onCreateAccount}
-              className="text-[11px] font-semibold text-primary hover:underline cursor-pointer"
-            >
-              + Crear otra cuenta
-            </button>
+          <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3 flex items-center justify-between text-xs text-on-surface-variant">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+              <span>Tus cuentas actuales no se verán afectadas (dinero entregado en el pasado).</span>
+            </div>
+            {cuentas.length > 0 && (
+              <input type="hidden" name="cuenta_dinero_id" value={cuentas[0]?.id || ""} />
+            )}
           </div>
         )}
       </div>

@@ -2510,7 +2510,11 @@ function PagosView({
 
                   {/* Estado de puntualidad con punto estilo Safari */}
                   <div className="shrink-0">
-                    {isLate ? (
+                    {p.metodo_pago === "Registro histórico" ? (
+                      <span className="badge-blue px-2 py-0.5 rounded-md text-[11px] font-semibold inline-flex items-center gap-1.5 bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                        Previo a FinPal
+                      </span>
+                    ) : isLate ? (
                       <span className="badge-atrasado px-2 py-0.5 rounded-md text-[11px] font-semibold inline-flex items-center gap-1.5">
                         <span className="safari-dot-red" />
                         Con retraso
@@ -2653,7 +2657,11 @@ function PagosView({
                   </div>
 
                   <div className="shrink-0">
-                    {isLate ? (
+                    {p.metodo_pago === "Registro histórico" ? (
+                      <span className="badge-blue px-2 py-0.5 rounded-md text-[11px] font-semibold inline-flex items-center gap-1.5 bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                        Previo a FinPal
+                      </span>
+                    ) : isLate ? (
                       <span className="badge-atrasado px-2 py-0.5 rounded-md text-[11px] font-semibold inline-flex items-center gap-1.5">
                         <span className="safari-dot-red" />
                         Retraso

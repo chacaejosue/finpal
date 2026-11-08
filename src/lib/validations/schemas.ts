@@ -45,7 +45,11 @@ export const prestamoSchema = z.object({
   dia_pago: z.coerce.number().int().min(1).max(31),
   metodo_entrega: z.string().trim().max(100).optional().nullable().default(""),
   notas: z.string().trim().max(1000).optional().nullable().default(""),
-  cuenta_dinero_id: z.string().uuid("Selecciona una cuenta válida"),
+  cuenta_dinero_id: z.string().uuid("Selecciona una cuenta válida").optional().or(z.literal("")),
+  es_historico: z.boolean().default(false),
+  descontar_de_cuenta: z.boolean().default(true),
+  cuotas_historicas_pagadas: z.string().optional().default("[]"),
+  capital_amortizado_previo: z.coerce.number().min(0).default(0),
 }).transform((d) => {
   // Coerción coherente con la restricción de base de datos
   const tieneInteres = Boolean(d.cobra_interes) && d.tasa_interes_mensual > 0;
@@ -57,6 +61,15 @@ export const prestamoSchema = z.object({
 }).refine(
   (d) => Boolean(d.contacto_id || d.contacto_nombre),
   { message: "Selecciona un deudor o escribe su nombre", path: ["contacto_id"] }
+).refine(
+  (d) => {
+    // Si no es histórico o si se solicita descontar de cuenta, cuenta_dinero_id es requerida
+    if (!d.es_historico || d.descontar_de_cuenta) {
+      return Boolean(d.cuenta_dinero_id);
+    }
+    return true;
+  },
+  { message: "Selecciona la cuenta de donde salió el dinero", path: ["cuenta_dinero_id"] }
 );
 export type PrestamoInput = z.infer<typeof prestamoSchema>;
 
@@ -65,6 +78,7 @@ export const actualizarPrestamoSchema = z.object({
   cobra_interes: z.boolean().default(true),
   tasa_interes_mensual: z.coerce.number().min(0, "La tasa no puede ser negativa").max(100, "La tasa máxima es 100%").default(0),
   dia_pago: z.coerce.number().int().min(1).max(31),
+  fecha_inicio: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Fecha inválida").optional(),
   notas: z.string().trim().max(1000).optional().nullable().default(""),
 }).transform((d) => {
   const tieneInteres = Boolean(d.cobra_interes) && d.tasa_interes_mensual > 0;
