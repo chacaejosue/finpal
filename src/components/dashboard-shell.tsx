@@ -994,7 +994,7 @@ export function DashboardShell({
                                   </div>
                                   <p className="text-[11px] text-on-surface-variant truncate">{p.nombre}</p>
                                   <p className="text-[10px] font-bold text-error mt-0.5">
-                                    Con atraso ({p.dias_atraso}d) · Debe: {money(loanBalance(p))}
+                                    Con atraso ({p.dias_atraso} {p.dias_atraso === 1 ? "día" : "días"}) · Debe: {money(loanBalance(p))}
                                   </p>
                                 </div>
                                 <button
@@ -1392,6 +1392,7 @@ export function DashboardShell({
                   prestamos={prestamos}
                   cuentas={cuentas}
                   initialLoanId={modalPreset?.loanId}
+                  initialFechaEsperada={modalPreset?.fechaEsperada}
                 />
               )}
               {modal === "movement" && (
@@ -2474,10 +2475,12 @@ function PagoForm({
   prestamos,
   cuentas,
   initialLoanId,
+  initialFechaEsperada,
 }: {
   prestamos: Prestamo[];
   cuentas: Cuenta[];
   initialLoanId?: string;
+  initialFechaEsperada?: string;
 }) {
   const prestamosPendientes = useMemo(() => {
     return prestamos.filter(
@@ -2498,7 +2501,8 @@ function PagoForm({
   const [showPeriodPicker, setShowPeriodPicker] = useState(false);
   const [useCustomFecha, setUseCustomFecha] = useState(false);
   const [fechaEsperada, setFechaEsperada] = useState(
-    defaultLoan?.periodos_sugeridos?.[0]?.fecha ??
+    initialFechaEsperada ??
+      defaultLoan?.periodos_sugeridos?.[0]?.fecha ??
       defaultLoan?.fecha_proximo_pago ??
       getLocalDateString(),
   );
@@ -2508,6 +2512,10 @@ function PagoForm({
   }, [prestamos, prestamoId]);
 
   useEffect(() => {
+    if (initialFechaEsperada) {
+      setFechaEsperada(initialFechaEsperada);
+      return;
+    }
     if (prestamoSeleccionado) {
       const primerSugerido =
         prestamoSeleccionado.periodos_sugeridos?.[0]?.fecha ??
@@ -2516,7 +2524,7 @@ function PagoForm({
         setFechaEsperada(primerSugerido);
       }
     }
-  }, [prestamoId, prestamoSeleccionado]);
+  }, [prestamoId, prestamoSeleccionado, initialFechaEsperada]);
 
   const capitalPendiente = prestamoSeleccionado ? loanBalance(prestamoSeleccionado) : 0;
   const interesEstimado = prestamoSeleccionado ? monthlyInterest(prestamoSeleccionado) : 0;
@@ -2643,7 +2651,7 @@ function PagoForm({
               }`}
             >
               {prestamoSeleccionado.meses_atrasados > 0
-                ? `${prestamoSeleccionado.meses_atrasados} cuota(s) pendiente(s)`
+                ? `${prestamoSeleccionado.meses_atrasados} ${prestamoSeleccionado.meses_atrasados === 1 ? "cuota pendiente" : "cuotas pendientes"}`
                 : prestamoSeleccionado.vence_hoy
                 ? "Vence hoy"
                 : "Al día"}

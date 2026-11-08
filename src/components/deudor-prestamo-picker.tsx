@@ -405,7 +405,7 @@ export function DeudorPrestamoPicker({
                     {isAtrasado ? (
                       <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold badge-atrasado mt-0.5">
                         <AlertOctagon className="w-2.5 h-2.5 shrink-0" />
-                        {p.dias_atraso > 0 ? `${p.dias_atraso}d atraso` : "Atrasado"}
+                        {p.dias_atraso > 0 ? `${p.dias_atraso} ${p.dias_atraso === 1 ? "día" : "días"} de atraso` : "Atrasado"}
                       </span>
                     ) : (
                       <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-bold badge-al-dia mt-0.5">

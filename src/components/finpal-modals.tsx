@@ -937,7 +937,7 @@ export function ModalKardexPrestamo({
   cuentas: Cuenta[];
   espacioId: string;
   onClose: () => void;
-  onCobrar: (prestamoId: string) => void;
+  onCobrar: (prestamoId: string, fechaEsperada?: string) => void;
   onVerRecibo: (pago: Pago) => void;
   onSuccess: (msg: string) => Promise<void>;
 }) {
@@ -973,6 +973,16 @@ export function ModalKardexPrestamo({
       return p.prestamo_id === prestamo.id || pRel?.id === prestamo.id;
     });
   }, [pagos, prestamo.id]);
+
+  const cuotasVencidas = useMemo(() => {
+    return (prestamo.periodos_sugeridos ?? []).filter((p) => p.estado === "vencido");
+  }, [prestamo.periodos_sugeridos]);
+
+  const proximaCuota = useMemo(() => {
+    return (prestamo.periodos_sugeridos ?? []).find((p) => p.estado === "hoy" || p.estado === "proximo");
+  }, [prestamo.periodos_sugeridos]);
+
+  const cuotaInteres = monthlyInterest(prestamo);
 
   const handleConfirmEditar = async () => {
     if (!nombre.trim()) {
@@ -1258,6 +1268,100 @@ export function ModalKardexPrestamo({
                   <p className="text-on-surface whitespace-pre-wrap">{prestamo.notas}</p>
                 </div>
               )}
+
+              {/* Sección Intuitiva: Estado de Cuotas y Fechas Vencidas */}
+              {cuotasVencidas.length > 0 ? (
+                <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse shrink-0" />
+                      <h3 className="text-xs font-bold uppercase tracking-wider text-rose-700 dark:text-rose-400">
+                        Cuotas atrasadas por cobrar ({cuotasVencidas.length})
+                      </h3>
+                    </div>
+                    <span className="text-[11px] font-bold text-rose-600 dark:text-rose-300">
+                      {prestamo.dias_atraso} {prestamo.dias_atraso === 1 ? "día" : "días"} de retraso acumulado
+                    </span>
+                  </div>
+
+                  <p className="text-xs text-on-surface-variant">
+                    {prestamo.ultimo_mes_cubierto ? (
+                      <>El último cobro registrado cubrió hasta <strong>{prestamo.ultimo_mes_cubierto}</strong>. El deudor debe las siguientes fechas:</>
+                    ) : (
+                      <>Fechas y cuotas vencidas pendientes a la fecha:</>
+                    )}
+                  </p>
+
+                  <div className="space-y-2">
+                    {cuotasVencidas.map((c) => (
+                      <div
+                        key={c.fecha}
+                        className="p-3 rounded-xl bg-surface-container-lowest border border-rose-500/25 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 shadow-2xs"
+                      >
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-bold text-sm text-on-surface">
+                              Cuota: {c.mes_nombre}
+                            </span>
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-500/15 text-rose-700 dark:text-rose-300">
+                              Atrasada por {c.dias_diferencia} {c.dias_diferencia === 1 ? "día" : "días"}
+                            </span>
+                          </div>
+                          <p className="text-xs text-on-surface-variant mt-1">
+                            Debió pagarse el <strong>{formatDateEs(c.fecha)}</strong>
+                            {cuotaInteres > 0 && (
+                              <> · Interés esperado: <strong className="font-mono text-primary font-bold">{money(cuotaInteres)}</strong></>
+                            )}
+                          </p>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            onClose();
+                            onCobrar(prestamo.id, c.fecha);
+                          }}
+                          className="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 active:scale-95 text-white text-xs font-bold inline-flex items-center justify-center gap-1.5 shadow-xs cursor-pointer transition-all shrink-0 self-end sm:self-center"
+                          title={`Cobrar cuota de ${c.mes_nombre}`}
+                        >
+                          <ReceiptText className="w-3.5 h-3.5" />
+                          <span>Cobrar cuota {c.mes_nombre.split(" ")[0]}</span>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+
+                  {proximaCuota && (
+                    <div className="pt-2 border-t border-rose-500/20 flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-[11px] text-on-surface-variant">
+                      <span>Próxima cuota programada:</span>
+                      <span className="font-semibold text-on-surface">
+                        {proximaCuota.mes_nombre} · Vence el {formatDateEs(proximaCuota.fecha)}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              ) : balance > 0.01 ? (
+                <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/25 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+                    <div>
+                      <span className="font-bold text-emerald-800 dark:text-emerald-300">
+                        Préstamo al día · Sin atrasos
+                      </span>
+                      {prestamo.ultimo_mes_cubierto && (
+                        <span className="text-on-surface-variant text-[11px] block sm:inline sm:ml-2">
+                          (Cubierto hasta {prestamo.ultimo_mes_cubierto})
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  {proximaCuota && (
+                    <div className="text-[11px] text-on-surface-variant">
+                      Próxima cuota: <strong className="text-on-surface">{proximaCuota.mes_nombre}</strong> ({formatDateEs(proximaCuota.fecha)})
+                    </div>
+                  )}
+                </div>
+              ) : null}
 
               {/* Historial de Cobros de este Préstamo */}
               <div className="space-y-2">
