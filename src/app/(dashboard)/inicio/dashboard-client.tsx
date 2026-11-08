@@ -46,6 +46,8 @@ import {
   PiggyBank,
   CreditCard,
   Wallet,
+  BarChart3,
+  TrendingUp,
 } from "lucide-react";
 import {
   useDashboard,
@@ -334,9 +336,9 @@ export default function DashboardClient({
             cuentas={cuentas}
             espacioId={espacioId ?? ""}
             onClose={() => setKardexPrestamoId(null)}
-            onCobrar={(loanId) => {
+            onCobrar={(loanId, fechaEsperada) => {
               setKardexPrestamoId(null);
-              openModal("payment", { loanId });
+              openModal("payment", { loanId, fechaEsperada });
             }}
             onVerRecibo={(pago) => setReciboPago(pago)}
             onSuccess={async (msg) => {
@@ -1049,7 +1051,7 @@ function DashboardView({
                                   {p.vence_hoy
                                     ? "¡Vence hoy!"
                                     : isLate
-                                    ? "Con atraso"
+                                    ? `${p.meses_atrasados > 0 ? `${p.meses_atrasados} ${p.meses_atrasados === 1 ? "cuota atrasada" : "cuotas atrasadas"}` : "Con atraso"} (${p.dias_atraso} ${p.dias_atraso === 1 ? "día" : "días"})`
                                     : p.fecha_proximo_pago
                                     ? `Vence: ${formatDateEs(p.fecha_proximo_pago)}`
                                     : `Día ${p.dia_pago}`}
@@ -1693,12 +1695,12 @@ function EstadoPrestamoSelect({
       : "safari-dot-green";
 
   return (
-    <div className="has-custom-chevron relative inline-flex items-center">
+    <div className="has-custom-chevron relative inline-flex items-center shrink-0">
       <span className={`absolute left-2.5 pointer-events-none ${dotCls}`} />
       <select
         value={estado}
         onChange={(event) => onChange(event.target.value as "activo" | "pagado" | "atrasado" | "cancelado")}
-        className={`no-bg-chevron appearance-none w-[116px] pl-6 pr-7 py-1 rounded-md text-[11px] font-semibold border cursor-pointer transition-all focus:outline-none focus:ring-1 focus:ring-primary/30 shadow-2xs ${
+        className={`no-bg-chevron appearance-none w-[124px] pl-5.5 pr-6 py-1 rounded-md text-[11px] font-semibold border cursor-pointer transition-all focus:outline-none focus:ring-1 focus:ring-primary/30 shadow-2xs ${
           estado === "atrasado" ? "badge-atrasado" :
           estado === "pagado" ? "badge-saldado" :
           estado === "cancelado" ? "badge-neutral" :
@@ -1777,6 +1779,40 @@ function PrestamosView({
   const vencenHoy = activos.filter((p) => p.vence_hoy);
   const baseDisplayed = tab === "activos" ? activos : pagados;
 
+  const metricasCartera = useMemo(() => {
+    let capitalEnCalle = 0;
+    let capitalHistoricoTotal = 0;
+    let capitalEnMora = 0;
+    let atrasadosCount = 0;
+    let activosCount = 0;
+    let interesCobradoTotal = 0;
+
+    for (const p of prestamos) {
+      const balance = loanBalance(p);
+      const principal = Number(p.monto_principal) || 0;
+      capitalHistoricoTotal += principal;
+      interesCobradoTotal += Number(p.interes_pagado_total) || 0;
+
+      if (p.estado !== "pagado" && p.estado !== "cancelado") {
+        capitalEnCalle += balance;
+        activosCount++;
+        if (p.estado === "atrasado" || p.meses_atrasados > 0) {
+          capitalEnMora += balance;
+          atrasadosCount++;
+        }
+      }
+    }
+
+    return {
+      capitalEnCalle,
+      capitalHistoricoTotal,
+      capitalEnMora,
+      atrasadosCount,
+      activosCount,
+      interesCobradoTotal,
+    };
+  }, [prestamos]);
+
   const displayed = useMemo(() => {
     return baseDisplayed.filter((l) => {
       if (tab === "activos") {
@@ -1818,6 +1854,103 @@ function PrestamosView({
           <button className="flex-1 sm:flex-initial px-4 py-2.5 rounded-xl bg-primary text-on-primary text-xs font-semibold shadow-xs hover:bg-primary-container flex items-center justify-center gap-2 cursor-pointer" onClick={openModal}>
             <Plus className="w-4 h-4" /><span>Nuevo préstamo</span>
           </button>
+        </div>
+      </motion.div>
+
+      {/* Resumen rápido de cartera: Total prestado, activo, mora e intereses */}
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.24, delay: 0.02 }}
+        className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4"
+      >
+        <div className="bg-surface-container-lowest border border-surface-container-high/70 rounded-2xl p-3.5 sm:p-4 shadow-2xs flex flex-col justify-between">
+          <div className="flex items-center justify-between gap-1">
+            <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-on-surface-variant font-mono">
+              Total Prestado Activo
+            </span>
+            <div className="w-7 h-7 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+              <HandCoins className="w-3.5 h-3.5" />
+            </div>
+          </div>
+          <div className="mt-2">
+            <div className="font-heading text-lg sm:text-2xl font-extrabold text-primary tracking-tight">
+              {money(metricasCartera.capitalEnCalle)}
+            </div>
+            <div className="mt-1 text-[11px] text-on-surface-variant">
+              {metricasCartera.activosCount} {metricasCartera.activosCount === 1 ? "préstamo activo" : "préstamos activos"} en curso
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-surface-container-lowest border border-surface-container-high/70 rounded-2xl p-3.5 sm:p-4 shadow-2xs flex flex-col justify-between">
+          <div className="flex items-center justify-between gap-1">
+            <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-on-surface-variant font-mono">
+              Colocado Histórico
+            </span>
+            <div className="w-7 h-7 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+              <TrendingUp className="w-3.5 h-3.5" />
+            </div>
+          </div>
+          <div className="mt-2">
+            <div className="font-heading text-lg sm:text-2xl font-extrabold text-on-surface tracking-tight">
+              {money(metricasCartera.capitalHistoricoTotal)}
+            </div>
+            <div className="mt-1 text-[11px] text-on-surface-variant">
+              {prestamos.length} {prestamos.length === 1 ? "préstamo histórico" : "préstamos históricos"} otorgados
+            </div>
+          </div>
+        </div>
+
+        <div className={`bg-surface-container-lowest border rounded-2xl p-3.5 sm:p-4 shadow-2xs flex flex-col justify-between ${
+          metricasCartera.atrasadosCount > 0 ? "border-rose-500/40 bg-rose-500/[0.02]" : "border-surface-container-high/70"
+        }`}>
+          <div className="flex items-center justify-between gap-1">
+            <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-on-surface-variant font-mono">
+              En Mora / Retraso
+            </span>
+            <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
+              metricasCartera.atrasadosCount > 0 ? "bg-rose-500/15 text-rose-600 dark:text-rose-400" : "bg-surface-container text-on-surface-variant"
+            }`}>
+              <AlertCircle className="w-3.5 h-3.5" />
+            </div>
+          </div>
+          <div className="mt-2">
+            <div className={`font-heading text-lg sm:text-2xl font-extrabold tracking-tight ${
+              metricasCartera.atrasadosCount > 0 ? "text-rose-600 dark:text-rose-400" : "text-on-surface"
+            }`}>
+              {money(metricasCartera.capitalEnMora)}
+            </div>
+            <div className="mt-1 text-[11px] text-on-surface-variant">
+              {metricasCartera.atrasadosCount > 0
+                ? `${metricasCartera.atrasadosCount} ${metricasCartera.atrasadosCount === 1 ? "préstamo con atraso" : "préstamos con atraso"}`
+                : "Cartera 100% al día"}
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-surface-container-lowest border border-surface-container-high/70 rounded-2xl p-3.5 sm:p-4 shadow-2xs flex flex-col justify-between">
+          <div className="flex items-center justify-between gap-1">
+            <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-on-surface-variant font-mono">
+              Interés Cobrado
+            </span>
+            <Link
+              href="/reportes"
+              className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline font-semibold"
+              title="Ver análisis visual y gráficos de cartera"
+            >
+              <BarChart3 className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Gráficos</span>
+            </Link>
+          </div>
+          <div className="mt-2">
+            <div className="font-heading text-lg sm:text-2xl font-extrabold text-on-surface tracking-tight">
+              {money(metricasCartera.interesCobradoTotal)}
+            </div>
+            <div className="mt-1 text-[11px] text-on-surface-variant">
+              Rendimiento acumulado
+            </div>
+          </div>
         </div>
       </motion.div>
 
@@ -1974,7 +2107,7 @@ function PrestamosView({
         </div>
       ) : viewMode === "grid" ? (
         /* VISTA 1: Cuadrícula de Tarjetas Tech Minimalistas */
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {displayed.map((l, i) => {
             const nombre = rel(l.contactos)?.nombre ?? "—";
             const isPaid = l.estado === "pagado" || l.estado === "cancelado";
@@ -2060,7 +2193,7 @@ function PrestamosView({
                       {l.vence_hoy
                         ? "¡Vence hoy!"
                         : l.meses_atrasados > 0
-                        ? `Atraso: ${l.meses_atrasados}c (${l.dias_atraso}d)`
+                        ? `${l.meses_atrasados} ${l.meses_atrasados === 1 ? "cuota atrasada" : "cuotas atrasadas"} (${l.dias_atraso} ${l.dias_atraso === 1 ? "día" : "días"})`
                         : l.fecha_proximo_pago
                         ? `Vence: ${formatDateEs(l.fecha_proximo_pago)}`
                         : "Al día"}
@@ -2077,6 +2210,35 @@ function PrestamosView({
                       </button>
                     )}
                   </div>
+
+                  {/* Desglose explícito de fechas vencidas para eliminar necesidad de calcular */}
+                  {l.meses_atrasados > 0 && (() => {
+                    const vencidas = (l.periodos_sugeridos ?? []).filter((p) => p.estado === "vencido");
+                    if (vencidas.length === 0) return null;
+                    return (
+                      <div className="mt-1.5 p-2 rounded-xl bg-rose-500/10 border border-rose-500/20 text-xs space-y-1">
+                        <div className="flex items-center justify-between text-[11px] font-bold text-rose-700 dark:text-rose-400">
+                          <span className="truncate">Debe {vencidas.length} {vencidas.length === 1 ? "cuota" : "cuotas"}:</span>
+                          {l.cobra_interes && (
+                            <span className="font-mono font-extrabold shrink-0">
+                              {money(monthlyInterest(l) * l.meses_atrasados)}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex flex-wrap gap-1">
+                          {vencidas.map((v) => (
+                            <span
+                              key={v.fecha}
+                              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-surface-container-lowest/90 text-rose-700 dark:text-rose-300 border border-rose-500/30"
+                              title={`Venció el ${formatDateEs(v.fecha)} (${v.dias_diferencia} días atrasada)`}
+                            >
+                              <span>{v.mes_nombre} ({formatDateEs(v.fecha)})</span>
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 {/* Botones de acción minimalistas (estilo Links GitHub / Tech) */}
@@ -2182,14 +2344,28 @@ function PrestamosView({
 
                 {/* Vencimiento y Estado */}
                 <div className="flex items-center gap-2.5 shrink-0">
-                  <div className="text-right min-w-[110px] hidden sm:block">
+                  <div className="text-right min-w-[130px] hidden sm:block">
                     <span className={`text-xs block font-semibold ${
                       l.vence_hoy ? "text-amber-600 font-bold" : l.meses_atrasados > 0 ? "text-error font-bold" : "text-on-surface"
                     }`}>
-                      {l.vence_hoy ? "¡Vence Hoy!" : l.fecha_proximo_pago ? formatDateEs(l.fecha_proximo_pago) : "Al día"}
+                      {l.vence_hoy
+                        ? "¡Vence Hoy!"
+                        : l.meses_atrasados > 0
+                        ? `${l.meses_atrasados} ${l.meses_atrasados === 1 ? "cuota atrasada" : "cuotas atrasadas"} (${l.dias_atraso}d)`
+                        : l.fecha_proximo_pago
+                        ? formatDateEs(l.fecha_proximo_pago)
+                        : "Al día"}
                     </span>
                     <span className="text-[10px] text-on-surface-variant block">
-                      {l.cobra_interes ? `${l.tasa_interes_mensual}% int.` : "Sin interés"}
+                      {l.meses_atrasados > 0 && l.periodos_sugeridos && l.periodos_sugeridos.some((p) => p.estado === "vencido") ? (
+                        <span className="text-error font-semibold">
+                          Debe: {l.periodos_sugeridos.filter((p) => p.estado === "vencido").map((p) => p.mes_nombre.split(" ")[0]).join(", ")}
+                        </span>
+                      ) : l.cobra_interes ? (
+                        `${l.tasa_interes_mensual}% int.`
+                      ) : (
+                        "Sin interés"
+                      )}
                     </span>
                   </div>
 
