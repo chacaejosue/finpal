@@ -104,3 +104,60 @@ export function formatMonthYear(value: string | null | undefined): string {
   return value;
 }
 
+export function isoDate(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
+export function dueDateForMonth(year: number, month: number, day: number): string {
+  const lastDay = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+  return isoDate(new Date(Date.UTC(year, month, Math.min(day, lastDay))));
+}
+
+export function nextMonthDate(date: string, day: number): string {
+  const current = new Date(`${date}T00:00:00Z`);
+  return dueDateForMonth(current.getUTCFullYear(), current.getUTCMonth() + 1, day);
+}
+
+export interface MesTranscurrido {
+  fecha: string;
+  mesNombre: string;
+  label: string;
+}
+
+/**
+ * Calcula todas las cuotas mensuales devengadas entre la fecha de entrega y hoy.
+ * Útil para la migración de préstamos históricos y anteriores a FinPal.
+ */
+export function getMesesTranscurridosPrestamo(
+  fechaInicio: string,
+  diaPago: number,
+  hoyStr?: string,
+): MesTranscurrido[] {
+  if (!fechaInicio || !diaPago) return [];
+  const hoy = hoyStr || getLocalDateString();
+  const hoyDate = new Date(`${hoy}T00:00:00Z`);
+
+  const resultado: MesTranscurrido[] = [];
+
+  try {
+    let cursor = new Date(`${nextMonthDate(fechaInicio, diaPago)}T00:00:00Z`);
+    let count = 0;
+    while (cursor.getTime() <= hoyDate.getTime() && count < 60) {
+      const iso = isoDate(cursor);
+      const mesNom = formatMonthYear(iso);
+      resultado.push({
+        fecha: iso,
+        mesNombre: mesNom,
+        label: `Cuota de ${mesNom} (${formatDateEs(iso)})`,
+      });
+      cursor = new Date(`${nextMonthDate(iso, diaPago)}T00:00:00Z`);
+      count++;
+    }
+  } catch {
+    // Protección contra fechas inválidas
+  }
+
+  return resultado;
+}
+
+
