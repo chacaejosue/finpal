@@ -94,6 +94,7 @@ export interface ModalPresetOptions {
   tasa?: number;
   diaPago?: number;
   nombre?: string;
+  fechaEsperada?: string;
 }
 
 interface DashboardContextValue {
