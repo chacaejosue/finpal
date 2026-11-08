@@ -948,6 +948,7 @@ export function ModalKardexPrestamo({
 
   // Estado formulario Editar
   const [nombre, setNombre] = useState(prestamo.nombre);
+  const [fechaInicio, setFechaInicio] = useState(prestamo.fecha_inicio ?? "");
   const [cobraInteres, setCobraInteres] = useState(prestamo.cobra_interes);
   const [tasa, setTasa] = useState<number | string>(prestamo.tasa_interes_mensual);
   const [diaPago, setDiaPago] = useState(prestamo.dia_pago);
@@ -982,6 +983,7 @@ export function ModalKardexPrestamo({
     setError(null);
     const fd = new FormData();
     fd.append("nombre", nombre.trim());
+    fd.append("fecha_inicio", fechaInicio);
     fd.append("cobra_interes", String(cobraInteres));
     fd.append("tasa_interes_mensual", String(cobraInteres ? tasa : 0));
     fd.append("dia_pago", String(diaPago));
@@ -1461,10 +1463,10 @@ export function ModalKardexPrestamo({
 
           {tab === "editar" && (
             <div className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="sm:col-span-1">
                   <label className="block text-xs font-semibold text-on-surface mb-1">
-                    ¿Para qué es o cómo recuerdas el préstamo? *
+                    ¿Para qué es el préstamo? *
                   </label>
                   <input
                     type="text"
@@ -1475,7 +1477,18 @@ export function ModalKardexPrestamo({
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-on-surface mb-1">
-                    ¿Qué día de cada mes te pagará? (1 - 31) *
+                    Fecha de inicio / entrega *
+                  </label>
+                  <input
+                    type="date"
+                    value={fechaInicio}
+                    onChange={(e) => setFechaInicio(e.target.value)}
+                    className={inputCls}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-on-surface mb-1">
+                    Día de cobro mensual (1 - 31) *
                   </label>
                   <input
                     type="number"
