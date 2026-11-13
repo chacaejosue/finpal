@@ -1,8 +1,16 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useSyncExternalStore } from "react";
 import Image from "next/image";
-import { getSessionAccent } from "@/lib/theme-utils";
+import { usePathname } from "next/navigation";
+import { getSessionAccent, isPublicThemeRoute } from "@/lib/theme-utils";
+
+const subscribeStorage = (callback: () => void) => {
+  if (typeof window === "undefined") return () => {};
+  window.addEventListener("storage", callback);
+  return () => window.removeEventListener("storage", callback);
+};
+const getServerAccentSnapshot = () => null;
 
 interface LogoProps {
   className?: string;
@@ -17,28 +25,23 @@ export function FinPalLogo({
   priority = false,
   colorAcento,
 }: LogoProps) {
-  const [loadError, setLoadError] = useState(false);
-  const [sessionAccent, setSessionAccent] = useState<string | null>(null);
-
-  useEffect(() => {
-    setSessionAccent(getSessionAccent());
-    const onStorage = () => setSessionAccent(getSessionAccent());
-    window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
-  }, []);
+  const pathname = usePathname();
+  const isPublic = isPublicThemeRoute(pathname);
+  const [failedSrc, setFailedSrc] = useState<string | null>(null);
+  const sessionAccent = useSyncExternalStore(
+    subscribeStorage,
+    getSessionAccent,
+    getServerAccentSnapshot
+  );
 
   const validAccents = ["azul", "violeta", "naranja", "rosa"];
-  const resolvedAccent = colorAcento ?? sessionAccent;
+  const resolvedAccent = colorAcento ?? (isPublic ? null : sessionAccent);
   const preferredSrc =
     resolvedAccent && validAccents.includes(resolvedAccent)
       ? `/logo-${resolvedAccent}.svg`
       : "/logo.svg";
 
-  useEffect(() => {
-    setLoadError(false);
-  }, [preferredSrc]);
-
-  const activeSrc = loadError ? "/logo.svg" : preferredSrc;
+  const activeSrc = failedSrc === preferredSrc ? "/logo.svg" : preferredSrc;
 
   return (
     <div
@@ -55,7 +58,7 @@ export function FinPalLogo({
         suppressHydrationWarning
         className="w-full h-full object-contain select-none"
         priority={priority}
-        onError={() => setLoadError(true)}
+        onError={() => setFailedSrc(preferredSrc)}
       />
     </div>
   );

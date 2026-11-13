@@ -43,6 +43,19 @@ export const ACCENT_PALETTES = {
 export type AccentColorKey = keyof typeof ACCENT_PALETTES;
 export const SESSION_ACCENT_KEY = "finpal_session_accent";
 
+export function isPublicThemeRoute(pathname: string | null | undefined): boolean {
+  if (!pathname) return false;
+  return (
+    pathname === "/" ||
+    pathname.startsWith("/iniciar-sesion") ||
+    pathname.startsWith("/registrarse") ||
+    pathname.startsWith("/recuperar") ||
+    pathname.startsWith("/terminos") ||
+    pathname.startsWith("/privacidad") ||
+    pathname.startsWith("/mantenimiento")
+  );
+}
+
 export function getSessionAccent(): string | null {
   if (typeof window === "undefined") return null;
   try {
