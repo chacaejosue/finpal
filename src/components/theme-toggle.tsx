@@ -1,9 +1,15 @@
 "use client";
 
 import { useEffect, useState, useSyncExternalStore } from "react";
+import { usePathname } from "next/navigation";
 import { Moon, Sun } from "lucide-react";
 
-import { applyCustomAccent, getSessionAccent } from "@/lib/theme-utils";
+import {
+  applyCustomAccent,
+  getSessionAccent,
+  isPublicThemeRoute,
+  resetGlobalThemeColors,
+} from "@/lib/theme-utils";
 
 interface ThemeToggleProps {
   className?: string;
@@ -47,6 +53,8 @@ function disableTransitionsTemporarily(): () => void {
 }
 
 export function ThemeToggle({ className = "" }: ThemeToggleProps) {
+  const pathname = usePathname();
+  const isPublic = isPublicThemeRoute(pathname);
   const mounted = useSyncExternalStore(emptySubscribe, getClientMounted, getServerMounted);
   const [isDark, setIsDark] = useState(() => {
     if (typeof window !== "undefined") {
@@ -92,7 +100,11 @@ export function ThemeToggle({ className = "" }: ThemeToggleProps) {
       if (meta) meta.setAttribute("content", "#faf8ff");
     }
 
-    // Sincronizar colores dinámicos de acento de inmediato
+    // Sincronizar colores dinámicos de acento solo dentro de la cuenta (rutas privadas)
+    if (isPublic) {
+      resetGlobalThemeColors();
+      return;
+    }
     const sessionAccent = getSessionAccent();
     if (sessionAccent) {
       applyCustomAccent(sessionAccent);

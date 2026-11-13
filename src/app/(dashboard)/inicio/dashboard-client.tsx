@@ -93,7 +93,7 @@ import { getContactosArchivados, reactivarContacto } from "@/app/(dashboard)/con
 import { anularPago } from "@/app/(dashboard)/pagos/actions";
 import { eliminarMovimiento } from "@/app/(dashboard)/movimientos/actions";
 import { ModalAuditoriaEliminaciones } from "@/components/modal-auditoria-eliminaciones";
-import { Calculator, Eye, FolderOpen, Tag, UserCheck } from "lucide-react";
+import { Calculator, Tag } from "lucide-react";
 
 
 export type PageName =
@@ -945,7 +945,71 @@ function DashboardView({
                 </div>
 
                 {prestamos.length === 0 ? (
-                  <p className="text-xs text-on-surface-variant text-center py-8">No hay préstamos registrados aún.</p>
+                  <div className="rounded-2xl bg-surface-container-low/50 border border-dashed border-surface-container-high p-5 sm:p-6 space-y-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div>
+                        <h4 className="font-heading text-sm font-bold text-on-surface">
+                          Primeros pasos en FinPal
+                        </h4>
+                        <p className="text-xs text-on-surface-variant mt-0.5">
+                          Configura tu cartera en 3 pasos simples para empezar a registrar cobros.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => openModal("loan")}
+                        className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-primary text-on-primary text-xs font-semibold hover:bg-primary-container transition-colors cursor-pointer shrink-0"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Registrar primer préstamo</span>
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
+                      <Link
+                        href="/cuentas"
+                        className="p-3 rounded-xl bg-surface-container-lowest border border-surface-container-high/60 hover:border-primary/40 transition-colors flex items-start gap-2.5"
+                      >
+                        <span className="w-5 h-5 rounded-full bg-primary/10 text-primary font-bold text-[11px] flex items-center justify-center shrink-0">
+                          1
+                        </span>
+                        <div className="min-w-0">
+                          <p className="font-semibold text-on-surface">Crea una cuenta</p>
+                          <p className="text-[11px] text-on-surface-variant">
+                            Efectivo o banco ({cuentas.length} {cuentas.length === 1 ? "activa" : "activas"})
+                          </p>
+                        </div>
+                      </Link>
+                      <Link
+                        href="/contactos"
+                        className="p-3 rounded-xl bg-surface-container-lowest border border-surface-container-high/60 hover:border-primary/40 transition-colors flex items-start gap-2.5"
+                      >
+                        <span className="w-5 h-5 rounded-full bg-primary/10 text-primary font-bold text-[11px] flex items-center justify-center shrink-0">
+                          2
+                        </span>
+                        <div className="min-w-0">
+                          <p className="font-semibold text-on-surface">Agrega un contacto</p>
+                          <p className="text-[11px] text-on-surface-variant">
+                            Deudores con datos cifrados
+                          </p>
+                        </div>
+                      </Link>
+                      <button
+                        type="button"
+                        onClick={() => openModal("loan")}
+                        className="p-3 rounded-xl bg-surface-container-lowest border border-surface-container-high/60 hover:border-primary/40 transition-colors flex items-start gap-2.5 text-left cursor-pointer"
+                      >
+                        <span className="w-5 h-5 rounded-full bg-primary/10 text-primary font-bold text-[11px] flex items-center justify-center shrink-0">
+                          3
+                        </span>
+                        <div className="min-w-0">
+                          <p className="font-semibold text-on-surface">Registra el préstamo</p>
+                          <p className="text-[11px] text-on-surface-variant">
+                            Define tasa y fecha de cobro
+                          </p>
+                        </div>
+                      </button>
+                    </div>
+                  </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
                     {prestamosToShow.map((p, i) => {
@@ -956,7 +1020,6 @@ function DashboardView({
                       const pctAmortizado = principal > 0 ? Math.min(100, Math.round((pagado / principal) * 100)) : 0;
                       const isLate = p.estado === "atrasado";
                       const isPaid = p.estado === "pagado";
-                      const monthlyInt = monthlyInterest(p);
 
                       return (
                         <motion.div
@@ -964,7 +1027,7 @@ function DashboardView({
                           initial={{ opacity: 0, y: 10 }}
                           animate={{ opacity: 1, y: 0 }}
                           transition={{ duration: 0.22, delay: Math.min(i * 0.04, 0.2) }}
-                          className="bg-surface-container-low/40 hover:bg-surface-container-low/80 border border-surface-container-high/70 hover:border-primary/40 rounded-2xl p-4 shadow-2xs hover:shadow-xs transition-all flex flex-col justify-between group"
+                          className="bg-surface-container-low/40 hover:bg-surface-container-low/80 border border-surface-container-high/70 hover:border-primary/40 rounded-2xl p-4 shadow-2xs hover:shadow-xs transition-all flex flex-col justify-between group overflow-hidden"
                         >
                           <div>
                             {/* Header del préstamo */}
@@ -1128,9 +1191,9 @@ function DashboardView({
                           }`}>
                             {isPositive ? <ArrowDownLeft className="w-4 h-4" /> : <ArrowUpRight className="w-4 h-4" />}
                           </div>
-                          <div className="min-w-0">
+                          <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-1.5 flex-wrap">
-                              <p className="text-xs font-bold text-on-surface truncate">{fixSpanishEncoding(m.descripcion || badge.label)}</p>
+                              <p className="text-xs font-bold text-on-surface truncate max-w-full">{fixSpanishEncoding(m.descripcion || badge.label)}</p>
                               <span className={`inline-flex items-center px-1.5 py-0.2 rounded-full text-[9px] font-bold border ${badge.badgeClass}`}>
                                 {badge.label}
                               </span>
@@ -1574,10 +1637,10 @@ function ContactosView({
                 animate={{ opacity: 1, y: 0 }}
                 whileHover={{ y: -1, transition: { duration: 0.14 } }}
                 transition={{ duration: 0.2, delay: Math.min(i * 0.02, 0.2) }}
-                className="bg-surface-container-lowest border border-surface-container-high/80 rounded-xl p-3 sm:px-4 sm:py-3 shadow-2xs hover:shadow-xs transition-all flex flex-col md:flex-row md:items-center justify-between gap-3"
+                className="bg-surface-container-lowest border border-surface-container-high/80 rounded-xl p-3 sm:px-4 sm:py-3 shadow-2xs hover:shadow-xs transition-all flex flex-col md:flex-row md:items-center justify-between gap-3 overflow-hidden"
               >
                 {/* Persona y datos */}
-                <div className="flex items-center gap-3 min-w-[200px]">
+                <div className="flex items-center gap-3 min-w-0 flex-1">
                   <ContactAvatar name={c.nombre} size={36} className="rounded-full shadow-2xs shrink-0" />
                   <div className="min-w-0">
                     <button
@@ -2297,12 +2360,12 @@ function PrestamosView({
                 animate={{ opacity: 1, y: 0 }}
                 whileHover={{ y: -1, transition: { duration: 0.14 } }}
                 transition={{ duration: 0.2, delay: Math.min(i * 0.02, 0.2) }}
-                className={`bg-surface-container-lowest border border-surface-container-high/80 rounded-xl p-3.5 sm:px-4 sm:py-3 shadow-2xs hover:shadow-xs transition-all flex flex-col md:flex-row md:items-center justify-between gap-3 ${
+                className={`bg-surface-container-lowest border border-surface-container-high/80 rounded-xl p-3.5 sm:px-4 sm:py-3 shadow-2xs hover:shadow-xs transition-all flex flex-col md:flex-row md:items-center justify-between gap-3 overflow-hidden ${
                   isPaid ? "opacity-75" : ""
                 }`}
               >
                 {/* Info del deudor */}
-                <div className="flex items-center gap-3 min-w-[200px]">
+                <div className="flex items-center gap-3 min-w-0 flex-1">
                   <ContactAvatar name={nombre} size={36} className="rounded-full shadow-2xs shrink-0" />
                   <div className="min-w-0">
                     <div className="flex items-center gap-1.5">
@@ -4148,7 +4211,7 @@ function CuentasView({
                   <div className="flex items-start gap-2.5">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mt-1.5 shrink-0" />
                     <p className="leading-relaxed">
-                      <strong className="text-on-surface">Recuperable:</strong> podrás consultar su historial o reactivarla cuando quieras en <em>"Cuentas archivadas"</em>.
+                      <strong className="text-on-surface">Recuperable:</strong> podrás consultar su historial o reactivarla cuando quieras en <em>&ldquo;Cuentas archivadas&rdquo;</em>.
                     </p>
                   </div>
                   {cuentaAEliminar.saldo === 0 && (
@@ -4534,14 +4597,25 @@ function MovimientosView({
                 initial={{ opacity: 0, y: 4 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.18, delay: Math.min(i * 0.015, 0.15) }}
-                className="bg-surface-container-lowest border border-surface-container-high/70 rounded-xl p-3 sm:px-4 shadow-2xs hover:shadow-xs transition-all flex flex-col md:flex-row md:items-center justify-between gap-2.5"
+                className="bg-surface-container-lowest border border-surface-container-high/70 rounded-xl p-3 sm:px-4 shadow-2xs hover:shadow-xs transition-all flex flex-col md:flex-row md:items-center justify-between gap-2.5 overflow-hidden"
               >
-                <div className="flex items-center gap-3 min-w-[200px]">
+                <div className="flex items-center gap-3 min-w-0 flex-1">
                   <span className={`w-2 h-2 rounded-full shrink-0 ${isPositive ? "bg-primary" : "bg-rose-500"}`} />
-                  <div className="min-w-0">
-                    <span className="font-semibold text-xs sm:text-sm text-on-surface truncate block">
-                      {m.descripcion ? fixSpanishEncoding(m.descripcion) : badge.label}
-                    </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="font-semibold text-xs sm:text-sm text-on-surface truncate block">
+                        {m.descripcion ? fixSpanishEncoding(m.descripcion) : badge.label}
+                      </span>
+                      {m.descripcion && m.descripcion.length > 35 && (
+                        <button
+                          type="button"
+                          onClick={() => onVerNota("Detalle del movimiento", badge.label, m.descripcion)}
+                          className="text-[11px] text-primary hover:underline font-semibold cursor-pointer shrink-0"
+                        >
+                          Ver más
+                        </button>
+                      )}
+                    </div>
                     <span className="text-[11px] text-on-surface-variant block">
                       {formatDateEs(m.ocurrido_en)} · {cuentaNombre}
                     </span>

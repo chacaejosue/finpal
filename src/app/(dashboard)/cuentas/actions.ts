@@ -36,6 +36,20 @@ export async function getCuentasConSaldo(espacioId: string) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return [];
 
+  // Vía optimizada: cálculo agregado en PostgreSQL mediante RPC
+  const { data: rpcData, error: rpcError } = await supabase.rpc("fn_obtener_saldos_cuentas", {
+    p_espacio_id: espacioId,
+  });
+
+  if (!rpcError && Array.isArray(rpcData)) {
+    return rpcData.map((cuenta) => ({
+      ...cuenta,
+      saldo_inicial: Number(cuenta.saldo_inicial),
+      saldo: Number(cuenta.saldo),
+    }));
+  }
+
+  // Fallback seguro si la función SQL aún no se ha aplicado en la base de datos
   const [{ data: cuentas, error: cuentasError }, { data: movimientos, error: movimientosError }] =
     await Promise.all([
       supabase

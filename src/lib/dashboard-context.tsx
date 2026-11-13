@@ -180,17 +180,16 @@ export function DashboardProvider({
     tasaInteresPredeterminada: 3,
   });
 
+  const [nowTime, setNowTime] = useState<number>(0);
+
   useEffect(() => {
     const cachedAccent = getSessionAccent() || initialColorAcento;
     const validAccents = ["verde", "azul", "violeta", "naranja", "rosa"];
     if (cachedAccent && validAccents.includes(cachedAccent) && cachedAccent !== "verde") {
-      setPreferencias((prev) => ({
-        ...prev,
-        colorAcento: cachedAccent as Preferencias["colorAcento"],
-      }));
       setSessionAccent(cachedAccent);
       applyCustomAccent(cachedAccent);
     }
+    queueMicrotask(() => setNowTime(Date.now()));
   }, [initialColorAcento]);
 
   const loadData = useCallback(async () => {
@@ -238,8 +237,9 @@ export function DashboardProvider({
     return null;
   }, []);
 
-  // Carga de preferencias globales del usuario (independiente de si hay espacioId seleccionado o no)
+  // Carga de preferencias globales solo si aún no hay espacioId (evita doble consulta cuando loadData ya las trae)
   useEffect(() => {
+    if (espacioId) return;
     getPreferencias()
       .then((prefs) => {
         if (prefs) {
@@ -254,14 +254,16 @@ export function DashboardProvider({
         }
       })
       .catch(() => {});
-  }, []);
+  }, [espacioId]);
 
   useEffect(() => {
     if (!espacioId) {
       router.push("/espacios");
       return;
     }
-    loadData();
+    queueMicrotask(() => {
+      void loadData();
+    });
   }, [espacioId, loadData, router]);
 
   /**
@@ -286,12 +288,13 @@ export function DashboardProvider({
     const interestPaid = pagos.reduce((sum, p) => sum + Number(p.monto_interes), 0);
     const lateCount = prestamos.filter((p) => p.estado === "atrasado").length;
     const dueTodayCount = activeLoans.filter((p) => p.vence_hoy).length;
-    const nowTime = Date.now();
-    const dueSoonCount = activeLoans.filter((p) => {
-      if (p.vence_hoy || p.estado === "atrasado" || !p.fecha_proximo_pago) return false;
-      const diffDays = Math.ceil((new Date(`${p.fecha_proximo_pago}T00:00:00`).getTime() - nowTime) / (1000 * 60 * 60 * 24));
-      return diffDays >= 1 && diffDays <= 5;
-    }).length;
+    const dueSoonCount = nowTime
+      ? activeLoans.filter((p) => {
+          if (p.vence_hoy || p.estado === "atrasado" || !p.fecha_proximo_pago) return false;
+          const diffDays = Math.ceil((new Date(`${p.fecha_proximo_pago}T00:00:00`).getTime() - nowTime) / (1000 * 60 * 60 * 24));
+          return diffDays >= 1 && diffDays <= 5;
+        }).length
+      : 0;
     const paidLoansCount = prestamos.filter((p) => p.estado === "pagado").length;
     const activeLoansCount = activeLoans.length;
     return {
@@ -308,7 +311,7 @@ export function DashboardProvider({
       paidLoansCount,
       activeLoansCount,
     };
-  }, [cuentas, prestamos, movimientos, pagos]);
+  }, [cuentas, prestamos, movimientos, pagos, nowTime]);
 
   const openModal = (m: ModalType, preset?: ModalPresetOptions) => {
     setFormError(null);
@@ -364,8 +367,9 @@ export function DashboardProvider({
       window.setTimeout(() => setSuccessNotice(null), 3500);
       closeModal();
       await loadData();
-      if (modal === "payment" && (result as any)?.pago) {
-        setReciboCobroModal((result as any).pago);
+      const pagoRecibo = (result as { pago?: Pago } | undefined)?.pago;
+      if (modal === "payment" && pagoRecibo) {
+        setReciboCobroModal(pagoRecibo);
       }
     }
   }

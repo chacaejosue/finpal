@@ -24,7 +24,6 @@ import {
   AlertCircle,
   Calendar,
   FileBarChart2,
-  Menu,
   Check,
   PanelLeftClose,
   PanelLeftOpen,
@@ -46,6 +45,7 @@ import {
   Info,
   History,
   CheckCircle2,
+  Search,
 } from "lucide-react";
 import { useEspacio } from "@/lib/espacio-context";
 import {
@@ -79,6 +79,7 @@ import {
 import { ThemeToggle } from "@/components/theme-toggle";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { DashboardRouteSkeleton } from "@/components/dashboard-skeletons";
+import { DashboardCommandPalette } from "@/components/dashboard-command-palette";
 
 const navItems = [
   { label: "Inicio", path: "/inicio", key: "inicio", icon: LayoutDashboard },
@@ -133,10 +134,12 @@ export function DashboardShell({
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [mobileQuickActionOpen, setMobileQuickActionOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [nowTime, setNowTime] = useState(0);
   const [optimisticPath, setOptimisticPath] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const [isFormDirty, setIsFormDirty] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [commandOpen, setCommandOpen] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
   const workspaceDropdownDesktopRef = useRef<HTMLDivElement>(null);
   const workspaceDropdownMobileRef = useRef<HTMLDivElement>(null);
@@ -151,16 +154,19 @@ export function DashboardShell({
     }
   }, [espacioId, espaciosDisponibles, codigoMoneda, setCodigoMoneda]);
 
-  // Cargar preferencia de barra lateral minimizada desde localStorage
+  // Cargar preferencia de barra lateral minimizada desde localStorage e inicializar reloj
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem("finpal_sidebar_collapsed");
-      if (saved !== null) {
-        setSidebarCollapsed(saved === "true");
+    queueMicrotask(() => {
+      setNowTime(Date.now());
+      try {
+        const saved = localStorage.getItem("finpal_sidebar_collapsed");
+        if (saved !== null) {
+          setSidebarCollapsed(saved === "true");
+        }
+      } catch {
+        // Ignorar si el almacenamiento local está restringido
       }
-    } catch {
-      // Ignorar si el almacenamiento local está restringido
-    }
+    });
   }, []);
 
   const toggleSidebarCollapse = useCallback(() => {
@@ -229,26 +235,29 @@ export function DashboardShell({
     const active = prestamos.filter((p) => p.estado === "activo" || p.estado === "atrasado");
     const late = active.filter((p) => p.estado === "atrasado");
     const today = active.filter((p) => p.vence_hoy && p.estado !== "atrasado");
-    const nowTime = Date.now();
-    const soon = active.filter((p) => {
-      if (p.vence_hoy || p.estado === "atrasado" || !p.fecha_proximo_pago) return false;
-      const diffDays = Math.ceil(
-        (new Date(`${p.fecha_proximo_pago}T00:00:00`).getTime() - nowTime) / (1000 * 60 * 60 * 24),
-      );
-      return diffDays >= 1 && diffDays <= 5;
-    });
+    const soon = nowTime
+      ? active.filter((p) => {
+          if (p.vence_hoy || p.estado === "atrasado" || !p.fecha_proximo_pago) return false;
+          const diffDays = Math.ceil(
+            (new Date(`${p.fecha_proximo_pago}T00:00:00`).getTime() - nowTime) / (1000 * 60 * 60 * 24),
+          );
+          return diffDays >= 1 && diffDays <= 5;
+        })
+      : [];
     return {
       late,
       today,
       soon,
       total: late.length + today.length + soon.length,
     };
-  }, [prestamos]);
+  }, [prestamos, nowTime]);
 
-  // Advertencia antes de cerrar pestaña con formulario incompleto
-  useEffect(() => {
+  // Resetear estado dirty al cambiar de modal
+  const [prevModal, setPrevModal] = useState(modal);
+  if (prevModal !== modal) {
+    setPrevModal(modal);
     setIsFormDirty(false);
-  }, [modal]);
+  }
 
   useEffect(() => {
     if (!modal || !isFormDirty) return;
@@ -283,13 +292,15 @@ export function DashboardShell({
   };
 
   // Cerrar menú móvil, dropdown de espacios y sincronizar ruta optimista automáticamente al navegar
-  useEffect(() => {
+  const [prevPath, setPrevPath] = useState(pathname);
+  if (prevPath !== pathname) {
+    setPrevPath(pathname);
     setMobileNavOpen(false);
     setMobileQuickActionOpen(false);
     setOptimisticPath(null);
     setShowWorkspaceDropdown(false);
     setShowAlertsDropdown(false);
-  }, [pathname]);
+  }
 
   const isRouteLoading = optimisticPath !== null && pathname !== optimisticPath;
   const activePath = isRouteLoading ? optimisticPath : pathname;
@@ -906,6 +917,21 @@ export function DashboardShell({
           </div>
 
           <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
+            {/* Buscador rápido (Ctrl+K) */}
+            <button
+              type="button"
+              onClick={() => setCommandOpen(true)}
+              className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-surface-container-low hover:bg-surface-container text-on-surface-variant hover:text-on-surface text-xs font-medium border border-surface-container-high/50 transition-colors cursor-pointer"
+              title="Buscador rápido (Ctrl + K)"
+              aria-label="Abrir buscador rápido"
+            >
+              <Search className="w-3.5 h-3.5 text-primary shrink-0" />
+              <span className="hidden lg:inline">Buscar</span>
+              <kbd className="hidden xl:inline-block px-1.5 py-0.5 text-[10px] font-mono bg-surface-container-lowest border border-surface-container-high/60 rounded-md">
+                Ctrl K
+              </kbd>
+            </button>
+
             {/* Botón Importar Excel / CSV */}
             <button
               type="button"
@@ -1517,6 +1543,17 @@ export function DashboardShell({
         )}
       </AnimatePresence>
 
+      {/* Buscador rápido Ctrl+K */}
+      <DashboardCommandPalette
+        open={commandOpen}
+        onOpen={() => setCommandOpen(true)}
+        onClose={() => setCommandOpen(false)}
+        contactos={contactos}
+        prestamos={prestamos}
+        openModal={openModal}
+        onNavigate={(path) => setOptimisticPath(path)}
+      />
+
       {/* Monitor de inactividad de sesión (alerta a 15m, cierre automático a 20m) */}
       <InactivityMonitor />
     </div>
@@ -1589,6 +1626,9 @@ function ModalWrapper({
       onClick={handleBackdropClick}
     >
       <motion.div
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
         initial={{ y: 20, opacity: 0 }}
         animate={
           shake
@@ -1682,12 +1722,6 @@ function DateField({
   const [internalValue, setInternalValue] = useState(value ?? defaultValue ?? "");
   const currentValue = value ?? internalValue;
   const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (value !== undefined) {
-      setInternalValue(value);
-    }
-  }, [value]);
 
   const handleOpenPicker = () => {
     try {
@@ -2511,12 +2545,18 @@ function PagoForm({
     return prestamos.find((prestamo) => prestamo.id === prestamoId) ?? null;
   }, [prestamos, prestamoId]);
 
-  useEffect(() => {
+  const [prevPagoSync, setPrevPagoSync] = useState({
+    prestamoId,
+    initialFechaEsperada,
+  });
+  if (
+    prevPagoSync.prestamoId !== prestamoId ||
+    prevPagoSync.initialFechaEsperada !== initialFechaEsperada
+  ) {
+    setPrevPagoSync({ prestamoId, initialFechaEsperada });
     if (initialFechaEsperada) {
       setFechaEsperada(initialFechaEsperada);
-      return;
-    }
-    if (prestamoSeleccionado) {
+    } else if (prestamoSeleccionado) {
       const primerSugerido =
         prestamoSeleccionado.periodos_sugeridos?.[0]?.fecha ??
         prestamoSeleccionado.fecha_proximo_pago;
@@ -2524,7 +2564,7 @@ function PagoForm({
         setFechaEsperada(primerSugerido);
       }
     }
-  }, [prestamoId, prestamoSeleccionado, initialFechaEsperada]);
+  }
 
   const capitalPendiente = prestamoSeleccionado ? loanBalance(prestamoSeleccionado) : 0;
   const interesEstimado = prestamoSeleccionado ? monthlyInterest(prestamoSeleccionado) : 0;

@@ -18,7 +18,7 @@ import { clearSessionAccent } from "@/lib/theme-utils";
 export function InactivityMonitor() {
   const [showWarning, setShowWarning] = useState(false);
   const [secondsRemaining, setSecondsRemaining] = useState(300); // 5 min de advertencia
-  const lastActivityRef = useRef<number>(Date.now());
+  const lastActivityRef = useRef<number>(0);
   const isLoggingOutRef = useRef<boolean>(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
@@ -33,6 +33,7 @@ export function InactivityMonitor() {
 
   // Escuchar interacción del usuario para restablecer la marca de tiempo de actividad
   useEffect(() => {
+    lastActivityRef.current = Date.now();
     let throttleTimeout: NodeJS.Timeout | null = null;
 
     const handleUserInteraction = () => {

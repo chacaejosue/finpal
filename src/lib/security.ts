@@ -1,5 +1,3 @@
-import { z } from "zod";
-
 /**
  * Tiempo de espera de inactividad de 20 minutos en milisegundos
  */
