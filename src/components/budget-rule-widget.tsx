@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   PieChart,
@@ -18,9 +18,7 @@ import {
   CheckSquare,
   Square,
   X,
-  Info,
   WalletCards,
-  ArrowDownLeft,
 } from "lucide-react";
 import { money, useDashboard, type Movimiento, type Pago } from "@/lib/dashboard-context";
 import { formatMonthYear, getLocalDateString } from "@/lib/format-date";
@@ -81,9 +79,6 @@ const BUDGET_MODELS: Record<BudgetModelKey, BudgetModelConfig> = {
   },
 };
 
-const NEEDS_REGEX =
-  /(alquiler|arriendo|vivienda|casa|depa|luz|agua|gas|electricidad|internet|wifi|celular|telefonia|comida|supermercado|mercado|alimento|almuerzo|desayuno|cena|canasta|transporte|gasolina|combustible|pasaje|micro|bus|seguro|salud|medico|farmacia|medicina|doctor|clinica|dentista|educacion|colegio|universidad|pension|impuesto|tributo|cuota|servicio|mantenimiento)/i;
-
 const WANTS_REGEX =
   /(ocio|diversion|salida|salidas|fiesta|bar|cerveza|trago|restaurante|cafe|cafeteria|delivery|pedidosya|uber|cine|pelicula|streaming|netflix|spotify|disney|juego|videojuego|ropa|vestimenta|zapato|zapatos|moda|viaje|vacacion|hotel|hobby|hobbies|regalo|gusto|antojo|compras|shopping|belleza|peluqueria|spa)/i;
 
@@ -107,7 +102,10 @@ export function BudgetRuleWidget({
   // Contexto central para obtener préstamos y pagos registrados
   const dashboard = useDashboard();
   const totals = dashboard?.totals;
-  const allPagos = propsPagos ?? dashboard?.pagos ?? [];
+  const allPagos = useMemo(
+    () => propsPagos ?? dashboard?.pagos ?? [],
+    [propsPagos, dashboard?.pagos]
+  );
 
   const [modelKey, setModelKey] = useState<BudgetModelKey>(() => {
     if (typeof window === "undefined") return "50_30_20";
@@ -153,11 +151,22 @@ export function BudgetRuleWidget({
     baseConfig.manualExtra > 0 ? String(baseConfig.manualExtra) : ""
   );
 
-  // Sincronizar inputs temporales cuando cambia baseConfig
-  useEffect(() => {
+  const [prevBaseSync, setPrevBaseSync] = useState({
+    fixedAmount: baseConfig.fixedAmount,
+    manualExtra: baseConfig.manualExtra,
+  });
+
+  if (
+    prevBaseSync.fixedAmount !== baseConfig.fixedAmount ||
+    prevBaseSync.manualExtra !== baseConfig.manualExtra
+  ) {
+    setPrevBaseSync({
+      fixedAmount: baseConfig.fixedAmount,
+      manualExtra: baseConfig.manualExtra,
+    });
     setTempFixedAmount(baseConfig.fixedAmount > 0 ? String(baseConfig.fixedAmount) : "");
     setTempManualExtra(baseConfig.manualExtra > 0 ? String(baseConfig.manualExtra) : "");
-  }, [baseConfig.fixedAmount, baseConfig.manualExtra]);
+  }
 
   const updateBaseConfig = (updater: (prev: BudgetBaseConfig) => BudgetBaseConfig) => {
     setBaseConfig((prev) => {

@@ -71,10 +71,24 @@ export function ModalAuditoriaEliminaciones({
   }, [espacioId]);
 
   useEffect(() => {
-    if (isOpen) {
-      cargarAuditoria();
-    }
-  }, [isOpen, cargarAuditoria]);
+    if (!isOpen || !espacioId) return;
+    let active = true;
+    Promise.resolve().then(async () => {
+      if (!active) return;
+      setLoading(true);
+      try {
+        const data = await getAuditoriaEliminaciones(espacioId, 50);
+        if (active) setRegistros(data);
+      } catch (err) {
+        console.error("Error al cargar la bitácora de auditoría:", err);
+      } finally {
+        if (active) setLoading(false);
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, [isOpen, espacioId]);
 
   if (!isOpen) return null;
 

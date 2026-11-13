@@ -3,17 +3,12 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import {
   Search,
-  HandCoins,
-  Check,
-  Calendar,
   Phone,
   Mail,
-  FileText,
   AlertOctagon,
   CheckCircle2,
   RefreshCw,
   X,
-  User,
 } from "lucide-react";
 import { ContactAvatar } from "@/components/contact-avatar";
 import { money, loanBalance, rel, type Prestamo } from "@/lib/dashboard-context";
@@ -80,10 +75,11 @@ export function DeudorPrestamoPicker({
       // Filtro de texto (nombre, teléfono, email, notas del contacto, concepto del préstamo y notas)
       if (!q) return true;
 
-      const nombreContacto = (contacto?.nombre ?? "").toLowerCase();
-      const telefono = ((contacto as any)?.telefono ?? "").toLowerCase();
-      const email = ((contacto as any)?.email ?? "").toLowerCase();
-      const notasContacto = ((contacto as any)?.notas ?? "").toLowerCase();
+      const cExt = contacto as { nombre?: string; telefono?: string | null; email?: string | null; notas?: string | null } | null;
+      const nombreContacto = (cExt?.nombre ?? "").toLowerCase();
+      const telefono = (cExt?.telefono ?? "").toLowerCase();
+      const email = (cExt?.email ?? "").toLowerCase();
+      const notasContacto = (cExt?.notas ?? "").toLowerCase();
       const nombrePrestamo = (p.nombre ?? "").toLowerCase();
       const notasPrestamo = (p.notas ?? "").toLowerCase();
 
@@ -125,9 +121,10 @@ export function DeudorPrestamoPicker({
     const contacto = rel(selectedPrestamo.contactos);
     const balance = loanBalance(selectedPrestamo);
     const isAtrasado = selectedPrestamo.estado === "atrasado";
-    const telefono = (contacto as any)?.telefono;
-    const email = (contacto as any)?.email;
-    const notasContacto = (contacto as any)?.notas;
+    const cExt = contacto as { telefono?: string | null; email?: string | null; notas?: string | null } | null;
+    const telefono = cExt?.telefono;
+    const email = cExt?.email;
+    const notasContacto = cExt?.notas;
 
     return (
       <div className="space-y-1.5">
@@ -318,9 +315,10 @@ export function DeudorPrestamoPicker({
               const balance = loanBalance(p);
               const isSelected = p.id === selectedId;
               const isAtrasado = p.estado === "atrasado";
-              const telefono = (contacto as any)?.telefono;
-              const email = (contacto as any)?.email;
-              const notasContacto = (contacto as any)?.notas;
+              const cExt = contacto as { telefono?: string | null; email?: string | null; notas?: string | null } | null;
+              const telefono = cExt?.telefono;
+              const email = cExt?.email;
+              const notasContacto = cExt?.notas;
 
               return (
                 <div

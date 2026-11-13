@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef } from "react";
 import { Check, ChevronRight, Loader2 } from "lucide-react";
 
 export interface SlideToConfirmProps {
@@ -20,15 +20,16 @@ export function SlideToConfirm({
 }: SlideToConfirmProps) {
   const [sliderPosition, setSliderPosition] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
+  const [prevDeps, setPrevDeps] = useState({ submitting, resetTrigger });
   const trackRef = useRef<HTMLDivElement>(null);
 
-  // Cada vez que termina el envío o cambia la condición de reseteo, devolver la barra al inicio
-  useEffect(() => {
+  if (prevDeps.submitting !== submitting || prevDeps.resetTrigger !== resetTrigger) {
+    setPrevDeps({ submitting, resetTrigger });
     if (!submitting) {
       setSliderPosition(0);
       setIsDragging(false);
     }
-  }, [submitting, resetTrigger]);
+  }
 
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (submitting) return;

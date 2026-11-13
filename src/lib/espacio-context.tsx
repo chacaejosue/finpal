@@ -42,21 +42,23 @@ export function EspacioProvider({ children }: { children: ReactNode }) {
 
   // Rehidratar desde localStorage al montar el componente
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const { id, nombre, zonaHoraria: savedZona, codigoMoneda: savedMoneda } = JSON.parse(saved);
-        setEspacioId(id);
-        setEspacioNombre(nombre);
-        if (savedZona) setZonaHorariaState(savedZona);
-        if (savedMoneda) {
-          setCodigoMonedaState(savedMoneda);
-          setActiveCurrencyCode(savedMoneda);
+    queueMicrotask(() => {
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+          const { id, nombre, zonaHoraria: savedZona, codigoMoneda: savedMoneda } = JSON.parse(saved);
+          setEspacioId(id);
+          setEspacioNombre(nombre);
+          if (savedZona) setZonaHorariaState(savedZona);
+          if (savedMoneda) {
+            setCodigoMonedaState(savedMoneda);
+            setActiveCurrencyCode(savedMoneda);
+          }
         }
+      } catch {
+        // Ignorar errores al parsear
       }
-    } catch {
-      // Ignorar errores al parsear
-    }
+    });
   }, []);
 
   function setEspacio(id: string, nombre: string, zona?: string, moneda?: string) {

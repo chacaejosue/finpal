@@ -11,7 +11,7 @@ import {
 
 import { isValidUuid, sanitizeText } from "@/lib/security";
 import { encryptFieldSync, decryptFieldSync, isEncrypted, autoMigrateRow } from "@/lib/crypto";
-import { getLocalDateString, formatMonthYear, formatDateEs, isoDate, dueDateForMonth, nextMonthDate } from "@/lib/format-date";
+import { getLocalDateString, formatMonthYear, formatDateEs, isoDate, nextMonthDate } from "@/lib/format-date";
 import { checkRateLimit, QUOTAS } from "@/lib/rate-limit";
 
 // ── Listar préstamos del espacio ──────────────────────────────────────────
