@@ -1,4 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Hanken+Grotesk:wght@600;700;800&display=swap');
 @import "tailwindcss";
 
 @variant dark (&:where([data-theme="dark"], [data-theme="dark"] *, .dark, .dark *));
@@ -52,8 +51,8 @@
   --color-on-background: #131b2e;
   --color-surface-variant: #dae2fd;
 
-  --font-heading: "Hanken Grotesk", sans-serif;
-  --font-sans: "Geist", sans-serif;
+  --font-heading: var(--font-hanken-grotesk), "Hanken Grotesk", sans-serif;
+  --font-sans: var(--font-geist), "Geist", sans-serif;
 }
 
 :root {

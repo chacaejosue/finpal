@@ -1,7 +1,22 @@
 import type { Metadata, Viewport } from "next";
+import { Geist, Hanken_Grotesk } from "next/font/google";
 import "./globals.css";
 import { EspacioProvider } from "@/lib/espacio-context";
 import { getSiteUrl } from "@/lib/site";
+
+const geist = Geist({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-geist",
+  display: "swap",
+});
+
+const hankenGrotesk = Hanken_Grotesk({
+  subsets: ["latin"],
+  weight: ["600", "700", "800"],
+  variable: "--font-hanken-grotesk",
+  display: "swap",
+});
 
 export const viewport: Viewport = {
   width: "device-width",
@@ -122,7 +137,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       data-theme="light"
       style={{ colorScheme: "light" }}
       suppressHydrationWarning
-      className="min-h-full w-full max-w-full overflow-x-hidden antialiased bg-surface text-on-surface [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      className={`${geist.variable} ${hankenGrotesk.variable} min-h-full w-full max-w-full overflow-x-hidden antialiased bg-surface text-on-surface [scrollbar-width:none] [&::-webkit-scrollbar]:hidden`}
     >
       <head>
         <meta name="theme-color" content="#faf8ff" />
@@ -146,7 +161,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
 
                 // Carga ultrarrápida del color de acento de sesión antes de que pinte el DOM
                 var pth = window.location.pathname;
-                var isPub = pth === '/' || pth.startsWith('/iniciar-sesion') || pth.startsWith('/registro') || pth.startsWith('/recuperar');
+                var isPub = pth === '/' || pth.startsWith('/iniciar-sesion') || pth.startsWith('/registrarse') || pth.startsWith('/recuperar') || pth.startsWith('/terminos') || pth.startsWith('/privacidad') || pth.startsWith('/mantenimiento');
                 if (!isPub) {
                   var acc = localStorage.getItem('finpal_session_accent');
                   if (acc && acc !== 'verde') {
@@ -229,19 +244,17 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           }}
         />
         <style>{`
-          html, body, div, main, section, ::-webkit-scrollbar {
-            scrollbar-width: none !important;
-            -ms-overflow-style: none !important;
+          html, body, main {
+            scrollbar-width: none;
+            -ms-overflow-style: none;
           }
-          ::-webkit-scrollbar {
-            display: none !important;
-            width: 0px !important;
-            height: 0px !important;
-            background: transparent !important;
-          }
-          ::-webkit-scrollbar-thumb,
-          ::-webkit-scrollbar-track {
-            display: none !important;
+          html::-webkit-scrollbar,
+          body::-webkit-scrollbar,
+          main::-webkit-scrollbar {
+            display: none;
+            width: 0px;
+            height: 0px;
+            background: transparent;
           }
         `}</style>
       </head>
