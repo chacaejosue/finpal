@@ -11,25 +11,17 @@ import {
   ReceiptText,
   Calculator,
   HandCoins,
-  Calendar,
   Pencil,
   PlusCircle,
   TrendingUp,
-  Award,
   AlertCircle,
   Archive,
   CheckCircle2,
   Clock,
-  WalletCards,
-  UserCheck,
   Sparkles,
   RotateCcw,
-  MessageCircle,
   ShieldCheck,
-  Barcode,
-  Image as ImageIcon,
   Download,
-  Eye,
 } from "lucide-react";
 import {
   money,
@@ -484,7 +476,7 @@ export function ModalReciboCobro({
               </div>
 
               {pago.notas && (
-                <div className="pt-2 border-t border-primary/10 text-[11px] text-on-surface-variant">
+                <div className="pt-2 border-t border-primary/10 text-[11px] text-on-surface-variant break-words [overflow-wrap:anywhere]">
                   <span className="font-semibold text-on-surface">Tu apunte interno:</span>{" "}
                   <span className="italic">{pago.notas}</span>
                 </div>
@@ -1265,7 +1257,7 @@ export function ModalKardexPrestamo({
                   <span className="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant block">
                     Notas del préstamo
                   </span>
-                  <p className="text-on-surface whitespace-pre-wrap">{prestamo.notas}</p>
+                  <p className="text-on-surface whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{prestamo.notas}</p>
                 </div>
               )}
 
@@ -1993,7 +1985,7 @@ export function ModalFichaContacto({
                   <span className="text-[10px] font-bold uppercase text-on-surface-variant block mb-0.5">
                     Notas del contacto
                   </span>
-                  <p className="text-on-surface whitespace-pre-wrap">{contacto.notas}</p>
+                  <p className="text-on-surface whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{contacto.notas}</p>
                 </div>
               )}
 
